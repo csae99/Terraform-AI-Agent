@@ -1,0 +1,5 @@
+google-generativeai
+python-dotenv
+litellm
+langchain-community
+crewai
