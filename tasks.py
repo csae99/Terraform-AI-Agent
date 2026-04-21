@@ -5,26 +5,34 @@ class TerraformTasks:
     def design_architecture_task(self, agent, requirement):
         return Task(
             description=f'Analyze the following infrastructure requirement and design a complete architecture.\nRequirement: {requirement}\n'
-                        f'Specify the provider, resources needed, networking setup, and any variables or outputs required.',
-            expected_output='A detailed architecture document specifying cloud provider, resources, networking, and configuration details.',
+                        f'IMPORTANT: You MUST specify a short, unique `project_slug` (e.g. "my-app-vpc") as the first line of your response.',
+            expected_output='A detailed architecture document. The first line must be: PROJECT_SLUG: <slug>',
             agent=agent
         )
 
-    def write_terraform_task(self, agent):
+    def write_terraform_task(self, agent, project_slug):
         return Task(
-            description='Using the architecture document from the architect, write the necessary Terraform files.\n'
-                        'IMPORTANT: You must use the `Write Terraform File` tool to save your files (e.g. main.tf, variables.tf, outputs.tf, providers.tf) in the output directory.\n'
-                        'Ensure you use best practices and modern Terraform syntax.',
-            expected_output='Written `.tf` files in the output directory. A summary describing the created files.',
+            description=f'Using the architecture design, write the Terraform files for project: {project_slug}.\n'
+                        'Use the `Write Terraform File` tool and always provide the `project_slug` parameter.',
+            expected_output=f'Written `.tf` files in output/{project_slug}/.',
             agent=agent
         )
 
-    def validate_and_review_task(self, agent):
+    def audit_task(self, agent, project_slug):
         return Task(
-            description='Review the Terraform files written by the developer in the output directory.\n'
-                        '1. Run the `Validate Terraform Code` tool to check for syntax errors.\n'
-                        '2. If there are syntax errors, use the `Write Terraform File` tool to correct them.\n'
-                        '3. Ensure basic security practices are met (e.g., no public overly-permissive ingress rules).',
-            expected_output='A final review report stating that the Terraform code is syntactically valid and complies with security standards.',
+            description=f'Review the Terraform code in the `{project_slug}` workspace for security and syntax.\n'
+                        'Use the `Validate Terraform Code` tool.',
+            expected_output='A report detailing any syntax errors or security risks.',
+            agent=agent
+        )
+
+    def financial_analysis_task(self, agent, project_slug, budget=100.0):
+        return Task(
+            description=f'Analyze the projected costs for the `{project_slug}` workspace.\n'
+                        f'1. Use `get_monthly_cost` to get the total estimated spend.\n'
+                        f'2. Use `generate_financial_report` to create the detailed breakdown.\n'
+                        f'3. Compare the total cost against the budget: ${budget}.\n'
+                        f'4. If the cost exceeds the budget, provide optimization suggestions.',
+            expected_output='A summary of the monthly cost and whether it fits the budget.',
             agent=agent
         )

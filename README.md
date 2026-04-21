@@ -9,6 +9,7 @@ A powerful, interactive, and modular AI agent designed to generate enterprise-gr
 - **Local Model Ready**: Natively supports **Ollama** (Docker or Desktop) for private, local-only infrastructure generation.
 - **Modular by Default**: Automatically generates "Root + Modules" structures (e.g., separate VPC, EKS, and IAM modules) for maximum reusability.
 - **Unified Security Engine**: Dual-engine auditing using **Checkov (Docker)** for deep analysis and **tfsec (Local)** for high-speed checks.
+- **Financial Intelligence**: Integrated **Infracost** to provide instant monthly cost projections for all generated resources.
 - **AI Self-Healing**: The agent automatically identifies its own security vulnerabilities and initiates a "Fix Round" to patch critical issues autonomously.
 - **Interactive Requirement Gathering**: Simple CLI interface that gathers your infrastructure needs dynamically.
 - **Automated Documentation**: Every project generated includes a tailored `README.md` with step-by-step deployment instructions.
@@ -39,8 +40,8 @@ docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
 docker exec -it ollama ollama pull tinyllama
 ```
 
-### 4. (Optional) Security Binary
-Verify that `tfsec.exe` is in the root directory for fast scans. For deep scans, ensured Docker is running.
+### 4. (Optional) Security & Cost Binaries
+Verify that `tfsec.exe` and `infracost.exe` are in the root directory. To enable real cost estimates, run `.\infracost.exe auth login`.
 
 ## 📖 Usage
 

@@ -2,9 +2,12 @@
 __pycache__/
 *.pyc
 venv/
+venv313/
 env/
 .terraform/
 *.tfstate
 *.tfstate.backup
 output/
 .infracost/
+infracost.exe
+tfsec.exe

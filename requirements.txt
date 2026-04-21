@@ -2,4 +2,6 @@ google-generativeai
 python-dotenv
 litellm
 langchain-community
+langchain-core
+langchain-google-genai
 crewai

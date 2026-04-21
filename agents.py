@@ -20,10 +20,10 @@ class TerraformAgents:
     def terraform_developer(self):
         return Agent(
             role='Senior Terraform Developer',
-            goal='Write modular, standard, and robust Terraform code based on the Architect\\'s design.',
+            goal='Write modular, standard, and robust Terraform code based on the Architect\'s design.',
             backstory='You are a master of Infrastructure as Code. You write highly reusable '
-                      'and maintainable Terraform configurations. You split code logically into '
-                      'main.tf, variables.tf, outputs.tf, and providers.tf.',
+                      'and maintainable Terraform configurations. You MUST use the `Write Terraform File` '
+                      'tool and always specify the `project_slug` provided in your context.',
             tools=[TerraformTools.write_terraform_file],
             verbose=True,
             allow_delegation=False,
@@ -35,10 +35,24 @@ class TerraformAgents:
             role='Security & Compliance Reviewer',
             goal='Review Terraform code for security best practices and validate syntax.',
             backstory='You are a strict security engineer. You ensure no open ports remain without reason, '
-                      'encryption is enabled, and syntax is perfectly valid. You will validate '
-                      'the generated code to ensure it complies with Terraform syntactical rules.',
-            tools=[TerraformTools.validate_terraform_code, TerraformTools.write_terraform_file],
+                      'encryption is enabled, and syntax is perfectly valid. You use the `Validate Terraform Code` tool '
+                      'and specify the `project_slug`. If issues are found, you provide DETAILED fix instructions.',
+            tools=[TerraformTools.validate_terraform_code],
             verbose=True,
-            allow_delegation=True, # Allowed to kick back to dev if there's an issue
+            allow_delegation=True, 
+            llm=self.llm
+        )
+
+    def finops_specialist(self):
+        from tools.financial_tools import CostEstimator
+        return Agent(
+            role='FinOps Specialist',
+            goal='Audit infrastructure for cost efficiency and suggest budget-friendly alternatives.',
+            backstory='You are an expert in cloud economics. You ensure that the architecture is not '
+                      'over-provisioned and uses cost-effective resources (e.g. T-series instances where appropriate). '
+                      'You use the `get_monthly_cost` and `generate_financial_report` tools.',
+            tools=[CostEstimator.get_monthly_cost, CostEstimator.generate_financial_report],
+            verbose=True,
+            allow_delegation=False,
             llm=self.llm
         )

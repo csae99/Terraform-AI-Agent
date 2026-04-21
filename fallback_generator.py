@@ -4,6 +4,8 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import time
 from tools.security_tools import SecurityAuditor
+from tools.financial_tools import CostEstimator
+from tools.cloud_tools import CloudSync
 
 def get_ai_completion(model, prompt):
     """
@@ -70,10 +72,19 @@ def write_files(content, output_base):
 def main():
     load_dotenv()
     auditor = SecurityAuditor()
+    estimator = CostEstimator()
+    cloud = CloudSync()
     
     print("\n-------------------------------------------")
-    print("Universal AI Agent - Security-Aware Engine")
+    print("Universal AI Agent - Advanced DevOps Engine")
     print("-------------------------------------------\n")
+
+    # PRE-FLIGHT READINESS CHECK
+    readiness = cloud.check_cloud_readiness()
+    print(f"Cloud Sync Status: [{'READY - ' + readiness['provider'] if readiness['ready'] else 'LOCAL MODE'}]")
+    if not readiness['ready']:
+        print("  ! Note: No cloud credentials detected. Generation will be local-only.")
+    print("")
 
     user_requirement = input("What infrastructure would you like to create today? ")
     if not user_requirement.strip():
@@ -84,14 +95,19 @@ def main():
     
     # 1. INITIAL GENERATION
     prompt = f"""
-    You are a Senior Terraform Developer. 
+    You are a Senior Terraform Developer & Cloud Architect. 
     Task: Create a MODULAR and REUSABLE Terraform setup based on: "{user_requirement}"
     
     Requirements:
-    1. Define a PROJECT_SLUG (e.g., 'aws-s3-website-v1').
+    1. Define a PROJECT_SLUG.
     2. Modular structure: Root calls modules in modules/ directory.
     3. Generate a README.md with deployment instructions.
-    4. Security: Follow AWS Best practices. Do not leave resources open to the public unless explicitly asked.
+    4. Security: Follow AWS Best practices.
+    5. Cost Awareness: Prefer cost-effective resources unless high performance is requested.
+    6. ENTERPRISE MODE: If the user mentions "Production", "Enterprise", or "Scale", you MUST:
+       - Include a `backend.tf` in the root using S3 (AWS) or equivalent.
+       - Enforce `-tf-state` suffix for bucket names.
+       - Use `encrypt = true`.
 
     OUTPUT FORMAT:
     PROJECT_SLUG: [slug]
@@ -116,52 +132,55 @@ def main():
     print(f"\nBuilding Workspace: {output_base}/")
     write_files(content, output_base)
 
-    # 2. SECURITY AUDIT & SELF-HEALING (Using Comprehensive Mode)
-    # Default is Checkov-Docker
+    # ENTERPRISE BOOTSTRAP GENERATION
+    is_enterprise = any(word in user_requirement.lower() for word in ["production", "enterprise", "scale", "remote state"])
+    if is_enterprise and readiness['ready']:
+        print(f"\nEnterprise Mode Detected. Generating Bootstrap Infrastructure for {readiness['provider']}...")
+        bootstrap_code = cloud.generate_bootstrap_code(slug, provider=readiness['provider'])
+        bootstrap_dir = os.path.join(output_base, "bootstrap")
+        os.makedirs(bootstrap_dir, exist_ok=True)
+        with open(os.path.join(bootstrap_dir, "main.tf"), "w", encoding="utf-8") as f:
+            f.write(bootstrap_code)
+        print(f"  + Created bootstrap/main.tf (State Bucket + Lock Table)")
+
+    # 2. SECURITY AUDIT & SELF-HEALING
+    print("\nStarting Automated Security Audit (Checkov)...")
     audit_results = auditor.run_comprehensive_scan(output_base, mode="checkov")
-    
-    # Filter for Critical/High issues (Checkov uses HIGH/CRITICAL)
     findings = audit_results.get("findings", [])
     critical_issues = [f for f in findings if f["severity"] in ["CRITICAL", "HIGH"]]
     
     if critical_issues:
         print(f"  [Healing] Found {len(critical_issues)} high-severity issues. Fix round started...")
-        
-        # Prepare fix prompt
         fix_report = auditor.format_report({"summary": {"total_failed": len(critical_issues), "passed": False, "engine": "checkov"}, "findings": critical_issues})
-        
-        fix_prompt = f"""
-        You are a Senior Security Engineer. 
-        The following Terraform code was generated for requirement: "{user_requirement}"
-        
-        However, a deep security audit (Checkov) found the following issues:
-        
-        {fix_report}
-        
-        Task: Please update the complete project code to resolve these security issues. 
-        Include all modules and root files. Follow the same FILENAME: format.
-        
-        Context:
-        {content}
-        """
-        
+        fix_prompt = f"Fix the security issues in this Terraform project:\n\n{fix_report}\n\nContext:\n{content}"
         fixed_content = get_ai_completion(model, fix_prompt)
         if fixed_content:
-            print("  [Healing] Applying security patches...")
             write_files(fixed_content, output_base)
-            
-            # Final Sanity Check
-            print("  [Audit] Final verification scan...")
             audit_results = auditor.run_comprehensive_scan(output_base, mode="checkov")
-        else:
-            print("  [Healing] Failed to get security fixes from AI.")
 
-    # 3. FINAL REPORTing
-    print("\n--- FINAL SECURITY REPORT ---")
+    # 3. FINANCIAL INTELLIGENCE (COST ESTIMATION)
+    print("\nStarting Financial Audit (Infracost)...")
+    cost_results = estimator.get_monthly_cost(output_base)
+
+    # 4. FINAL REPORTS
+    print("\n" + "="*50)
+    print("                FINAL AGENT REPORTS")
+    print("="*50)
     print(auditor.format_report(audit_results))
+    print("\n" + estimator.format_report(cost_results))
+    print("="*50)
     
-    print(f"\nGeneration complete! folder 'output/{slug}/'")
-    print(f"Deployment instructions in 'output/{slug}/README.md'.")
+    # Append cost to project README
+    readme_path = os.path.join(output_base, "README.md")
+    if os.path.exists(readme_path):
+        cost_info = "\n\n## 💰 Estimated Infrastructure Cost\n"
+        cost_info += estimator.format_report(cost_results)
+        with open(readme_path, "a", encoding="utf-8") as f:
+            f.write(cost_info)
+
+    print(f"\nGeneration complete! Folder: 'output/{slug}/'")
+    if "AUTHENTICATION_REQUIRED" in str(cost_results):
+        print("\n[TIP] To enable real cost estimates, run 'infracost auth login' in your terminal.")
 
 if __name__ == "__main__":
     main()
