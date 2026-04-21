@@ -13,8 +13,10 @@ class TerraformTasks:
     def write_terraform_task(self, agent, project_slug):
         return Task(
             description=f'Using the architecture design, write the Terraform files for project: {project_slug}.\n'
-                        'Use the `Write Terraform File` tool and always provide the `project_slug` parameter.',
-            expected_output=f'Written `.tf` files in output/{project_slug}/.',
+                        'IMPORTANT: You MUST use a MODULAR structure. Create modules for core components (e.g., vpc, eks, iam) '
+                        'and use a root `main.tf` to call them. Use the `Write Terraform File` tool for every file '
+                        'and always provide the correct `project_slug` parameter.',
+            expected_output=f'Written a modular Terraform project in output/{project_slug}/ with root files and a `modules/` directory.',
             agent=agent
         )
 

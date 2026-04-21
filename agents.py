@@ -20,10 +20,11 @@ class TerraformAgents:
     def terraform_developer(self):
         return Agent(
             role='Senior Terraform Developer',
-            goal='Write modular, standard, and robust Terraform code based on the Architect\'s design.',
+            goal='Write modular, industry-standard, and robust Terraform code based on the Architect\'s design.',
             backstory='You are a master of Infrastructure as Code. You write highly reusable '
-                      'and maintainable Terraform configurations. You MUST use the `Write Terraform File` '
-                      'tool and always specify the `project_slug` provided in your context.',
+                      'and modular Terraform configurations following HashiCorp best practices. '
+                      'You MUST organize code into modules (e.g. modules/vpc, modules/eks) and '
+                      'always specify the `project_slug` provided in your context.',
             tools=[TerraformTools.write_terraform_file],
             verbose=True,
             allow_delegation=False,

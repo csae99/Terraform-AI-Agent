@@ -16,22 +16,29 @@ def get_project_slug(architect_output):
         return match.group(1).strip()
     return "workspace"
 
+def main():
     # Parse Requirement and Dynamic Budget
-    requirement = sys.argv[1]
     budget = 100.0  # Default
-    
-    # Check for --budget argument
-    for i, arg in enumerate(sys.argv):
-        if arg == "--budget" and i + 1 < len(sys.argv):
+    requirement = ""
+
+    # Improved arg parsing
+    args = sys.argv[1:]
+    if "--budget" in args:
+        idx = args.index("--budget")
+        if idx + 1 < len(args):
             try:
-                budget = float(sys.argv[i+1])
+                budget = float(args[idx+1])
+                # Remove budget and its value to find the requirement
+                args.pop(idx+1)
+                args.pop(idx)
             except ValueError:
-                print(f"Warning: Invalid budget value '{sys.argv[i+1]}'. Using default $100.")
+                print(f"Warning: Invalid budget value. Using default $100.")
     
-    # Environment override
-    env_budget = os.getenv("INFRACOST_MAX_MONTHLY_COST")
-    if env_budget:
-        budget = float(env_budget)
+    if args:
+        requirement = " ".join(args)
+    else:
+        print("Error: No requirement provided.")
+        sys.exit(1)
 
     agents = TerraformAgents()
     tasks = TerraformTasks()
@@ -109,7 +116,7 @@ def get_project_slug(architect_output):
         if critical_count < best_finding_count:
             best_finding_count = critical_count
             print(f"  [Progress] New best version found ({critical_count} issues). Creating snapshot...")
-            best_backup = TerraformTools.backup_workspace(slug)
+            best_backup = TerraformTools._backup_workspace(slug)
 
         if critical_count == 0:
             print("\n✅ Verification SUCCESS! No critical security issues found.")
@@ -141,7 +148,7 @@ def get_project_slug(architect_output):
         if revert_choice == 'y' and best_backup:
             # Extract path from message: "Backup created at output\.backups\..."
             backup_path = best_backup.split("Backup created at ")[1].strip()
-            TerraformTools.restore_workspace(slug, backup_path)
+            TerraformTools._restore_workspace(slug, backup_path)
             print(f"Workspace reverted to best-known version with {best_finding_count} issues.")
 
     # 5. Final FinOps Audit & Report

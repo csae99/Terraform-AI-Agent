@@ -1,7 +1,7 @@
 import subprocess
 import json
 import os
-from langchain_core.tools import tool
+from crewai.tools import tool
 
 class CostEstimator:
     def __init__(self, binary_path="infracost.exe"):

@@ -12,19 +12,34 @@ os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 
 def get_llm():
     """
-    Returns a CrewAI LLM instance configured for the Gemini API.
-    Using 'google_ai/' prefix is the most explicit way in LiteLLM 1.74+
-    to target the Gemini API (AI Studio) and avoid Vertex AI misrouting.
+    Returns a CrewAI LLM instance.
+    Detects the provider (gemini, groq, openai) from DEFAULT_MODEL prefix.
     """
-    model_name = os.getenv("DEFAULT_MODEL", "gemini-1.5-flash")
-    if "/" in model_name:
-        model_name = model_name.split("/")[-1]
+    model_name = os.getenv("DEFAULT_MODEL", "gemini/gemini-flash-latest")
     
-    # Official LiteLLM prefix for Gemini API (not Vertex)
-    full_model_path = f"google_ai/{model_name}"
+    # Default to gemini if no prefix is provided
+    if "/" not in model_name:
+        model_name = f"gemini/{model_name}"
     
+    provider = model_name.split("/")[0].lower()
+    
+    # Map provider to the correct API key from environment
+    key_map = {
+        "gemini": os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
+        "google_ai": os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
+        "groq": os.getenv("GROQ_API_KEY"),
+        "mistral": os.getenv("MISTRAL_API_KEY"),
+        "openai": os.getenv("OPENAI_API_KEY"),
+        "anthropic": os.getenv("ANTHROPIC_API_KEY"),
+    }
+    
+    api_key = key_map.get(provider)
+    
+    if not api_key:
+        print(f"Warning: No API key found for provider '{provider}'.")
+
     return LLM(
-        model=full_model_path,
+        model=model_name,
         temperature=0.7,
-        api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        api_key=api_key
     )

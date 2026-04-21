@@ -1,23 +1,30 @@
-# Universal Terraform AI Agent
+# 🤖 Universal Terraform AI Agent (Phase 4: Multi-Agent)
 
-A powerful, interactive, and modular AI agent designed to generate enterprise-grade Terraform infrastructure. Built to be **Universal**, it can be powered by cloud LLMs (Gemini, OpenAI, Claude) or run entirely locally via **Ollama**.
+A powerful, interactive, and modular AI system designed to generate enterprise-grade Terraform infrastructure. Built to be **Universal**, it can be powered by cloud LLMs (Gemini, Groq, Mistral) or run entirely locally via **Ollama**.
+
+---
 
 ## 🚀 Key Features
 
-- **Universal LLM Support**: Powered by **LiteLLM**, allowing you to swap between 100+ providers via a single setting.
-- **Robust Fallback Engine**: Integrated official Google Generative AI SDK fallback ensures 100% reliability for Gemini users.
-- **Local Model Ready**: Natively supports **Ollama** (Docker or Desktop) for private, local-only infrastructure generation.
-- **Modular by Default**: Automatically generates "Root + Modules" structures (e.g., separate VPC, EKS, and IAM modules) for maximum reusability.
+- **Multi-Agent Orchestration**: Powered by **CrewAI**, utilizing specialized agents (Architect, Developer, Security Reviewer, FinOps Specialist) for a robust production pipeline.
+- **Universal LLM Support**: Powered by **LiteLLM**, allowing you to swap between 100+ providers (Gemini, Groq, Mistral, OpenAI) via a single `.env` setting.
+- **Modular by Default**: Automatically generates "Root + Modules" structures (e.g., separate VPC, EKS, and IAM modules) following HashiCorp best practices.
+- **AI Self-Healing**: The system automatically identifies security vulnerabilities and initiates "Fix Rounds" to patch critical issues autonomously.
 - **Unified Security Engine**: Dual-engine auditing using **Checkov (Docker)** for deep analysis and **tfsec (Local)** for high-speed checks.
-- **Financial Intelligence**: Integrated **Infracost** to provide instant monthly cost projections for all generated resources.
-- **AI Self-Healing**: The agent automatically identifies its own security vulnerabilities and initiates a "Fix Round" to patch critical issues autonomously.
-- **Interactive Requirement Gathering**: Simple CLI interface that gathers your infrastructure needs dynamically.
-- **Automated Documentation**: Every project generated includes a tailored `README.md` with step-by-step deployment instructions.
+- **Financial Intelligence**: Integrated **Infracost** to provide instant monthly cost projections and budget guardrails.
+- **Windows Hardened**: Optimized for PowerShell, handling deep paths, Unicode characters, and standalone binaries seamlessly.
+
+---
+
+## 📖 Documentation
+
+For a detailed breakdown of the multi-agent system, see the [Multi-Agent Architecture Guide](MULTI_AGENT_ARCHITECTURE.md).
+
+---
 
 ## 🛠️ Setup
 
 ### 1. Install Dependencies
-Ensure you are using Python 3.9+ (Tested up to 3.14).
 ```bash
 pip install -r requirements.txt
 ```
@@ -25,44 +32,42 @@ pip install -r requirements.txt
 ### 2. Configure Environment
 Copy `.env.example` to `.env` and configure your preferred model:
 ```env
-# Example: Using Gemini (Flash)
-DEFAULT_MODEL=gemini/gemini-1.5-flash
-GEMINI_API_KEY=your_key_here
+# Example: Using Groq (Fastest)
+DEFAULT_MODEL=groq/llama-3.3-70b-versatile
+GROQ_API_KEY=your_key_here
 
-# Example: Using Local Ollama
-# DEFAULT_MODEL=ollama/tinyllama
+# Example: Using Mistral (Best for Code)
+# DEFAULT_MODEL=mistral/codestral-latest
+# MISTRAL_API_KEY=your_key_here
 ```
 
-### 3. (Optional) Local LLM Setup (Docker)
-To run entirely locally, start the Ollama container and pull a model:
+### 3. Binary Requirements
+Ensure `tfsec.exe` and `infracost.exe` are in the root directory for Windows. Run `.\infracost.exe auth login` to enable pricing.
+
+---
+
+## 🏗️ Usage
+
+Run the **Phase 4 Multi-Agent Runner**:
 ```powershell
-docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-docker exec -it ollama ollama pull tinyllama
+python crew_runner.py --budget 150 "create a production grade eks cluster in a private vpc"
 ```
 
-### 4. (Optional) Security & Cost Binaries
-Verify that `tfsec.exe` and `infracost.exe` are in the root directory. To enable real cost estimates, run `.\infracost.exe auth login`.
+### Workflow Phases:
+1.  **Architecture**: The Architect designs the blueprint and generates a `project_slug`.
+2.  **Coding**: The Developer builds a modular Terraform project in `output/<slug>/`.
+3.  **Security Audit**: The Reviewer and Auditor run scans and attempt self-healing fixes.
+4.  **FinOps**: The specialist calculates costs and checks against your `--budget`.
 
-## 📖 Usage
+---
 
-Run the interactive generator:
-```powershell
-python fallback_generator.py
-```
+## 📂 Project Structure
 
-1. **Describe your infra**: "A scalable EKS cluster with managed nodes and a public VPC."
-2. **Review Output**: The agent will create a project-specific folder in `output/`.
-3. **Deploy**: Follow the instructions in the generated `README.md` inside your project folder.
+- **`crew_runner.py`**: The entry point for the Multi-Agent workflow.
+- **`agents.py` & `tasks.py`**: Definitions of the AI team and their specific goals.
+- **`tools/`**: Specialized tools for Terraform management, security, and cost estimation.
+- **`output/`**: Directory containing your generated, validated, and audited Terraform projects.
+python crew_runner.py --budget 250 "Your infra requirement" 
+---
 
-## 🏗️ Project Structure
-
-- **`fallback_generator.py`**: The main Unified Agent script.
-- **`tools/terraform_tools.py`**: Core utilities for file management and terraform validation.
-- **`output/`**: Dedicated subdirectories for each generated infrastructure project.
-- **`requirements.txt`**: Consolidated list of all necessary libraries (LiteLLM, Google SDK, etc.).
-
-## 🛡️ Windows Compatibility
-This project is hardened for Windows environments, including:
-- **Unicode Resilience**: Optimized to prevent encoding errors in the terminal.
-- **Path Handling**: Fully supports deep, recursive directory structures for Terraform modules.
- 
+*Last Updated: 2026-04-22*
