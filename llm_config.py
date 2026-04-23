@@ -17,11 +17,16 @@ def get_llm():
     """
     model_name = os.getenv("DEFAULT_MODEL", "gemini/gemini-flash-latest")
     
-    # Default to gemini if no prefix is provided
-    if "/" not in model_name:
+    # Handle default prefixing
+    if "/" not in model_name and not model_name.startswith("gemini"):
         model_name = f"gemini/{model_name}"
     
-    provider = model_name.split("/")[0].lower()
+    # Provider detection
+    if "/" in model_name:
+        provider = model_name.split("/")[0].lower()
+    else:
+        # Default to gemini if it's a bare gemini model name
+        provider = "gemini" if "gemini" in model_name.lower() else "openai"
     
     # Map provider to the correct API key from environment
     key_map = {

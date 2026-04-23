@@ -4,19 +4,24 @@ class TerraformTasks:
 
     def design_architecture_task(self, agent, requirement):
         return Task(
-            description=f'Analyze the following infrastructure requirement and design a complete architecture.\nRequirement: {requirement}\n'
-                        f'IMPORTANT: You MUST specify a short, unique `project_slug` (e.g. "my-app-vpc") as the first line of your response.',
+            description=f'Analyze the following infrastructure requirement and design a MINIMAL architecture.\n'
+                        f'Requirement: {requirement}\n'
+                        'IMPORTANT: DO NOT add NAT Gateways, Private Subnets, or Multi-AZ unless explicitly requested.\n'
+                        'If the user asks for a Public Subnet, provide ONLY an IGW and the requested subnet.\n'
+                        'You MUST specify a short, unique `project_slug` (e.g. "my-app-vpc") as the first line of your response.',
             expected_output='A detailed architecture document. The first line must be: PROJECT_SLUG: <slug>',
             agent=agent
         )
 
     def write_terraform_task(self, agent, project_slug):
         return Task(
-            description=f'Using the architecture design, write the Terraform files for project: {project_slug}.\n'
-                        'IMPORTANT: You MUST use a MODULAR structure. Create modules for core components (e.g., vpc, eks, iam) '
-                        'and use a root `main.tf` to call them. Use the `Write Terraform File` tool for every file '
-                        'and always provide the correct `project_slug` parameter.',
-            expected_output=f'Written a modular Terraform project in output/{project_slug}/ with root files and a `modules/` directory.',
+            description=f'Based on the Architect\'s design, implement the Terraform project: {project_slug}.\n'
+                        '1. You MUST use the `write_terraform_file` tool for every single file.\n'
+                        '2. Structure: Root `main.tf` calling modules in `modules/vpc/`, `modules/security/`, etc.\n'
+                        '3. Do NOT just output text. If you do not call the tool, the files will not exist and the task fails.\n'
+                        '4. You MUST create a `README.md` in the project ROOT (not in modules) explaining the setup.\n'
+                        f'Project Slug: {project_slug}',
+            expected_output=f'A fully populated modular project in output/{project_slug}/ consisting of multiple .tf files.',
             agent=agent
         )
 

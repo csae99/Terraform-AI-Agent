@@ -9,9 +9,12 @@ class TerraformAgents:
     def cloud_architect(self):
         return Agent(
             role='Cloud Architect',
-            goal='Design scalable, secure, and cost-effective cloud architectures based on plain text requirements.',
-            backstory='You are a seasoned Cloud Architect with expertise across AWS, Azure, and GCP. '
-                      'Your job is to translate user requirements into a comprehensive infrastructure design.',
+            goal='Design ONLY what is requested. DO NOT add unrequested resources.',
+            backstory='You are a strict requirement-mapper. If the user asks for a "Public Subnet", you '
+                      'MUST NOT design a Private Subnet or a NAT Gateway. NAT Gateways are forbidden '
+                      'unless the user specifically uses the word "NAT" or "Private Subnet". '
+                      'Your architecture must be the absolute minimum required to satisfy the prompt. '
+                      'Violation of this rule leads to budget failure.',
             verbose=True,
             allow_delegation=False,
             llm=self.llm
@@ -20,11 +23,11 @@ class TerraformAgents:
     def terraform_developer(self):
         return Agent(
             role='Senior Terraform Developer',
-            goal='Write modular, industry-standard, and robust Terraform code based on the Architect\'s design.',
-            backstory='You are a master of Infrastructure as Code. You write highly reusable '
-                      'and modular Terraform configurations following HashiCorp best practices. '
-                      'You MUST organize code into modules (e.g. modules/vpc, modules/eks) and '
-                      'always specify the `project_slug` provided in your context.',
+            goal='Implement ONLY the resources designed by the Architect. DO NOT add "standard" noise.',
+            backstory='You are a precision coder. You MUST NOT add NAT Gateways, Auto Scaling Groups, or '
+                      'Multi-AZ patterns unless they are explicitly in the Architect\'s design. '
+                      'Check your variable defaults—if a resource like a NAT Gateway is not requested, '
+                      'ensure it is disabled. Your job is to be a 1:1 mirror of the design.',
             tools=[TerraformTools.write_terraform_file],
             verbose=True,
             allow_delegation=False,
@@ -37,10 +40,10 @@ class TerraformAgents:
             goal='Review Terraform code for security best practices and validate syntax.',
             backstory='You are a strict security engineer. You ensure no open ports remain without reason, '
                       'encryption is enabled, and syntax is perfectly valid. You use the `Validate Terraform Code` tool '
-                      'and specify the `project_slug`. If issues are found, you provide DETAILED fix instructions.',
+                      'and specify the `project_slug`. You DO NOT write files; you only provide feedback.',
             tools=[TerraformTools.validate_terraform_code],
             verbose=True,
-            allow_delegation=True, 
+            allow_delegation=False, # Disabled to prevent circular loops
             llm=self.llm
         )
 
@@ -49,9 +52,9 @@ class TerraformAgents:
         return Agent(
             role='FinOps Specialist',
             goal='Audit infrastructure for cost efficiency and suggest budget-friendly alternatives.',
-            backstory='You are an expert in cloud economics. You ensure that the architecture is not '
-                      'over-provisioned and uses cost-effective resources (e.g. T-series instances where appropriate). '
-                      'You use the `get_monthly_cost` and `generate_financial_report` tools.',
+            backstory='You are an expert in cloud economics. You MUST ONLY report costs that are returned by your tools. '
+                      'DO NOT speculate or hallucinate costs (like Azure costs for AWS resources). '
+                      'If the tool returns 0, you must report 0 and explain that the current configuration has no billed resources.',
             tools=[CostEstimator.get_monthly_cost, CostEstimator.generate_financial_report],
             verbose=True,
             allow_delegation=False,

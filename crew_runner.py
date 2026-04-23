@@ -1,6 +1,12 @@
 import sys
+import io
 import os
 import re
+# Force UTF-8 encoding for console output on Windows
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 from crewai import Crew, Process, Task
 from agents import TerraformAgents
 from tasks import TerraformTasks
@@ -13,7 +19,7 @@ os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 os.environ["OTEL_SDK_DISABLED"] = "true"  # Disables the underlying OpenTelemetry
 def get_project_slug(architect_output):
     """Parses PROJECT_SLUG from architect output."""
-    match = re.search(r"PROJECT_SLUG:\s*([\w-]+)", architect_output)
+    match = re.search(r"PROJECT_SLUG:\s*([\w-]+)", architect_output, re.IGNORECASE)
     if match:
         return match.group(1).strip()
     return "workspace"
