@@ -1,6 +1,6 @@
-# 🤖 Multi-Agent Terraform Orchestration System
+# 🤖 Multi-Agent Terraform Orchestration System (Phase 5)
 
-This document provides a deep dive into the **Phase 4 Multi-Agent Architecture** of the Terraform AI Agent. This system transitions from a simple single-prompt generator to a complex, self-correcting assembly line of specialized AI agents.
+This document provides a deep dive into the **Phase 5 Multi-Agent Architecture** of the Terraform AI Agent. This system transitions from a simple code generator to a full-lifecycle **Self-Healing Deployment Platform**.
 
 ---
 
@@ -16,12 +16,15 @@ graph TD
     Reviewer -->|Validation Results| Auditor[Security Auditor - Checkov/tfsec]
     Auditor -->|Critical Findings| Developer
     Auditor -->|Clean Scan| FinOps[FinOps Specialist]
-    FinOps -->|Cost Analysis| User
+    FinOps -->|Cost Analysis| Deployer[Deployment Specialist]
+    Deployer -->|Live Logs/Errors| Developer
+    Deployer -->|Final IP/URL| User
     
     subgraph "Self-Healing Loop (Up to 3 Rounds)"
     Developer
     Reviewer
     Auditor
+    Deployer
     end
 ```
 
@@ -42,11 +45,19 @@ graph TD
 
 ### 4. FinOps Specialist (The Accountant)
 - **Role**: Analyzes the financial impact of the generated infrastructure.
-- **Tooling**: Integrated with **Infracost**.
+- **Tooling**: Integrated with **Infracost (Docker)**.
 - **Features**: 
     - Fetches real-world prices for AWS/Azure resources.
     - Compares estimates against the user's `--budget`.
-    - Provides specific optimization suggestions (e.g., using Spot instances or ARM-based Graviton CPUs).
+    - Provides specific optimization suggestions.
+
+### 5. Deployment Specialist (The Operator)
+- **Role**: Executes the live infrastructure changes and handles provider-level interactions.
+- **Tooling**: Uses `terraform plan` and `terraform apply`.
+- **Self-Healing Capabilities**: 
+    - Captures real-time CLI errors (e.g., `BucketAlreadyExists`, `AMIIDNotFound`).
+    - Feeds technical error logs back to the Developer for immediate code remediation.
+    - Ensures that "hallucinated" infrastructure is corrected against actual cloud state.
 
 ---
 
@@ -108,7 +119,8 @@ python crew_runner.py --budget 150 "Requirement description"
 | `Write Terraform File` | Python/OS | Atomic file creation and directory management. |
 | `Validate Terraform Code` | Terraform CLI | Real-time syntax and init verification. |
 | `Security Audit` | Checkov (Docker) | Deep static analysis (SCA) for 1000+ security policies. |
-| `Cost Estimator` | Infracost | Line-item monthly cost breakdown and budget tracking. |
+| `Cost Estimator` | Infracost (Docker) | Line-item monthly cost breakdown and budget tracking. |
+| `Deployment Tools` | Terraform CLI | Execution of Plan/Apply/Destroy with live log capturing. |
 | `Backup/Restore` | Python/shutil | Versioning and crash-recovery for generated code. |
 
 ---

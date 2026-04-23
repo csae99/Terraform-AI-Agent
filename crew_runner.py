@@ -24,29 +24,15 @@ def get_project_slug(architect_output):
         return match.group(1).strip()
     return "workspace"
 
-def main():
-    # Parse Requirement and Dynamic Budget
-    budget = 100.0  # Default
-    requirement = ""
+import argparse
 
-    # Improved arg parsing
-    args = sys.argv[1:]
-    if "--budget" in args:
-        idx = args.index("--budget")
-        if idx + 1 < len(args):
-            try:
-                budget = float(args[idx+1])
-                # Remove budget and its value to find the requirement
-                args.pop(idx+1)
-                args.pop(idx)
-            except ValueError:
-                print(f"Warning: Invalid budget value. Using default $100.")
-    
-    if args:
-        requirement = " ".join(args)
-    else:
-        print("Error: No requirement provided.")
-        sys.exit(1)
+def main():
+    parser = argparse.ArgumentParser(description="Multi-Agent Terraform Platform (Phase 5)")
+    parser.add_argument("prompt", type=str, nargs="?", help="Your infrastructure requirement")
+    parser.add_argument("--budget", type=float, default=100.0, help="Monthly budget limit in USD")
+    parser.add_argument("--apply", action="store_true", help="Enable live deployment (Self-Healing)")
+    parser.add_argument("--destroy", type=str, help="Destroy an existing workspace (provide slug)")
+    args = parser.parse_args()
 
     agents = TerraformAgents()
     tasks = TerraformTasks()
@@ -54,8 +40,36 @@ def main():
     estimator = CostEstimator()
     cloud = CloudSync()
 
+    # --- Decommissioning Flow ---
+    if args.destroy:
+        slug = args.destroy
+        print(f"\n⚠️ WARNING: Initiating decommissioning of workspace: {slug}")
+        
+        deployer_agent = agents.deployment_specialist()
+        destroy_task = tasks.decommissioning_task(deployer_agent, slug)
+        
+        crew = Crew(
+            agents=[deployer_agent],
+            tasks=[destroy_task],
+            verbose=True
+        )
+        
+        result = crew.kickoff()
+        print("\n--- Decommissioning Result ---")
+        print(result)
+        return
+
+    # --- Standard Development Flow ---
+    if not args.prompt:
+        print("Error: No prompt provided. Usage: python crew_runner.py 'prompt' [--apply]")
+        return
+    
+    requirement = args.prompt
+    budget = args.budget
+    do_apply = args.apply
+
     print("\n" + "="*50)
-    print("      Universal AI Agent - Phase 4 (Multi-Agent)")
+    print("      Universal AI Agent - Phase 5 (Self-Healing Deployment)")
     print("="*50 + "\n")
 
     # 1. Cloud Readiness & Initial Architect
@@ -72,42 +86,43 @@ def main():
     output_base = os.path.join("output", slug)
     print(f"\nBuilding Project Workspace: {output_base}/")
 
-    # 2. Bootstrap Generation (Phase 3 Integration)
-    is_enterprise = any(w in requirement.lower() for w in ["production", "enterprise", "scale"])
-    if is_enterprise and readiness['ready']:
-        print(f"Enterprise Mode: Creating bootstrap infrastructure for {readiness['provider']}...")
-        bootstrap_code = cloud.generate_bootstrap_code(slug, provider=readiness['provider'])
-        bootstrap_dir = os.path.join(output_base, "bootstrap")
-        os.makedirs(bootstrap_dir, exist_ok=True)
-        with open(os.path.join(bootstrap_dir, "main.tf"), "w", encoding="utf-8") as f:
-            f.write(bootstrap_code)
-        print("  + Created bootstrap/main.tf")
-
     # 3. Main Development & Audit Loop
     max_rounds = 3
     current_round = 1
     best_finding_count = 999
-    best_backup = None
 
     dev_agent = agents.terraform_developer()
     reviewer_agent = agents.security_reviewer()
     finops_agent = agents.finops_specialist()
+    deployer_agent = agents.deployment_specialist()
 
-    input_context = f"Architecture Design:\n{arch_result}"
+    # Shared context for all agents
+    context_text = f"ARCHITECT DESIGN:\n{arch_result}\n\nREQUIRED SLUG: {slug}"
 
     while current_round <= max_rounds:
         print(f"\n--- [Round {current_round}/{max_rounds}] Starting Agentic Workflow ---")
         
-        # 3a. Coding Task
+        # Build task list with context
         coding_task = tasks.write_terraform_task(dev_agent, slug)
-        # 3b. Audit Task
+        coding_task.description += f"\n\nContext:\n{context_text}"
+        
         audit_task = tasks.audit_task(reviewer_agent, slug)
-        # 3c. Financial Analysis Task (Dynamic Budget)
+        audit_task.description += f"\n\nContext:\n{context_text}"
+        
         finops_task = tasks.financial_analysis_task(finops_agent, slug, budget=budget)
+        finops_task.description += f"\n\nContext:\n{context_text}"
+
+        workflow_tasks = [coding_task, audit_task, finops_task]
+
+        # Add deployment task if --apply is set
+        if do_apply:
+            deploy_task = tasks.deployment_task(deployer_agent, slug)
+            deploy_task.description += f"\n\nContext:\n{context_text}"
+            workflow_tasks.append(deploy_task)
 
         crew = Crew(
-            agents=[dev_agent, reviewer_agent, finops_agent],
-            tasks=[coding_task, audit_task, finops_task],
+            agents=[dev_agent, reviewer_agent, finops_agent, deployer_agent] if do_apply else [dev_agent, reviewer_agent, finops_agent],
+            tasks=workflow_tasks,
             process=Process.sequential,
             verbose=True
         )
@@ -120,33 +135,26 @@ def main():
         findings = results.get("findings", [])
         critical_count = len([f for f in findings if f["severity"] in ["CRITICAL", "HIGH"]])
         
-        # Track best version
-        if critical_count < best_finding_count:
-            best_finding_count = critical_count
-            print(f"  [Progress] New best version found ({critical_count} issues). Creating snapshot...")
-            best_backup = TerraformTools._backup_workspace(slug)
+        # Check for Deployment Success in the result if we attempted apply
+        is_deployed = "🚀 Deployment Successful!" in crew_result if do_apply else True
 
-        if critical_count == 0:
-            print("\n✅ Verification SUCCESS! No critical security issues found.")
+        if critical_count == 0 and is_deployed:
+            print("\n✅ Phase 5 Verification SUCCESS! No security issues and deployment is live.")
             break
         
         # SELF-HEALING INTERACTION
-        print(f"\n⚠️ Security Audit: Found {critical_count} critical/high issues.")
-        print(auditor.format_report(results))
+        if critical_count > 0:
+            print(f"\n⚠️ Security Audit: Found {critical_count} critical/high issues.")
+        if do_apply and not is_deployed:
+            print(f"\n❌ Deployment Failed. Attempting to heal based on logs...")
         
         if current_round < max_rounds:
-            print("\n[USER INPUT REQUIRED]")
-            choice = input(f"Would you like to proceed with autonomous Fix Round {current_round + 1}? [y/n]: ").lower()
+            choice = input(f"\nWould you like to proceed with autonomous Fix Round {current_round + 1}? [y/n]: ").lower()
             if choice != 'y':
-                print("Self-healing round canceled by user.")
                 break
-            
-            # Prepare Fix Instructions for next round
-            fix_report = auditor.format_report(results)
-            input_context = f"Security Audit Findings:\n{fix_report}\n\nNote: You MUST fix these high-severity issues in the next iteration."
             current_round += 1
         else:
-            print("\n❌ Max rounds reached. Security standards not fully met.")
+            print("\n❌ Max rounds reached.")
             break
 
     # 4. Final Cleanup & Revert Logic

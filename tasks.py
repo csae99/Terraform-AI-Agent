@@ -40,6 +40,30 @@ class TerraformTasks:
                         f'2. Use `generate_financial_report` to create the detailed breakdown.\n'
                         f'3. Compare the total cost against the budget: ${budget}.\n'
                         f'4. If the cost exceeds the budget, provide optimization suggestions.',
-            expected_output='A summary of the monthly cost and whether it fits the budget.',
+            expected_output='A cost analysis summary with budget status.',
+            agent=agent
+        )
+
+    def deployment_task(self, agent, project_slug):
+        return Task(
+            description=f'Execute the live deployment for the `{project_slug}` workspace.\n'
+                        f'1. Run `run_terraform_plan` to verify the changes.\n'
+                        f'2. If the plan output shows resources to be created (e.g. "Plan: 3 to add"), '
+                        f'you MUST IMMEDIATELY run `run_terraform_apply` to provision them.\n'
+                        f'3. DO NOT repeat the plan more than once. If it looks correct, apply it.\n'
+                        f'4. If any API errors occur, report the EXACT error log for self-healing.\n'
+                        f'5. Return the final output (Bucket Name, ARN, etc.) if successful.',
+            expected_output='A deployment status report confirming the resources are LIVE on AWS.',
+            agent=agent
+        )
+
+    def decommissioning_task(self, agent, project_slug):
+        return Task(
+            description=f'Permanently destroy all infrastructure in the `{project_slug}` workspace.\n'
+                        f'1. Use the `run_terraform_destroy` tool.\n'
+                        f'2. Ensure all resources are successfully removed.\n'
+                        f'3. If any "DependencyViolation" or "BucketNotEmpty" errors occur, '
+                        f'report the EXACT log for remediation.',
+            expected_output='A confirmation report that the infrastructure has been successfully destroyed.',
             agent=agent
         )

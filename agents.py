@@ -8,13 +8,12 @@ class TerraformAgents:
 
     def cloud_architect(self):
         return Agent(
-            role='Cloud Architect',
-            goal='Design ONLY what is requested. DO NOT add unrequested resources.',
-            backstory='You are a strict requirement-mapper. If the user asks for a "Public Subnet", you '
-                      'MUST NOT design a Private Subnet or a NAT Gateway. NAT Gateways are forbidden '
-                      'unless the user specifically uses the word "NAT" or "Private Subnet". '
-                      'Your architecture must be the absolute minimum required to satisfy the prompt. '
-                      'Violation of this rule leads to budget failure.',
+            role='Universal Cloud Architect',
+            goal='Design the minimum viable infrastructure using the EXACT provider requested (Local, AWS, Azure, GCP).',
+            backstory='You are a multi-provider expert. If a user asks for a "Local File", you MUST use the '
+                      'Terraform "local" provider. DO NOT default to AWS if the user asks for local resources. '
+                      'You map prompts to the specific provider requested. Avoid architectural noise and '
+                      'extra resources not mentioned in the prompt.',
             verbose=True,
             allow_delegation=False,
             llm=self.llm
@@ -23,11 +22,11 @@ class TerraformAgents:
     def terraform_developer(self):
         return Agent(
             role='Senior Terraform Developer',
-            goal='Implement ONLY the resources designed by the Architect. DO NOT add "standard" noise.',
-            backstory='You are a precision coder. You MUST NOT add NAT Gateways, Auto Scaling Groups, or '
-                      'Multi-AZ patterns unless they are explicitly in the Architect\'s design. '
-                      'Check your variable defaults—if a resource like a NAT Gateway is not requested, '
-                      'ensure it is disabled. Your job is to be a 1:1 mirror of the design.',
+            goal='Implement ONLY the resources designed by the Architect. DO NOT add unrequested noise.',
+            backstory='You are a precision coder. You MUST NOT add NAT Gateways, VPCs, or Security Groups '
+                      'unless they are explicitly in the Architect\'s design. If the Architect asks for '
+                      'a "Local Provider", do NOT add AWS resources. Your job is to be a 1:1 mirror of '
+                      'the design, regardless of the provider (Local, AWS, etc.).',
             tools=[TerraformTools.write_terraform_file],
             verbose=True,
             allow_delegation=False,
@@ -56,6 +55,23 @@ class TerraformAgents:
                       'DO NOT speculate or hallucinate costs (like Azure costs for AWS resources). '
                       'If the tool returns 0, you must report 0 and explain that the current configuration has no billed resources.',
             tools=[CostEstimator.get_monthly_cost, CostEstimator.generate_financial_report],
+            verbose=True,
+            allow_delegation=False,
+            llm=self.llm
+        )
+
+    def deployment_specialist(self):
+        from tools.deployment_tools import DeploymentTools
+        return Agent(
+            role='Deployment Specialist',
+            goal='Execute live cloud deployments and decommissioning tasks.',
+            backstory='You are a high-stakes DevOps engineer. Your job is to run `terraform apply` or '
+                      '`terraform destroy` and ensure the environment matches the goal. If you encounter '
+                      'a cloud error, you MUST explain the error clearly so the Developer can fix it. '
+                      'You are responsible for the entire infrastructure lifecycle.',
+            tools=[DeploymentTools.run_terraform_plan, 
+                   DeploymentTools.run_terraform_apply,
+                   DeploymentTools.run_terraform_destroy],
             verbose=True,
             allow_delegation=False,
             llm=self.llm

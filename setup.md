@@ -6,8 +6,9 @@ This guide provides step-by-step instructions for setting up the Universal Terra
 
 1.  **Python 3.9+**: The core engine of the agent.
 2.  **Terraform CLI**: Required for infrastructure validation and deployment.
-3.  **Docker**: Required for Deep Security Auditing (Checkov) and local LLMs (Ollama).
-4.  **API Keys**: A Gemini API key (Primary) or OpenAI/Claude key.
+3.  **Docker**: Essential for FinOps (Infracost) and Security (Checkov).
+4.  **AWS CLI**: Required for live deployments in Phase 5.
+5.  **API Keys**: Gemini API key (Primary) and an Infracost API token.
 
 ---
 
@@ -23,16 +24,16 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 2. Security & Financial Tools (Binaries)
-These tools are provided as standalone binaries for Windows to avoid complex build requirements.
-- **tfsec** (Fast Scan): [Download tfsec-windows-amd64.exe](https://github.com/aquasecurity/tfsec/releases) and place it in the root as `tfsec.exe`.
-- **Infracost** (Cost Scan): [Download infracost-windows-amd64.zip](https://github.com/infracost/infracost/releases), extract, and place it in the root as `infracost.exe`.
-- **Checkov** (Deep Scan): Handled via Docker. No local installation needed.
+### 2. Security & Financial Tools (Dockerized)
+The platform now uses Dockerized versions of **Infracost** and **Checkov** to ensure consistency.
+- **Docker**: Ensure Docker Desktop is running.
+- **Infracost API Key**: Register at [infracost.io](https://www.infracost.io/) and add your key to the `.env` file.
+- **Checkov**: The agent will automatically pull and run the `bridgecrew/checkov` image.
 
 ### 3. Authentication
 ```powershell
 # Authenticate Infracost (Free API Key)
-.\infracost.exe auth login
+# Note: Ensure INFRACOST_API_KEY is set in your .env file
 ```
 
 ---
@@ -59,20 +60,16 @@ chmod +x tfsec
 sudo mv tfsec /usr/local/bin/
 ```
 
-**Infracost (Cost Scan):**
+**Infracost & Checkov (Docker):**
+No manual installation is required. Ensure your user has permissions to run Docker:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+sudo usermod -aG docker $USER
 ```
-
-**Checkov (Deep Scan):**
-Handled via Docker. Ensure Docker is installed and your user is in the `docker` group.
-```bash
-docker pull bridgecrew/checkov:latest
-```
+The agent will pull `infracost/infracost` and `bridgecrew/checkov` automatically.
 
 ### 3. Authentication
 ```bash
-infracost auth login
+# Ensure INFRACOST_API_KEY is set in your .env file
 ```
 
 ---
@@ -114,5 +111,18 @@ To prevent "Chicken and Egg" problems, the agent creates a `bootstrap/` director
 By default, the agent enforces a `-tf-state` suffix for all buckets it manages, ensuring your cloud account remains organized.
 
 ---
-python crew_runner.py --budget 250 "Your infra requirement" 
-*This guide is updated automatically as new backend capabilities are added.*
+## 🚀 Phase 5: Self-Healing Deployment
+
+To trigger a live deployment, use the `--apply` flag:
+```powershell
+python crew_runner.py --apply --budget 100 "create an s3 bucket"
+```
+
+The agent will:
+1.  **Generate** the modular Terraform code.
+2.  **Audit** for security (Checkov) and costs (Infracost).
+3.  **Plan & Apply**: It will first run `terraform plan`. If successful, it proceeds to `terraform apply`.
+4.  **Self-Heal**: If a cloud provider error occurs (e.g., `BucketAlreadyExists` or `InvalidAMI`), the agent captures the log, identifies the fix, and automatically retries the deployment.
+
+---
+*Last Updated: 2026-04-24*
