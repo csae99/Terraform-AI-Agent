@@ -2,31 +2,45 @@ import subprocess
 import json
 import os
 import platform
+import shutil
 
 class SecurityAuditor:
-    def __init__(self, tfsec_path="tfsec.exe"):
-        self.tfsec_path = os.path.abspath(tfsec_path)
+    def __init__(self, tfsec_path=None):
+        # Auto-detect tfsec binary based on platform
+        if tfsec_path:
+            self.tfsec_path = os.path.abspath(tfsec_path)
+        elif platform.system() == "Windows":
+            self.tfsec_path = os.path.abspath("tfsec.exe")
+        else:
+            # On Linux/Mac, check if tfsec is in PATH or local directory
+            self.tfsec_path = shutil.which("tfsec") or os.path.abspath("tfsec")
+        
         self.checkov_image = "bridgecrew/checkov:latest"
+        # Check if we're running inside Docker (checkov installed natively)
+        self._use_native_checkov = shutil.which("checkov") is not None
 
     def _convert_path_for_docker(self, path):
         r"""
         Converts a Windows absolute path to a format friendly for Docker volumes.
-        Example: C:\Users\User -> C:/Users/User
+        On Linux/Mac, returns the path as-is.
         """
         abs_path = os.path.abspath(path)
-        # Replacing backslashes with forward slashes is generally enough for Docker Windows
-        return abs_path.replace("\\", "/")
+        if platform.system() == "Windows":
+            return abs_path.replace("\\", "/")
+        return abs_path
 
     def run_tfsec_scan(self, directory_path):
         """
         Runs tfsec (Local Binary) - FAST.
         """
+        if not os.path.exists(self.tfsec_path) and not shutil.which("tfsec"):
+            return []  # tfsec not available, skip gracefully
+
         try:
             result = subprocess.run(
                 [self.tfsec_path, directory_path, "-f", "json", "--soft-fail"],
                 capture_output=True,
-                text=True,
-                shell=True
+                text=True
             )
             if not result.stdout:
                 return []
@@ -50,8 +64,28 @@ class SecurityAuditor:
 
     def run_checkov_scan(self, directory_path):
         """
-        Runs Checkov (Docker Container) - DEEP.
+        Runs Checkov — natively if available, otherwise via Docker.
         """
+        if self._use_native_checkov:
+            return self._run_checkov_native(directory_path)
+        return self._run_checkov_docker(directory_path)
+
+    def _run_checkov_native(self, directory_path):
+        """Runs Checkov directly (used when inside Docker container)."""
+        abs_path = os.path.abspath(directory_path)
+        command = [
+            "checkov", "-d", abs_path,
+            "--output", "json",
+            "--soft-fail"
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True)
+            return self._parse_checkov_output(result.stdout)
+        except Exception:
+            return []
+
+    def _run_checkov_docker(self, directory_path):
+        """Runs Checkov via Docker container (used on host machines)."""
         docker_path = self._convert_path_for_docker(directory_path)
         command = [
             "docker", "run", "--rm",
@@ -63,12 +97,17 @@ class SecurityAuditor:
         ]
         
         try:
-            result = subprocess.run(command, capture_output=True, text=True, shell=True)
-            if not result.stdout:
-                return []
+            result = subprocess.run(command, capture_output=True, text=True)
+            return self._parse_checkov_output(result.stdout)
+        except Exception:
+            return []
 
-            # Checkov might return a list (multiple frameworks) or a single object
-            data = json.loads(result.stdout)
+    def _parse_checkov_output(self, stdout):
+        """Parses Checkov JSON output into a unified findings list."""
+        if not stdout:
+            return []
+        try:
+            data = json.loads(stdout)
             if not isinstance(data, list):
                 data = [data]
 
@@ -85,7 +124,7 @@ class SecurityAuditor:
                         "impact": "Security vulnerability detected in configuration"
                     })
             return findings
-        except Exception:
+        except (json.JSONDecodeError, KeyError):
             return []
 
     def run_comprehensive_scan(self, directory_path, mode="checkov"):
@@ -128,3 +167,4 @@ class SecurityAuditor:
             report += "\n"
             
         return report
+

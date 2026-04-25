@@ -125,4 +125,39 @@ The agent will:
 4.  **Self-Heal**: If a cloud provider error occurs (e.g., `BucketAlreadyExists` or `InvalidAMI`), the agent captures the log, identifies the fix, and automatically retries the deployment.
 
 ---
-*Last Updated: 2026-04-24*
+
+## 🐳 Docker (Zero-Install Setup)
+
+If you don't want to install Python, Terraform, Infracost, etc. manually, use Docker:
+
+```bash
+# 1. Build the image (one-time)
+docker build -t terraform-ai-agent .
+
+# 2. Create your .env file from the example
+cp .env.example .env
+# Edit .env with your API keys
+
+# 3. Run the agent
+docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
+  terraform-ai-agent --budget 100 "create a vpc with a public subnet"
+
+# 4. Live deploy
+docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
+  terraform-ai-agent --apply --budget 100 "create a private s3 bucket"
+
+# 5. Destroy
+docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
+  terraform-ai-agent --destroy my-project-slug
+```
+
+> **Tip**: For AWS credentials, either add them to `.env` or mount your AWS config:
+> ```bash
+> docker run --rm -it --env-file .env \
+>   -v $(pwd)/output:/app/output \
+>   -v ~/.aws:/root/.aws:ro \
+>   terraform-ai-agent --apply "create an s3 bucket"
+> ```
+
+---
+*Last Updated: 2026-04-25*

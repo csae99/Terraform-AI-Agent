@@ -61,8 +61,32 @@ python crew_runner.py --apply --budget 150 "create a private s3 bucket in us-eas
 1.  **Architecture**: The Architect designs the blueprint and generates a `project_slug`.
 2.  **Coding**: The Developer builds a modular Terraform project in `output/<slug>/`.
 3.  **Security Audit**: The Reviewer runs scans and attempts self-healing fixes.
-4.  **FinOps**: The specialist calculates costs using Dockerized Infracost.
-5.  **Deployment (New)**: The specialist executes `terraform apply` and heals any live API errors.
+4.  **FinOps**: The specialist calculates costs via Infracost.
+5.  **Deployment**: The specialist executes `terraform apply` and heals any live API errors.
+
+---
+
+## 🐳 Docker (Run Anywhere)
+
+Build once, run on any machine — Linux, Mac, or Windows:
+```bash
+# Build the image
+docker build -t terraform-ai-agent .
+
+# Generate & audit (no cloud deployment)
+docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
+  terraform-ai-agent --budget 100 "create a vpc with a public subnet"
+
+# Live deploy (creates real resources)
+docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
+  terraform-ai-agent --apply --budget 100 "create a private s3 bucket"
+
+# Destroy infrastructure
+docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
+  terraform-ai-agent --destroy infra-s3-private
+```
+
+> **Note**: The `-v` flag mounts the `output/` directory so generated code and logs persist on your host. The `--env-file` passes your API keys and AWS credentials into the container.
 
 ---
 
@@ -72,7 +96,8 @@ python crew_runner.py --apply --budget 150 "create a private s3 bucket in us-eas
 - **`agents.py` & `tasks.py`**: Definitions of the AI team and their specific goals.
 - **`tools/`**: Specialized tools for Terraform management, security, and cost estimation.
 - **`output/`**: Directory containing your generated, validated, and audited Terraform projects.
-python crew_runner.py --budget 250 "Your infra requirement" 
+- **`Dockerfile`**: Packages the entire platform into a portable Docker image.
+
 ---
 
-*Last Updated: 2026-04-22*
+*Last Updated: 2026-04-25*

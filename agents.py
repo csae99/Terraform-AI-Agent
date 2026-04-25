@@ -3,8 +3,9 @@ from tools.terraform_tools import TerraformTools
 from llm_config import get_llm
 
 class TerraformAgents:
-    def __init__(self):
-        self.llm = get_llm()
+    def __init__(self, model_name=None, api_key=None):
+        self.llm = get_llm(model_name, api_key)
+
 
     def cloud_architect(self):
         return Agent(
