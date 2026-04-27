@@ -105,3 +105,40 @@ class DeploymentTools:
             return f"🧹 Infrastructure successfully destroyed.{log_msg}"
         else:
             return f"❌ Destroy Failed{log_msg}:\n{result['stderr']}"
+
+    @tool("Detect Infrastructure Drift")
+    def detect_drift(project_slug: str) -> str:
+        """
+        Detects if the actual cloud state has drifted from the Terraform code.
+        Uses 'terraform plan -detailed-exitcode'.
+        Exit codes: 0=In Sync, 2=Drift Detected, 1=Error.
+        """
+        project_path = os.path.join("output", project_slug)
+        if not os.path.exists(project_path):
+            return f"Error: Project directory '{project_path}' not found."
+
+        # Ensure init is run
+        DeploymentTools._run_command("terraform init -backend=false", project_path)
+
+        # detailed-exitcode: 
+        # 0 = Succeeded, no changes
+        # 1 = Error
+        # 2 = Succeeded, there is a drift (changes needed)
+        result = DeploymentTools._run_command("terraform plan -detailed-exitcode -no-color", project_path)
+        
+        exit_code = result["exit_code"]
+        stdout = result["stdout"]
+        
+        if exit_code == 0:
+            return "✅ IN SYNC: The actual infrastructure matches the Terraform configuration exactly."
+        elif exit_code == 2:
+            # Extract summary line (e.g., "Plan: 1 to add, 0 to change, 1 to destroy.")
+            summary = "Drift detected."
+            for line in stdout.splitlines():
+                if "Plan:" in line:
+                    summary = line
+                    break
+            return f"⚠️ DRIFT DETECTED: {summary}\n\nDetailed Plan:\n{stdout}"
+        else:
+            return f"❌ ERROR during drift check:\n{result['stderr']}"
+

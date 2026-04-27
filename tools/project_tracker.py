@@ -3,155 +3,181 @@ import json
 import re
 import glob
 from datetime import datetime
+from sqlalchemy import create_engine, Column, String, Float, Integer, Text, DateTime, JSON, ForeignKey
+from sqlalchemy.orm import relationship, sessionmaker
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
+
+# ... (Database Configuration remains same)
+
+# --- Database Models ---
+
+class UserModel(Base, UserMixin):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, index=True)
+    password_hash = Column(String)
+    email = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship to projects
+    projects = relationship("ProjectModel", back_populates="owner")
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+class ProjectModel(Base):
+    __tablename__ = "projects"
+    
+    slug = Column(String, primary_key=True, index=True)
+    prompt = Column(Text, default="")
+    status = Column(String, default="generated")
+    budget = Column(Float, default=100.0)
+    estimated_cost = Column(Float, default=0.0)
+    security_issues = Column(Integer, default=0)
+    provider = Column(String, default="Local")
+    mermaid_diagram = Column(Text, default="")
+    drift_status = Column(String, default="unknown")
+    flags = Column(JSON, default=list)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Ownership
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    owner = relationship("UserModel", back_populates="projects")
+
+# Create tables
+Base.metadata.create_all(bind=engine)
 
 
 class ProjectTracker:
     """
-    Manages structured metadata (project.json) for each Terraform workspace.
-    Provides the data foundation for the Dashboard API.
+    SQL-backed Project Tracker.
+    Maintains metadata in PostgreSQL/SQLite for scalability.
     """
 
     OUTPUT_DIR = "output"
 
     @staticmethod
     def save(slug, prompt="", status="generated", budget=0.0,
-             estimated_cost=0.0, security_issues=0, provider="Local", flags=None):
-        """Save or update project metadata."""
-        project_dir = os.path.join(ProjectTracker.OUTPUT_DIR, slug)
-        meta_path = os.path.join(project_dir, "project.json")
-
-        # Load existing metadata if present (preserve created_at)
-        existing = {}
-        if os.path.exists(meta_path):
-            try:
-                with open(meta_path, "r", encoding="utf-8") as f:
-                    existing = json.load(f)
-            except (json.JSONDecodeError, IOError):
-                existing = {}
-
-        now = datetime.now().isoformat(timespec="seconds")
-
-        meta = {
-            "slug": slug,
-            "prompt": prompt or existing.get("prompt", ""),
-            "created_at": existing.get("created_at", now),
-            "updated_at": now,
-            "status": status,
-            "budget": budget,
-            "estimated_cost": estimated_cost,
-            "security_issues": security_issues,
-            "provider": provider,
-            "flags": flags or existing.get("flags", []),
-        }
-
-        os.makedirs(project_dir, exist_ok=True)
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-
-        return meta
+             estimated_cost=0.0, security_issues=0, provider="Local", 
+             flags=None, mermaid_diagram="", drift_status="unknown"):
+        """Save or update project metadata in DB."""
+        session = SessionLocal()
+        try:
+            project = session.query(ProjectModel).filter(ProjectModel.slug == slug).first()
+            
+            if not project:
+                project = ProjectModel(slug=slug)
+                session.add(project)
+            
+            if prompt: project.prompt = prompt
+            if status: project.status = status
+            if budget: project.budget = budget
+            project.estimated_cost = estimated_cost
+            project.security_issues = security_issues
+            if provider: project.provider = provider
+            if mermaid_diagram: project.mermaid_diagram = mermaid_diagram
+            if drift_status: project.drift_status = drift_status
+            if flags is not None: project.flags = flags
+            
+            session.commit()
+            return ProjectTracker.load(slug)
+        finally:
+            session.close()
 
     @staticmethod
     def load(slug):
-        """Load metadata for a single project."""
-        meta_path = os.path.join(ProjectTracker.OUTPUT_DIR, slug, "project.json")
-        if os.path.exists(meta_path):
-            try:
-                with open(meta_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError):
-                pass
-        return None
+        """Load metadata for a single project from DB."""
+        session = SessionLocal()
+        try:
+            project = session.query(ProjectModel).filter(ProjectModel.slug == slug).first()
+            if project:
+                return {
+                    "slug": project.slug,
+                    "prompt": project.prompt,
+                    "status": project.status,
+                    "budget": project.budget,
+                    "estimated_cost": project.estimated_cost,
+                    "security_issues": project.security_issues,
+                    "provider": project.provider,
+                    "mermaid_diagram": project.mermaid_diagram,
+                    "drift_status": project.drift_status,
+                    "flags": project.flags,
+                    "created_at": project.created_at.isoformat(),
+                    "updated_at": project.updated_at.isoformat()
+                }
+            return None
+        finally:
+            session.close()
 
     @staticmethod
     def load_all():
-        """Load metadata for ALL projects in the output directory."""
-        projects = []
-        output_dir = ProjectTracker.OUTPUT_DIR
-        if not os.path.exists(output_dir):
-            return projects
-
-        for entry in sorted(os.listdir(output_dir)):
-            full_path = os.path.join(output_dir, entry)
-            if not os.path.isdir(full_path) or entry.startswith("."):
-                continue
-
-            meta = ProjectTracker.load(entry)
-            if meta:
-                projects.append(meta)
-            else:
-                # Auto-generate metadata from existing files
-                projects.append(ProjectTracker._infer_metadata(entry))
-
-        return projects
+        """Load all projects from DB."""
+        session = SessionLocal()
+        try:
+            projects = session.query(ProjectModel).order_by(ProjectModel.updated_at.desc()).all()
+            return [
+                {
+                    "slug": p.slug,
+                    "prompt": p.prompt,
+                    "status": p.status,
+                    "budget": p.budget,
+                    "estimated_cost": p.estimated_cost,
+                    "security_issues": p.security_issues,
+                    "provider": p.provider,
+                    "drift_status": p.drift_status,
+                    "updated_at": p.updated_at.isoformat()
+                } for p in projects
+            ]
+        finally:
+            session.close()
 
     @staticmethod
-    def _infer_metadata(slug):
-        """Infer project metadata from filesystem when project.json is missing."""
+    def get_diff(slug, snapshot_name=None):
+        """
+        Generate a unified diff between current code and a snapshot.
+        (Remains file-based for now as it reads actual TF code)
+        """
+        import difflib
         project_dir = os.path.join(ProjectTracker.OUTPUT_DIR, slug)
+        backups_dir = os.path.join(project_dir, "backups")
+        
+        if not os.path.exists(backups_dir):
+            return "No backups found."
 
-        # Detect provider from main.tf
-        provider = "Local"
-        main_tf = os.path.join(project_dir, "main.tf")
-        if os.path.exists(main_tf):
-            try:
-                with open(main_tf, "r", encoding="utf-8") as f:
-                    content = f.read()
-                if 'provider "aws"' in content or "hashicorp/aws" in content:
-                    provider = "AWS"
-                elif 'provider "azurerm"' in content:
-                    provider = "Azure"
-                elif 'provider "google"' in content:
-                    provider = "GCP"
-            except IOError:
-                pass
+        if snapshot_name:
+            snapshot_dir = os.path.join(backups_dir, snapshot_name)
+        else:
+            backups = sorted([d for d in os.listdir(backups_dir) if os.path.isdir(os.path.join(backups_dir, d))])
+            if not backups: return "No snapshots."
+            snapshot_dir = os.path.join(backups_dir, backups[-1])
 
-        # Detect status from tfstate
-        has_state = os.path.exists(os.path.join(project_dir, "terraform.tfstate"))
-        status = "deployed" if has_state else "generated"
+        diff_result = []
+        all_files = set()
+        for root, _, files in os.walk(project_dir):
+            if "backups" in root or ".terraform" in root: continue
+            for f in files:
+                if f.endswith(".tf"):
+                    all_files.add(os.path.relpath(os.path.join(root, f), project_dir))
+        
+        for root, _, files in os.walk(snapshot_dir):
+            for f in files:
+                if f.endswith(".tf"):
+                    all_files.add(os.path.relpath(os.path.join(root, f), snapshot_dir))
 
-        # Parse cost from FINANCIAL_REPORT.md
-        estimated_cost = 0.0
-        budget = 100.0
-        report_path = os.path.join(project_dir, "FINANCIAL_REPORT.md")
-        if os.path.exists(report_path):
-            try:
-                with open(report_path, "r", encoding="utf-8") as f:
-                    report_content = f.read()
-                cost_match = re.search(r"Projected Cost.*?\$([0-9.]+)", report_content)
-                if cost_match:
-                    estimated_cost = float(cost_match.group(1))
-                budget_match = re.search(r"Allocated Budget.*?\$([0-9.]+)", report_content)
-                if budget_match:
-                    budget = float(budget_match.group(1))
-            except IOError:
-                pass
+        for rel in sorted(list(all_files)):
+            curr_p = os.path.join(project_dir, rel)
+            snap_p = os.path.join(snapshot_dir, rel)
+            
+            curr_l = open(curr_p).readlines() if os.path.exists(curr_p) else []
+            snap_l = open(snap_p).readlines() if os.path.exists(snap_p) else []
 
-        # Get creation time from directory
-        try:
-            created_ts = os.path.getctime(project_dir)
-            created_at = datetime.fromtimestamp(created_ts).isoformat(timespec="seconds")
-        except OSError:
-            created_at = datetime.now().isoformat(timespec="seconds")
+            diff = "".join(difflib.unified_diff(snap_l, curr_l, fromfile=f"Snapshot/{rel}", tofile=f"Current/{rel}"))
+            if diff: diff_result.append(diff)
 
-        meta = {
-            "slug": slug,
-            "prompt": f"(Inferred from {slug})",
-            "created_at": created_at,
-            "updated_at": created_at,
-            "status": status,
-            "budget": budget,
-            "estimated_cost": estimated_cost,
-            "security_issues": 0,
-            "provider": provider,
-            "flags": [],
-        }
-
-        # Save it so we don't infer again
-        meta_path = os.path.join(project_dir, "project.json")
-        try:
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(meta, f, indent=2)
-        except IOError:
-            pass
-
-        return meta
+        return "\n".join(diff_result) if diff_result else "✅ Code is identical."

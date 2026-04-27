@@ -20,11 +20,18 @@ class TerraformTools:
     def _write_terraform_file(filename: str, content: str, project_slug: str = "workspace") -> str:
         # Sanitize the project_slug to avoid unwanted characters or paths
         slug = TerraformTools._sanitize_slug(project_slug)
+        
+        # Also sanitize the filename - if it starts with 'output/' or the slug itself, strip it
+        clean_filename = filename.replace("output/", "").replace("output\\", "")
+        clean_filename = clean_filename.replace(f"{slug}/", "").replace(f"{slug}\\", "")
+        clean_filename = clean_filename.strip("/\\")
+
         # Create the project folder inside 'output'
-        output_base = os.path.join("output", slug)  # This is the correct location for the project directory
+        output_base = os.path.join("output", slug)
     
-    # Create the full file path
-        filepath = os.path.join(output_base, filename)
+        # Create the full file path
+        filepath = os.path.join(output_base, clean_filename)
+
         try:
             # Create the project folder if it doesn't exist
             os.makedirs(os.path.dirname(filepath), exist_ok=True)

@@ -72,7 +72,9 @@ class TerraformAgents:
                       'You are responsible for the entire infrastructure lifecycle.',
             tools=[DeploymentTools.run_terraform_plan, 
                    DeploymentTools.run_terraform_apply,
-                   DeploymentTools.run_terraform_destroy],
+                   DeploymentTools.run_terraform_destroy,
+                   DeploymentTools.detect_drift],
+
             verbose=True,
             allow_delegation=False,
             llm=self.llm

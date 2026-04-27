@@ -7,17 +7,21 @@ class TerraformTasks:
             description=f'Analyze the following infrastructure requirement and design a MINIMAL architecture.\n'
                         f'Requirement: {requirement}\n'
                         'IMPORTANT: DO NOT add NAT Gateways, Private Subnets, or Multi-AZ unless explicitly requested.\n'
-                        'If the user asks for a Public Subnet, provide ONLY an IGW and the requested subnet.\n'
-                        'You MUST specify a short, unique `project_slug` (e.g. "my-app-vpc") as the first line of your response.',
-            expected_output='A detailed architecture document. The first line must be: PROJECT_SLUG: <slug>',
+                        '1. Identify necessary providers and resources.\n'
+                        '2. You MUST provide a **Mermaid.js diagram string** representing the architecture.\n'
+                        '3. The first line of your response must be: PROJECT_SLUG: <slug>',
+            expected_output='A detailed architecture document including a Mermaid.js diagram block starting with ```mermaid. The first line must be: PROJECT_SLUG: <slug>',
             agent=agent
         )
+
 
     def write_terraform_task(self, agent, project_slug):
         return Task(
             description=f'Based on the Architect\'s design, implement the Terraform project: {project_slug}.\n'
                         '1. You MUST use the `write_terraform_file` tool for every single file.\n'
-                        '2. Structure: Root `main.tf` calling modules in `modules/vpc/`, `modules/security/`, etc.\n'
+                        '2. Structure: Root `main.tf` calling the relevant modules designed by the Architect in the `modules/` directory.\n'
+                        '   IMPORTANT: Module sources MUST be simple relative path strings (e.g., source = "./modules/s3"), NOT function calls like file().\n'
+
                         '3. Do NOT just output text. If you do not call the tool, the files will not exist and the task fails.\n'
                         '4. You MUST create a `README.md` in the project ROOT (not in modules) explaining the setup.\n'
                         f'Project Slug: {project_slug}',
@@ -67,3 +71,14 @@ class TerraformTasks:
             expected_output='A confirmation report that the infrastructure has been successfully destroyed.',
             agent=agent
         )
+
+    def drift_detection_task(self, agent, project_slug):
+        return Task(
+            description=f'Perform a drift audit for the `{project_slug}` workspace.\n'
+                        f'1. Use the `detect_drift` tool.\n'
+                        f'2. Identify any resources that have been manually changed, added, or deleted in the cloud.\n'
+                        f'3. Provide a clear summary of the drift status.',
+            expected_output='A summary report indicating if the project is "In Sync" or "Drift Detected", with a list of changes.',
+            agent=agent
+        )
+

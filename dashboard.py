@@ -29,7 +29,8 @@ active_logs = {}
 
 def run_agent_workflow(prompt, budget, apply, credentials=None, ai_config=None):
     """Background task to run the crew_runner.py process."""
-    cmd = [sys.executable, "crew_runner.py", prompt, "--budget", str(budget), "--auto-fix"]
+    # Use 'python' directly as it is more reliable in containerized environments
+    cmd = ["python", "crew_runner.py", prompt, "--budget", str(budget), "--auto-fix"]
     if apply:
         cmd.append("--apply")
     
@@ -66,6 +67,12 @@ def run_agent_workflow(prompt, budget, apply, credentials=None, ai_config=None):
             encoding='utf-8',
             env=env
         )
+    except Exception as e:
+        active_logs[temp_slug] = f"❌ Failed to start process: {str(e)}\n"
+        print(f"Subprocess start error: {str(e)}")
+        return
+
+
         
         for line in iter(process.stdout.readline, ''):
             active_logs[temp_slug] += line
@@ -145,25 +152,24 @@ def get_project_code(slug):
         abort(404)
 
     tf_files = {}
-    # Collect root-level .tf files
-    for tf in sorted(glob.glob(os.path.join(project_dir, "*.tf"))):
-        filename = os.path.basename(tf)
+    # Recursively collect all .tf files in the project directory
+    pattern = os.path.join(project_dir, "**", "*.tf")
+    for tf in sorted(glob.glob(pattern, recursive=True)):
+        # Calculate a nice display path relative to the project root
+        # Handle potential double-nesting gracefully by finding the FIRST main.tf level
+        rel = os.path.relpath(tf, project_dir).replace("\\", "/")
+        
+        # If the path starts with the slug itself (double nesting), trim it for display
+        if rel.startswith(f"{slug}/"):
+            display_name = rel[len(slug)+1:]
+        else:
+            display_name = rel
+
         try:
             with open(tf, "r", encoding="utf-8") as f:
-                tf_files[filename] = f.read()
+                tf_files[display_name] = f.read()
         except IOError:
-            tf_files[filename] = "(Error reading file)"
-
-    # Collect module .tf files
-    modules_dir = os.path.join(project_dir, "modules")
-    if os.path.isdir(modules_dir):
-        for tf in sorted(glob.glob(os.path.join(modules_dir, "**", "*.tf"), recursive=True)):
-            rel = os.path.relpath(tf, project_dir).replace("\\", "/")
-            try:
-                with open(tf, "r", encoding="utf-8") as f:
-                    tf_files[rel] = f.read()
-            except IOError:
-                tf_files[rel] = "(Error reading file)"
+            tf_files[display_name] = "(Error reading file)"
 
     return jsonify(tf_files)
 
@@ -192,6 +198,13 @@ def get_project_logs(slug, log_type):
         abort(400, description=f"Invalid log type. Valid: {valid_types}")
 
     log_path = os.path.join(OUTPUT_DIR, slug, "logs", f"{log_type}.log")
+    
+    # Try nested log path if not found in root (handles double-nesting)
+    if not os.path.exists(log_path):
+        alt_log_path = os.path.join(OUTPUT_DIR, slug, slug, "logs", f"{log_type}.log")
+        if os.path.exists(alt_log_path):
+            log_path = alt_log_path
+
     if not os.path.exists(log_path):
         return jsonify({"content": f"No {log_type} log available.", "exists": False})
 
@@ -246,7 +259,60 @@ def get_stats():
     })
 
 
+@app.route("/api/projects/<slug>/snapshots")
+def list_snapshots(slug):
+    """Return list of backup snapshots for a project."""
+    backups_dir = os.path.join(OUTPUT_DIR, slug, "backups")
+    if not os.path.exists(backups_dir):
+        return jsonify([])
+    
+    backups = []
+    for d in sorted(os.listdir(backups_dir), reverse=True):
+        if os.path.isdir(os.path.join(backups_dir, d)):
+            backups.append({"id": d, "timestamp": d})
+    return jsonify(backups)
+
+@app.route("/api/projects/<slug>/diff")
+@app.route("/api/projects/<slug>/diff/<snapshot>")
+def get_diff(slug, snapshot=None):
+    """Return unified diff against a snapshot."""
+    diff_text = ProjectTracker.get_diff(slug, snapshot)
+    return jsonify({"diff": diff_text})
+
+@app.route('/api/projects/<slug>/drift')
+def check_drift(slug):
+    project = ProjectTracker.load(slug)
+    if not project:
+        abort(404)
+
+    try:
+        from agents import TerraformAgents
+        from tasks import TerraformTasks
+        from crewai import Crew
+        
+        agents = TerraformAgents()
+        tasks = TerraformTasks()
+        
+        agent = agents.deployment_specialist()
+        task = tasks.drift_detection_task(agent, slug)
+        
+        # Trigger the drift detection task
+        crew = Crew(agents=[agent], tasks=[task], verbose=True)
+        result_obj = crew.kickoff()
+        result = str(result_obj)
+        
+        status = "in_sync" if "IN SYNC" in result.upper() else "drifted"
+        ProjectTracker.save(slug, drift_status=status)
+        
+        return jsonify({"message": result, "status": status})
+    except Exception as e:
+        print(f"Drift check error: {str(e)}")
+        return jsonify({"message": f"Error during drift scan: {str(e)}", "status": "unknown"}), 500
+
+
+
 if __name__ == "__main__":
+
     print("\n" + "=" * 50)
     print("  🚀 Terraform AI Agent — Dashboard")
     print("  📍 http://localhost:5000")

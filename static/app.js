@@ -1,5 +1,5 @@
 let currentProject = null;
-let currentTab = 'readme';
+let logInterval = null;
 
 async function init() {
     await fetchStats();
@@ -10,7 +10,6 @@ async function fetchStats() {
     try {
         const response = await fetch('/api/stats');
         const stats = await response.json();
-        
         const container = document.getElementById('global-stats');
         container.innerHTML = `
             <div class="stat-card">
@@ -30,16 +29,13 @@ async function fetchStats() {
                 <span class="stat-value">${stats.total_security_issues}</span>
             </div>
         `;
-    } catch (e) {
-        console.error("Failed to fetch stats", e);
-    }
+    } catch (e) { console.error("Stats fetch error", e); }
 }
 
 async function fetchProjects() {
     try {
         const response = await fetch('/api/projects');
         const projects = await response.json();
-        
         const grid = document.getElementById('projects-grid');
         grid.innerHTML = projects.map(p => `
             <div class="project-card" onclick="openProject('${p.slug}')">
@@ -51,117 +47,168 @@ async function fetchProjects() {
                     <span class="status-badge status-${p.status}">${p.status}</span>
                 </div>
                 <div class="project-card-body">
-                    <p class="project-prompt">${p.prompt || 'No description provided.'}</p>
+                    <p class="project-prompt">${p.prompt || 'No description...'}</p>
                     <div class="project-meta">
-                        <div class="meta-item">
-                            <span class="meta-label">Est. Cost</span>
-                            <span class="meta-value">$${p.estimated_cost}</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Security</span>
-                            <span class="meta-value">${p.security_issues} issues</span>
-                        </div>
+                        <div class="meta-item"><span class="meta-label">Cost</span><span class="meta-value">$${p.estimated_cost}</span></div>
+                        <div class="meta-item"><span class="meta-label">Security</span><span class="meta-value">${p.security_issues}</span></div>
                     </div>
                 </div>
             </div>
         `).join('');
-    } catch (e) {
-        console.error("Failed to fetch projects", e);
-    }
+    } catch (e) { console.error("Project fetch error", e); }
 }
 
 async function openProject(slug) {
-    currentProject = slug;
-    document.getElementById('modal-project-slug').innerText = slug;
-    document.getElementById('project-modal').style.display = 'flex';
-    switchTab('readme');
+    try {
+        const response = await fetch(`/api/projects/${slug}`);
+        const project = await response.json();
+        currentProject = project;
+
+        document.getElementById('modal-project-slug').innerText = project.slug;
+        document.getElementById('project-modal').style.display = 'flex';
+
+        // Drift Status Badge
+        const driftBadge = document.getElementById('modal-drift-status');
+        if (project.drift_status) {
+            driftBadge.innerText = project.drift_status === 'in_sync' ? '✅ In Sync' : '⚠️ Drifted';
+            driftBadge.className = `status-badge status-${project.drift_status === 'in_sync' ? 'deployed' : 'failed'}`;
+            driftBadge.style.display = 'inline-block';
+        } else {
+            driftBadge.style.display = 'none';
+        }
+
+        // Initialize Mermaid
+        const mermaidContainer = document.getElementById('mermaid-container');
+        if (project.mermaid_diagram) {
+            mermaidContainer.innerHTML = project.mermaid_diagram;
+            mermaidContainer.removeAttribute('data-processed');
+        } else {
+            mermaidContainer.innerHTML = "<p>No topology available.</p>";
+        }
+
+        switchModalTab('code');
+    } catch (err) { console.error("Open project error", err); }
+}
+
+async function checkDrift() {
+    if (!currentProject) return;
+    const slug = currentProject.slug;
+    const driftBadge = document.getElementById('modal-drift-status');
+    driftBadge.innerText = "⏳ Scanning...";
+    driftBadge.className = "status-badge status-generating";
+    driftBadge.style.display = 'inline-block';
+
+    try {
+        const response = await fetch(`/api/projects/${slug}/drift`);
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Server Error (${response.status}): ${text.substring(0, 100)}`);
+        }
+        const data = await response.json();
+        alert(data.message);
+        openProject(slug);
+        fetchProjects();
+    } catch (e) {
+        alert("Drift scan failed: " + e.message);
+        driftBadge.style.display = 'none';
+        openProject(slug); // Reset badge
+    }
+
 }
 
 function closeModal() {
     document.getElementById('project-modal').style.display = 'none';
 }
 
-async function switchTab(tab) {
-    currentTab = tab;
-    
-    // Update UI active state
-    document.querySelectorAll('.modal-tabs .tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.innerText.toLowerCase().includes(tab));
+async function switchModalTab(tabId) {
+    document.querySelectorAll('.modal-tab-content').forEach(c => c.style.display = 'none');
+    const activeContent = document.getElementById(`modal-tab-${tabId}`);
+    if (activeContent) activeContent.style.display = 'block';
+
+    document.querySelectorAll('.modal-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.innerText.toLowerCase().includes(tabId.slice(0, 4)));
     });
 
-    const contentArea = document.getElementById('modal-body-content');
-    contentArea.innerHTML = '<p>Loading...</p>';
-
-    try {
-        if (tab === 'readme') {
-            const res = await fetch(`/api/projects/${currentProject}/readme`);
-            const data = await res.json();
-            contentArea.innerHTML = `<pre class="log-view">${data.content}</pre>`;
-        } else if (tab === 'code') {
-            const res = await fetch(`/api/projects/${currentProject}/code`);
-            const data = await res.json();
-            let html = '';
-            for (const [filename, content] of Object.entries(data)) {
-                html += `<h3>${filename}</h3><pre><code>${content.replace(/</g, '&lt;')}</code></pre><br>`;
-            }
-            contentArea.innerHTML = html;
-        } else if (tab === 'finance') {
-            const res = await fetch(`/api/projects/${currentProject}/report`);
-            const data = await res.json();
-            contentArea.innerHTML = `<pre class="log-view">${data.content}</pre>`;
-        } else if (tab === 'logs') {
-            contentArea.innerHTML = `
-                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                    <button class="tab-btn active" onclick="loadSpecificLog('terraform_plan')">Plan</button>
-                    <button class="tab-btn" onclick="loadSpecificLog('terraform_apply')">Apply</button>
-                    <button class="tab-btn" onclick="loadSpecificLog('terraform_destroy')">Destroy</button>
-                </div>
-                <div id="log-display-area">Select a log type above</div>
-            `;
-            loadSpecificLog('terraform_plan');
+    if (tabId === 'code' && currentProject) {
+        const res = await fetch(`/api/projects/${currentProject.slug}/code`);
+        const files = await res.json();
+        let html = '';
+        for (const [f, c] of Object.entries(files)) {
+            html += `<h4 style="color:var(--accent-blue)">${f}</h4><pre style="background:#000; padding:1rem; border-radius:4px; font-size:0.8rem"><code>${c.replace(/</g,'&lt;')}</code></pre>`;
         }
-    } catch (e) {
-        contentArea.innerHTML = `<p style="color: var(--status-failed)">Error loading content: ${e.message}</p>`;
-    }
-}
-
-async function loadSpecificLog(type) {
-    const area = document.getElementById('log-display-area');
-    area.innerHTML = 'Loading log...';
-    try {
-        const res = await fetch(`/api/projects/${currentProject}/logs/${type}`);
+        document.getElementById('modal-tab-code-content').innerHTML = html;
+    } else if (tabId === 'visual' && currentProject?.mermaid_diagram) {
+        const container = document.getElementById('mermaid-container');
+        mermaid.run({ nodes: [container] });
+    } else if (tabId === 'evolution' && currentProject) {
+        loadSnapshots(currentProject.slug);
+    } else if (tabId === 'financial' && currentProject) {
+        const res = await fetch(`/api/projects/${currentProject.slug}/report`);
         const data = await res.json();
-        area.innerHTML = `<pre class="log-view">${data.content}</pre>`;
-    } catch (e) {
-        area.innerHTML = 'Log file not found.';
+        document.getElementById('modal-financial-report').innerText = data.content;
+    } else if (tabId === 'logs' && currentProject) {
+        const res = await fetch(`/api/projects/${currentProject.slug}/logs/terraform_plan`);
+        const data = await res.json();
+        document.getElementById('modal-tab-logs-content').innerHTML = `<pre class="log-view">${data.content}</pre>`;
     }
 }
 
-function refreshData() {
-    init();
+
+async function loadSnapshots(slug) {
+    const res = await fetch(`/api/projects/${slug}/snapshots`);
+    const snapshots = await res.json();
+    const container = document.getElementById('snapshot-items');
+    container.innerHTML = snapshots.map(s => `
+        <div class="snapshot-item" onclick="viewDiff('${slug}', '${s.id}')" style="cursor:pointer; padding:0.5rem; margin-bottom:0.5rem; border:1px solid var(--border); border-radius:4px; font-size:0.8rem">
+            ${s.timestamp}
+        </div>
+    `).join('') || '<p>No snapshots yet.</p>';
 }
 
-// ─── Phase 7: Multi-Cloud Logic ────────────────────────────────────
+async function viewDiff(slug, snapshotId) {
+    const res = await fetch(`/api/projects/${slug}/diff/${snapshotId}`);
+    const data = await res.json();
+    const viewer = document.getElementById('diff-viewer');
+    
+    // Simple diff highlighting
+    const coloredDiff = data.diff.split('\n').map(line => {
+        if (line.startsWith('+')) return `<span style="color:#4ade80">${line}</span>`;
+        if (line.startsWith('-')) return `<span style="color:#f87171">${line}</span>`;
+        if (line.startsWith('@@')) return `<span style="color:#60a5fa">${line}</span>`;
+        return line;
+    }).join('\n');
+    
+    viewer.innerHTML = `<pre style="white-space:pre-wrap"><code>${coloredDiff}</code></pre>`;
+}
 
 function switchCredTab(provider) {
     document.querySelectorAll('[id^="cred-panel-"]').forEach(p => p.style.display = 'none');
     document.getElementById(`cred-panel-${provider}`).style.display = (provider === 'gcp') ? 'block' : 'grid';
-    
-    // Update button active states
-    event.target.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     event.target.classList.add('active');
 }
 
-// ─── Phase 6b/7: Generation Logic ────────────────────────────────────
-
-let logInterval = null;
+async function refreshData() {
+    const btn = event?.target;
+    if (btn) {
+        btn.innerText = "⏳ Loading...";
+        btn.disabled = true;
+    }
+    await init();
+    if (btn) {
+        btn.innerText = "Refresh";
+        btn.disabled = false;
+    }
+}
 
 async function generateInfra() {
     const prompt = document.getElementById('infra-prompt').value;
     const budget = document.getElementById('infra-budget').value;
     const apply = document.getElementById('infra-apply').checked;
-    
-    // Collect credentials for all clouds
+    const genBtn = document.querySelector('button[onclick="generateInfra()"]');
+
+    if (!prompt) return alert("Enter a prompt!");
+
     const credentials = {
         AWS_ACCESS_KEY_ID: document.getElementById('aws-key').value,
         AWS_SECRET_ACCESS_KEY: document.getElementById('aws-secret').value,
@@ -173,24 +220,21 @@ async function generateInfra() {
         GOOGLE_CREDENTIALS: document.getElementById('gcp-json').value
     };
 
-    // Collect AI configuration
     const ai_config = {
         provider: document.getElementById('ai-provider').value,
         model: document.getElementById('ai-model').value,
         key: document.getElementById('ai-key').value
     };
 
-
-    if (!prompt) {
-        alert("Please enter an infrastructure requirement.");
-        return;
-    }
-
-    // Update UI
+    // UI Feedback
+    genBtn.disabled = true;
+    genBtn.innerText = "🚀 Starting...";
     document.getElementById('gen-status').style.display = 'inline-block';
-    document.getElementById('live-console-container').style.display = 'block';
+    
+    // Open the Live Modal
+    document.getElementById('live-console-modal').style.display = 'flex';
     const consoleElem = document.getElementById('live-console');
-    consoleElem.innerText = "🚀 Requesting generation...";
+    consoleElem.innerText = "🚀 Connecting to Agent Engine...\n";
 
     try {
         const response = await fetch('/api/generate', {
@@ -199,15 +243,19 @@ async function generateInfra() {
             body: JSON.stringify({ prompt, budget, apply, credentials, ai_config })
         });
         
-        const data = await response.json();
-        consoleElem.innerText = "✅ Workflow queued. Streaming logs...\n";
+        if (!response.ok) throw new Error(await response.text());
+        
         startPollingLogs();
-    } catch (e) {
-        consoleElem.innerText = "❌ Error: " + e.message;
+    } catch (e) { 
+        consoleElem.innerText += "\n❌ Error: " + e.message;
+        genBtn.disabled = false;
+        genBtn.innerText = "Generate";
+        document.getElementById('gen-status').style.display = 'none';
     }
 }
 
 function startPollingLogs() {
+    const genBtn = document.querySelector('button[onclick="generateInfra()"]');
     if (logInterval) clearInterval(logInterval);
     
     logInterval = setInterval(async () => {
@@ -216,36 +264,28 @@ function startPollingLogs() {
             const data = await res.json();
             const consoleElem = document.getElementById('live-console');
             
-            // Auto-scroll if at bottom
-            const isAtBottom = consoleElem.scrollHeight - consoleElem.clientHeight <= consoleElem.scrollTop + 1;
-            consoleElem.innerText = data.logs;
-            if (isAtBottom) {
+            if (data.logs && data.logs !== "No active run.") {
+                consoleElem.innerText = data.logs;
                 consoleElem.scrollTop = consoleElem.scrollHeight;
             }
 
             if (data.logs.includes('✅ Workflow Finished')) {
-                stopPollingLogs();
+                clearInterval(logInterval);
+                genBtn.disabled = false;
+                genBtn.innerText = "Generate";
                 document.getElementById('gen-status').style.display = 'none';
-                init(); // Refresh grid to show new project
+                setTimeout(() => {
+                    init();
+                    alert("✅ Infrastructure Generation Complete!");
+                }, 1000);
             }
-        } catch (e) {
-            console.error("Polling error", e);
-        }
+        } catch (e) { console.error("Log polling error", e); }
     }, 1000);
 }
 
-function stopPollingLogs() {
-    if (logInterval) {
-        clearInterval(logInterval);
-        logInterval = null;
-    }
-}
-
-// Close modal on outside click
-
-window.onclick = function(event) {
-    const modal = document.getElementById('project-modal');
-    if (event.target == modal) closeModal();
+function closeLiveModal() {
+    document.getElementById('live-console-modal').style.display = 'none';
 }
 
 init();
+

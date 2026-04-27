@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terraform AI Agent | Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({ startOnLoad: false, theme: 'dark' });</script>
 </head>
 <body>
     <header>
@@ -127,9 +130,15 @@
             
             <!-- Live Console Output -->
 
-            <div id="live-console-container" style="display: none; margin-top: 1rem;">
-                <label class="meta-label">Live Agent Output</label>
-                <pre id="live-console" style="height: 300px; font-size: 0.8rem; border-color: var(--accent-blue);"></pre>
+            <div id="live-console-modal" class="modal">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header">
+                        <h2>🚀 Agent Live Stream</h2>
+                        <button class="tab-btn" onclick="closeLiveModal()">Minimize</button>
+                    </div>
+                    <pre id="live-console" class="log-view" style="height: 400px; margin-top: 1rem; border: 1px solid var(--accent-blue);"></pre>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">The agent is currently architecting and implementing your request. Do not refresh.</p>
+                </div>
             </div>
         </div>
     </div>
@@ -150,20 +159,54 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div id="modal-title-area">
-                    <h2 id="modal-project-slug">Project Details</h2>
-                    <span id="modal-project-provider" class="project-provider">AWS</span>
+                    <h2 id="modal-project-slug" style="display: inline-block; margin-right: 1rem;">Project Details</h2>
+                    <span id="modal-drift-status" class="status-badge" style="display: none;"></span>
                 </div>
-                <button class="tab-btn" onclick="closeModal()">Close</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="tab-btn" style="background: var(--accent-orange); color: white;" onclick="checkDrift()">🔍 Scan for Drift</button>
+                    <button class="tab-btn" onclick="closeModal()">Close</button>
+                </div>
             </div>
-            <div class="modal-tabs">
-                <button class="tab-btn active" onclick="switchTab('readme')">Overview</button>
-                <button class="tab-btn" onclick="switchTab('code')">Infrastructure Code</button>
-                <button class="tab-btn" onclick="switchTab('finance')">FinOps Report</button>
-                <button class="tab-btn" onclick="switchTab('logs')">Deployment Logs</button>
-            </div>
-            <div class="modal-body" id="modal-body-content">
-                <!-- Content injected by JS -->
-            </div>
+
+                <div class="modal-tabs">
+                    <button class="modal-tab active" onclick="switchModalTab('code')">📄 Terraform Code</button>
+                    <button class="modal-tab" onclick="switchModalTab('visual')">🗺️ Visual Topology</button>
+                    <button class="modal-tab" onclick="switchModalTab('evolution')">🕒 Evolution History</button>
+                    <button class="modal-tab" onclick="switchModalTab('financial')">💰 FinOps Report</button>
+                    <button class="modal-tab" onclick="switchModalTab('logs')">📋 Deployment Logs</button>
+                </div>
+
+                <div id="modal-tab-code" class="modal-tab-content active" style="overflow-y: auto; max-height: 600px;">
+                    <div id="file-tabs" class="file-tabs"></div>
+                    <div id="modal-tab-code-content"></div>
+                </div>
+
+                <div id="modal-tab-visual" class="modal-tab-content" style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 2rem; overflow: auto; min-height: 400px; display: none;">
+                    <div id="mermaid-container" class="mermaid" style="display: flex; justify-content: center;"></div>
+                </div>
+
+                <div id="modal-tab-evolution" class="modal-tab-content" style="display: none;">
+                    <div style="display: flex; gap: 20px;">
+                        <div id="snapshot-list" style="width: 250px; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px;">
+                            <h4 style="margin-top: 0;">Snapshots</h4>
+                            <div id="snapshot-items"></div>
+                        </div>
+                        <div id="diff-viewer" style="flex: 1; background: #000; padding: 1rem; border-radius: 8px; font-family: 'JetBrains Mono'; font-size: 0.85rem; overflow-x: auto;">
+                            Select a snapshot to see changes...
+                        </div>
+                    </div>
+                </div>
+
+                <div id="modal-tab-financial" class="modal-tab-content" style="display: none; overflow-y: auto; max-height: 600px;">
+                    <div id="modal-financial-report" class="markdown-body"></div>
+                </div>
+
+                <div id="modal-tab-logs" class="modal-tab-content" style="display: none;">
+                     <div id="modal-tab-logs-content"></div>
+                </div>
+
+
+
         </div>
     </div>
 

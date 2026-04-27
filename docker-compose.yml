@@ -1,0 +1,36 @@
+services:
+
+  db:
+    image: postgres:15-alpine
+    container_name: terraform-db
+    restart: always
+    environment:
+      POSTGRES_USER: terra_user
+      POSTGRES_PASSWORD: terra_password
+      POSTGRES_DB: terraform_agent
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  agent:
+    build: .
+    container_name: terraform-dashboard
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://terra_user:terra_password@db:5432/terraform_agent
+      # Load other env vars from .env file
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - ./output:/app/output
+
+    depends_on:
+      - db
+    entrypoint: python dashboard.py
+
+volumes:
+  postgres_data:

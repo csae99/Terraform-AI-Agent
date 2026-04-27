@@ -24,12 +24,21 @@ os.environ["OTEL_SDK_DISABLED"] = "true"
 
 def get_project_slug(architect_output):
     """Extract a URL-friendly slug from the architect's output."""
-    match = re.search(r"Project Name:\s*(.*)", architect_output)
+    match = re.search(r"PROJECT_SLUG:\s*(.*)", architect_output)
     if match:
         name = match.group(1).strip()
         slug = name.lower().replace(" ", "-").replace("_", "-")
         return re.sub(r"[^a-z0-9-]", "", slug)
     return "terraform-project-" + datetime.now().strftime("%Y%m%d-%H%M")
+
+
+def extract_mermaid(text):
+    """Extract mermaid code block from text."""
+    pattern = r"```mermaid\s+(.*?)\s+```"
+    match = re.search(pattern, text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return ""
 
 def main():
     parser = argparse.ArgumentParser(description="Multi-Agent Terraform Platform (Phase 7)")
@@ -43,66 +52,34 @@ def main():
     args = parser.parse_args()
 
     agents = TerraformAgents(model_name=args.model, api_key=args.model_key)
-
     tasks = TerraformTasks()
     auditor = SecurityAuditor()
     estimator = CostEstimator()
     cloud = CloudSync()
 
-    # --- Decommissioning Flow ---
+
+    # Handle Destructive Actions
     if args.destroy:
         slug = args.destroy
-        print(f"\n🔍 AGENT ADVISORY: Drafting destruction plan for: {slug}")
-        
-        deployer_agent = agents.deployment_specialist()
-        # Task 1: Generate Destruction Plan
-        plan_task = Task(
-            description=f"Generate a destruction plan for the `{slug}` workspace using `run_terraform_plan` with is_destroy=True.",
-            expected_output="A list of resources that will be permanently removed.",
-            agent=deployer_agent
-        )
-        
-        crew_plan = Crew(agents=[deployer_agent], tasks=[plan_task], verbose=True)
-        plan_result = str(crew_plan.kickoff())
-        
-        print("\n" + "!"*50)
-        print("⚠️  PROPOSED DESTRUCTION PLAN")
-        print("!"*50)
-        print(plan_result)
-        print("!"*50)
-        
-        if args.auto_fix:
-            print("🤖 Auto-Fix Enabled: Automatically confirming destruction.")
-            confirm = 'y'
-        else:
-            confirm = input(f"\nAre you ABSOLUTELY SURE you want to destroy all resources in '{slug}'? [y/N]: ").lower()
-            
-        if confirm != 'y':
-            print("❌ Decommissioning cancelled by user.")
-            return
-
-        print(f"\n⚠️ PROCEEDING: Initiating final decommissioning of: {slug}")
-        destroy_task = tasks.decommissioning_task(deployer_agent, slug)
-        
-        crew_destroy = Crew(agents=[deployer_agent], tasks=[destroy_task], verbose=True)
-        result = crew_destroy.kickoff()
-        
+        print(f"\n☢️  DESTRUCTIVE ACTION: Destroying workspace '{slug}'")
+        decom_agent = agents.deployment_specialist()
+        decom_task = tasks.decommissioning_task(decom_agent, slug)
+        crew_decom = Crew(agents=[decom_agent], tasks=[decom_task], verbose=True)
+        crew_decom.kickoff()
         ProjectTracker.save(slug, status="destroyed")
-        print("\n--- Decommissioning Result ---")
-        print(result)
+        print(f"\n✅ Infrastructure Destroyed for {slug}")
         return
 
-    # --- Standard Development Flow ---
     if not args.prompt:
-        print("Error: No prompt provided. Usage: python crew_runner.py 'prompt' [--apply]")
+        parser.print_help()
         return
-    
+
     requirement = args.prompt
     budget = args.budget
     do_apply = args.apply
 
     print("\n" + "="*50)
-    print("      Universal AI Agent - Phase 6 (Observable Platform)")
+    print("      Universal AI Agent - Phase 7 (Visualizer Platform)")
     print("="*50 + "\n")
 
     # 1. Cloud Readiness & Initial Architect
@@ -117,6 +94,7 @@ def main():
     arch_result = str(crew_arch.kickoff())
     
     slug = get_project_slug(arch_result)
+    mermaid_diagram = extract_mermaid(arch_result)
     output_base = os.path.join("output", slug)
     print(f"\nBuilding Project Workspace: {output_base}/")
 
@@ -128,7 +106,8 @@ def main():
         cli_flags.append("--auto-fix")
 
     ProjectTracker.save(slug, prompt=requirement, status="generating",
-                        budget=budget, provider=detected_provider, flags=cli_flags)
+                        budget=budget, provider=detected_provider, flags=cli_flags,
+                        mermaid_diagram=mermaid_diagram)
 
     # 3. Main Development & Audit Loop
     max_rounds = 3
@@ -141,16 +120,18 @@ def main():
         
         # Run main developer workflow
         developer_agent = agents.terraform_developer()
-        auditor_agent = agents.security_auditor()
+        auditor_agent = agents.security_reviewer()
         finops_agent = agents.finops_specialist()
+
         deployer_agent = agents.deployment_specialist()
 
-        dev_task = tasks.terraform_development_task(developer_agent, arch_result, requirement)
-        audit_task = tasks.security_audit_task(auditor_agent, slug)
-        cost_task = tasks.finops_audit_task(finops_agent, slug, budget)
+        dev_task = tasks.write_terraform_task(developer_agent, slug)
+        audit_task = tasks.audit_task(auditor_agent, slug)
+        cost_task = tasks.financial_analysis_task(finops_agent, slug, budget)
         deploy_task = tasks.deployment_task(deployer_agent, slug) if do_apply else None
 
         active_tasks = [dev_task, audit_task, cost_task]
+
         if deploy_task:
             active_tasks.append(deploy_task)
 
@@ -164,8 +145,10 @@ def main():
         crew_result = str(crew_dev.kickoff())
         
         # Analysis of security results for self-healing
-        audit_results = auditor.run_security_scan(output_base)
-        critical_count = audit_results.get("critical_count", 0) + audit_results.get("high_count", 0)
+        audit_results = auditor.run_comprehensive_scan(output_base)
+        findings = audit_results.get("findings", [])
+        critical_count = len([f for f in findings if f.get("severity") in ["CRITICAL", "HIGH"]])
+
         
         # Update best state
         if best_finding_count is None or critical_count < best_finding_count:
@@ -221,7 +204,8 @@ def main():
     ProjectTracker.save(slug, prompt=requirement, status=final_status,
                         budget=budget, estimated_cost=total_cost,
                         security_issues=final_security, provider=detected_provider,
-                        flags=cli_flags)
+                        flags=cli_flags, mermaid_diagram=mermaid_diagram)
+
 
     print("\n" + "="*50)
     print("                FINAL AGENT REPORTS")
