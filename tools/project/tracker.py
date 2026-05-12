@@ -8,7 +8,12 @@ from sqlalchemy.orm import relationship, sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 
-# ... (Database Configuration remains same)
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///terraform_agent.db")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # --- Database Models ---
 
@@ -65,7 +70,7 @@ class ProjectTracker:
     @staticmethod
     def save(slug, prompt="", status="generated", budget=0.0,
              estimated_cost=0.0, security_issues=0, provider="Local", 
-             flags=None, mermaid_diagram="", drift_status="unknown"):
+             flags=None, mermaid_diagram="", drift_status="unknown", owner_id=None):
         """Save or update project metadata in DB."""
         session = SessionLocal()
         try:
@@ -84,9 +89,24 @@ class ProjectTracker:
             if mermaid_diagram: project.mermaid_diagram = mermaid_diagram
             if drift_status: project.drift_status = drift_status
             if flags is not None: project.flags = flags
+            if owner_id: project.owner_id = owner_id
             
             session.commit()
             return ProjectTracker.load(slug)
+        finally:
+            session.close()
+
+    @staticmethod
+    def delete(slug):
+        """Delete a project from the database."""
+        session = SessionLocal()
+        try:
+            project = session.query(ProjectModel).filter(ProjectModel.slug == slug).first()
+            if project:
+                session.delete(project)
+                session.commit()
+                return True
+            return False
         finally:
             session.close()
 
@@ -116,11 +136,15 @@ class ProjectTracker:
             session.close()
 
     @staticmethod
-    def load_all():
-        """Load all projects from DB."""
+    def load_all(owner_id=None):
+        """Load all projects from DB. Optionally filter by owner."""
         session = SessionLocal()
         try:
-            projects = session.query(ProjectModel).order_by(ProjectModel.updated_at.desc()).all()
+            query = session.query(ProjectModel)
+            if owner_id:
+                # Show projects owned by user OR unassigned projects (legacy/CLI)
+                query = query.filter((ProjectModel.owner_id == owner_id) | (ProjectModel.owner_id == None))
+            projects = query.order_by(ProjectModel.updated_at.desc()).all()
             return [
                 {
                     "slug": p.slug,
@@ -131,7 +155,8 @@ class ProjectTracker:
                     "security_issues": p.security_issues,
                     "provider": p.provider,
                     "drift_status": p.drift_status,
-                    "updated_at": p.updated_at.isoformat()
+                    "updated_at": p.updated_at.isoformat(),
+                    "owner_id": p.owner_id
                 } for p in projects
             ]
         finally:
@@ -181,3 +206,42 @@ class ProjectTracker:
             if diff: diff_result.append(diff)
 
         return "\n".join(diff_result) if diff_result else "✅ Code is identical."
+
+class UserTracker:
+    @staticmethod
+    def register(username, password, email=None):
+        session = SessionLocal()
+        try:
+            if session.query(UserModel).filter(UserModel.username == username).first():
+                return None
+            user = UserModel(username=username, email=email)
+            user.set_password(password)
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            session.expunge(user)
+            return user
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_by_id(user_id):
+        session = SessionLocal()
+        try:
+            user = session.query(UserModel).filter(UserModel.id == user_id).first()
+            if user:
+                session.expunge(user)
+            return user
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_by_username(username):
+        session = SessionLocal()
+        try:
+            user = session.query(UserModel).filter(UserModel.username == username).first()
+            if user:
+                session.expunge(user)
+            return user
+        finally:
+            session.close()

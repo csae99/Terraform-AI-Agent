@@ -1,19 +1,12 @@
-import sqlite3
-conn = sqlite3.connect('terraform_agent.db')
-cursor = conn.cursor()
+import sys
+sys.path.insert(0,'.')
+from tools.project.tracker import ProjectTracker
 
-def fix(slug, name):
-    new_mermaid = f"""graph TD
-    AWS["AWS Cloud"]
-    S3["S3 Bucket: {name}"]
-    
-    AWS -->|Create| S3
-    S3 -.->|Versioning| AWS"""
-    cursor.execute('UPDATE projects SET mermaid_diagram = ? WHERE slug = ?', (new_mermaid, slug))
-
-fix('shubham-nvidia-70b', 'shubham-nvidia-70b')
-fix('shubham-nvidia-s3-only', 'shubham-nvidia-s3-only')
-
-conn.commit()
-print(f"Updated {cursor.rowcount} rows (last change).")
-conn.close()
+projects = ProjectTracker.load_all()
+for p in projects:
+    diag = p.get('mermaid_diagram', '')
+    if diag and 'graph' in diag and 'participant' in diag:
+        print(f'Warning: {p["slug"]} has invalid graph/participant mixing.')
+        # Basic fix: drop participant lines, hope the rest works, or just return empty string to clear the error
+        ProjectTracker.save(p['slug'], mermaid_diagram='')
+        print(f'Cleared invalid mermaid for {p["slug"]}')

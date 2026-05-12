@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terraform AI Agent | Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: radial-gradient(circle at top right, #1a1a2e, #0f0c29);
+            overflow: hidden;
+        }
+        .login-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 3rem;
+            border-radius: 20px;
+            width: 400px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            animation: fadeIn 0.8s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        h2 { text-align: center; margin-bottom: 2rem; color: #fff; font-weight: 700; letter-spacing: 1px; }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 0.5rem; }
+        .form-group input { 
+            width: 100%; 
+            background: rgba(0,0,0,0.3); 
+            border: 1px solid var(--border); 
+            color: #fff; 
+            padding: 0.8rem; 
+            border-radius: 8px; 
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus { border-color: var(--accent-blue); }
+        .btn-primary { 
+            width: 100%; 
+            padding: 1rem; 
+            background: var(--accent-blue); 
+            border: none; 
+            border-radius: 8px; 
+            color: #fff; 
+            font-weight: 600; 
+            cursor: pointer;
+            transition: transform 0.2s, background 0.3s;
+        }
+        .btn-primary:hover { background: #3b82f6; transform: translateY(-2px); }
+        .toggle-link { text-align: center; margin-top: 1.5rem; color: var(--text-secondary); font-size: 0.85rem; }
+        .toggle-link a { color: var(--accent-orange); text-decoration: none; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2 id="form-title">Portal Login</h2>
+        <div id="error-msg" style="color: #ef4444; font-size: 0.8rem; margin-bottom: 1rem; display: none; text-align: center;"></div>
+        
+        <form id="auth-form">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" required placeholder="shubham554">
+            </div>
+            <div class="form-group" id="email-group" style="display: none;">
+                <label>Email (Optional)</label>
+                <input type="email" id="email" placeholder="shubham@example.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" required placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn-primary" id="submit-btn">Login</button>
+        </form>
+
+        <div class="toggle-link">
+            <span id="toggle-text">Don't have an account?</span> 
+            <a onclick="toggleAuthMode()" id="toggle-btn">Sign Up</a>
+        </div>
+    </div>
+
+    <script>
+        let isLogin = true;
+
+        function toggleAuthMode() {
+            isLogin = !isLogin;
+            document.getElementById('form-title').innerText = isLogin ? 'Portal Login' : 'Create Account';
+            document.getElementById('submit-btn').innerText = isLogin ? 'Login' : 'Sign Up';
+            document.getElementById('toggle-text').innerText = isLogin ? "Don't have an account?" : "Already have an account?";
+            document.getElementById('toggle-btn').innerText = isLogin ? 'Sign Up' : 'Login';
+            document.getElementById('email-group').style.display = isLogin ? 'none' : 'block';
+            document.getElementById('error-msg').style.display = 'none';
+        }
+
+        document.getElementById('auth-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const email = document.getElementById('email').value;
+            const errorElem = document.getElementById('error-msg');
+
+            const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+            const body = isLogin ? { username, password } : { username, password, email };
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    window.location.href = '/';
+                } else {
+                    errorElem.innerText = data.error || "Authentication failed";
+                    errorElem.style.display = 'block';
+                }
+            } catch (err) {
+                errorElem.innerText = "Connection error";
+                errorElem.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

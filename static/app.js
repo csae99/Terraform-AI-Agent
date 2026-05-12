@@ -1,14 +1,70 @@
 let currentProject = null;
 let logInterval = null;
+let currentUser = null;
 
 async function init() {
+    if (!await checkAuth()) return;
     await fetchStats();
     await fetchProjects();
 }
 
+function switchPrimaryTab(tabId) {
+    // Toggle views
+    document.querySelectorAll('.primary-view').forEach(v => v.style.display = 'none');
+    const target = document.getElementById(`view-${tabId}`);
+    if (target) {
+        target.style.display = 'block';
+        // Re-trigger animation
+        target.style.animation = 'none';
+        target.offsetHeight; // force reflow
+        target.style.animation = '';
+    }
+
+    // Toggle nav buttons
+    document.querySelectorAll('.primary-nav-tab').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById(`nav-${tabId}`);
+    if (btn) btn.classList.add('active');
+}
+
+async function checkAuth() {
+    try {
+        const response = await apiFetch('/api/auth/me');
+        if (!response.ok) {
+            window.location.href = '/login';
+            return false;
+        }
+        currentUser = await response.json();
+        updateHeaderUser();
+        return true;
+    } catch (e) {
+        window.location.href = '/login';
+        return false;
+    }
+}
+
+function updateHeaderUser() {
+    const statusContainer = document.getElementById('connection-status');
+    statusContainer.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <span style="color: var(--text-secondary); font-size: 0.8rem;">Logged in as: <strong style="color: var(--accent-orange)">${currentUser.username}</strong></span>
+            <a href="/api/auth/logout" class="status-badge status-failed" style="text-decoration: none; font-size: 0.7rem; padding: 0.2rem 0.5rem;">Logout</a>
+            <span class="status-badge status-deployed">System Online</span>
+        </div>
+    `;
+}
+
+async function apiFetch(url, options = {}) {
+    const res = await fetch(url, options);
+    if (res.status === 401) {
+        window.location.href = '/login';
+        throw new Error("Unauthorized");
+    }
+    return res;
+}
+
 async function fetchStats() {
     try {
-        const response = await fetch('/api/stats');
+        const response = await apiFetch('/api/stats');
         const stats = await response.json();
         const container = document.getElementById('global-stats');
         container.innerHTML = `
@@ -34,9 +90,14 @@ async function fetchStats() {
 
 async function fetchProjects() {
     try {
-        const response = await fetch('/api/projects');
+        const response = await apiFetch('/api/projects');
         const projects = await response.json();
         const grid = document.getElementById('projects-grid');
+
+        // Update badge count
+        const badge = document.getElementById('workspace-count');
+        if (badge) badge.innerText = projects.length;
+
         grid.innerHTML = projects.map(p => `
             <div class="project-card" onclick="openProject('${p.slug}')">
                 <div class="project-card-header">
@@ -60,7 +121,7 @@ async function fetchProjects() {
 
 async function openProject(slug) {
     try {
-        const response = await fetch(`/api/projects/${slug}`);
+        const response = await apiFetch(`/api/projects/${slug}`);
         const project = await response.json();
         currentProject = project;
 
@@ -99,7 +160,7 @@ async function checkDrift() {
     driftBadge.style.display = 'inline-block';
 
     try {
-        const response = await fetch(`/api/projects/${slug}/drift`);
+        const response = await apiFetch(`/api/projects/${slug}/drift`);
         if (!response.ok) {
             const text = await response.text();
             throw new Error(`Server Error (${response.status}): ${text.substring(0, 100)}`);
@@ -120,6 +181,26 @@ function closeModal() {
     document.getElementById('project-modal').style.display = 'none';
 }
 
+async function deleteProject() {
+    if (!currentProject) return;
+    const slug = currentProject.slug;
+    if (!confirm(`Are you sure you want to permanently delete project "${slug}"?\n\nThis will remove all files and database records.`)) return;
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}`, { method: 'DELETE' });
+        if (res.ok) {
+            closeModal();
+            await init();
+            alert(`✅ Project "${slug}" deleted successfully.`);
+        } else {
+            const data = await res.json();
+            alert(`❌ Failed to delete: ${data.error || 'Unknown error'}`);
+        }
+    } catch (e) {
+        alert(`❌ Delete failed: ${e.message}`);
+    }
+}
+
 async function switchModalTab(tabId) {
     document.querySelectorAll('.modal-tab-content').forEach(c => c.style.display = 'none');
     const activeContent = document.getElementById(`modal-tab-${tabId}`);
@@ -130,7 +211,7 @@ async function switchModalTab(tabId) {
     });
 
     if (tabId === 'code' && currentProject) {
-        const res = await fetch(`/api/projects/${currentProject.slug}/code`);
+        const res = await apiFetch(`/api/projects/${currentProject.slug}/code`);
         const files = await res.json();
         let html = '';
         for (const [f, c] of Object.entries(files)) {
@@ -143,11 +224,11 @@ async function switchModalTab(tabId) {
     } else if (tabId === 'evolution' && currentProject) {
         loadSnapshots(currentProject.slug);
     } else if (tabId === 'financial' && currentProject) {
-        const res = await fetch(`/api/projects/${currentProject.slug}/report`);
+        const res = await apiFetch(`/api/projects/${currentProject.slug}/report`);
         const data = await res.json();
         document.getElementById('modal-financial-report').innerText = data.content;
     } else if (tabId === 'logs' && currentProject) {
-        const res = await fetch(`/api/projects/${currentProject.slug}/logs/terraform_plan`);
+        const res = await apiFetch(`/api/projects/${currentProject.slug}/logs/terraform_plan`);
         const data = await res.json();
         document.getElementById('modal-tab-logs-content').innerHTML = `<pre class="log-view">${data.content}</pre>`;
     }
@@ -155,7 +236,7 @@ async function switchModalTab(tabId) {
 
 
 async function loadSnapshots(slug) {
-    const res = await fetch(`/api/projects/${slug}/snapshots`);
+    const res = await apiFetch(`/api/projects/${slug}/snapshots`);
     const snapshots = await res.json();
     const container = document.getElementById('snapshot-items');
     container.innerHTML = snapshots.map(s => `
@@ -166,7 +247,7 @@ async function loadSnapshots(slug) {
 }
 
 async function viewDiff(slug, snapshotId) {
-    const res = await fetch(`/api/projects/${slug}/diff/${snapshotId}`);
+    const res = await apiFetch(`/api/projects/${slug}/diff/${snapshotId}`);
     const data = await res.json();
     const viewer = document.getElementById('diff-viewer');
     
@@ -237,7 +318,7 @@ async function generateInfra() {
     consoleElem.innerText = "🚀 Connecting to Agent Engine...\n";
 
     try {
-        const response = await fetch('/api/generate', {
+        const response = await apiFetch('/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt, budget, apply, credentials, ai_config })
@@ -269,15 +350,20 @@ function startPollingLogs() {
                 consoleElem.scrollTop = consoleElem.scrollHeight;
             }
 
-            if (data.logs.includes('✅ Workflow Finished')) {
+            // Detect workflow completion (success or failure)
+            if (data.logs && (data.logs.includes('✅ Workflow Finished') || data.logs.includes('❌ Workflow Finished'))) {
                 clearInterval(logInterval);
                 genBtn.disabled = false;
                 genBtn.innerText = "Generate";
                 document.getElementById('gen-status').style.display = 'none';
+
+                const isSuccess = data.logs.includes('✅ Workflow Finished');
                 setTimeout(() => {
                     init();
-                    alert("✅ Infrastructure Generation Complete!");
-                }, 1000);
+                    closeLiveModal();
+                    switchPrimaryTab('workspaces');
+                    alert(isSuccess ? "✅ Infrastructure Generation Complete!" : "❌ Workflow finished with errors. Check logs.");
+                }, 1500);
             }
         } catch (e) { console.error("Log polling error", e); }
     }, 1000);

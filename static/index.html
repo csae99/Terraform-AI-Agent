@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terraform AI Agent | Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({ startOnLoad: false, theme: 'dark' });</script>
@@ -24,135 +24,147 @@
         <!-- Stats injected by JS -->
     </div>
 
-    <!-- New Generation Section -->
-    <div style="padding: 0 2rem 2rem 2rem;">
-        <div class="stat-card" style="display: flex; flex-direction: column; gap: 1rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2 style="font-size: 1.1rem; font-weight: 600;">Build New Infrastructure</h2>
-                <span id="gen-status" class="status-badge status-generating" style="display: none;">Processing...</span>
-            </div>
-            <div style="display: flex; gap: 1rem; align-items: flex-end;">
-                <div style="flex: 1;">
-                    <label class="meta-label">Infrastructure Requirement</label>
-                    <textarea id="infra-prompt" placeholder="e.g., Create a private S3 bucket with versioning..." style="width: 100%; background: var(--bg-main); border: 1px solid var(--border); color: white; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem; font-family: inherit; resize: vertical; min-height: 44px;"></textarea>
-                </div>
-                <div style="width: 150px;">
-                    <label class="meta-label">Budget (USD)</label>
-                    <input type="number" id="infra-budget" value="100" style="width: 100%; background: var(--bg-main); border: 1px solid var(--border); color: white; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;">
-                </div>
-                <div>
-                    <label class="meta-label" style="display: block; margin-bottom: 0.5rem;">Live Deploy</label>
-                    <input type="checkbox" id="infra-apply" style="width: 20px; height: 20px;">
-                </div>
-                <button class="tab-btn active" style="height: 44px; padding: 0 2rem;" onclick="generateInfra()">Generate</button>
-            </div>
+    <!-- ─── Primary Navigation Tabs ─── -->
+    <div class="primary-nav">
+        <button class="primary-nav-tab active" id="nav-build" onclick="switchPrimaryTab('build')">
+            <i class="fas fa-hammer"></i> Build
+        </button>
+        <button class="primary-nav-tab" id="nav-workspaces" onclick="switchPrimaryTab('workspaces')">
+            <i class="fas fa-folder-open"></i> Workspaces
+            <span class="nav-badge" id="workspace-count"></span>
+        </button>
+    </div>
 
-            <!-- AI Model Configuration -->
-            <details style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-                <summary style="cursor: pointer; margin-bottom: 0.5rem; color: var(--accent-orange);">🤖 Advanced: AI Model Configuration (Optional)</summary>
-                <div style="display: grid; grid-template-columns: 1fr 1.5fr 2fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
-                    <div>
-                        <label class="meta-label">Provider</label>
-                        <select id="ai-provider" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
-                            <option value="gemini">Google Gemini</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="anthropic">Anthropic Claude</option>
-                            <option value="groq">Groq</option>
-                            <option value="mistral">Mistral</option>
-                            <option value="nvidia">NVIDIA</option>
-                        </select>
+    <!-- ═══ BUILD TAB ═══ -->
+    <div id="view-build" class="primary-view">
+        <div style="padding: 0 2rem 2rem 2rem;">
+            <div class="stat-card" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="font-size: 1.1rem; font-weight: 600;">Build New Infrastructure</h2>
+                    <span id="gen-status" class="status-badge status-generating" style="display: none;">Processing...</span>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                    <div style="flex: 1;">
+                        <label class="meta-label">Infrastructure Requirement</label>
+                        <textarea id="infra-prompt" placeholder="e.g., Create a private S3 bucket with versioning..." style="width: 100%; background: var(--bg-main); border: 1px solid var(--border); color: white; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem; font-family: inherit; resize: vertical; min-height: 44px;"></textarea>
+                    </div>
+                    <div style="width: 150px;">
+                        <label class="meta-label">Budget (USD)</label>
+                        <input type="number" id="infra-budget" value="100" style="width: 100%; background: var(--bg-main); border: 1px solid var(--border); color: white; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;">
                     </div>
                     <div>
-                        <label class="meta-label">Model Name</label>
-                        <input type="text" id="ai-model" placeholder="gemini-1.5-pro" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        <label class="meta-label" style="display: block; margin-bottom: 0.5rem;">Live Deploy</label>
+                        <input type="checkbox" id="infra-apply" style="width: 20px; height: 20px;">
                     </div>
-                    <div>
-                        <label class="meta-label">API Key</label>
-                        <input type="password" id="ai-key" placeholder="Enter API Key for selected provider" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
-                    </div>
-                </div>
-            </details>
-
-            <!-- Cloud Credentials (BYOK) -->
-
-            <details style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-                <summary style="cursor: pointer; margin-bottom: 0.5rem; color: var(--accent-blue);">🔑 Advanced: Provide Cloud Credentials (Optional)</summary>
-                
-                <div style="display: flex; gap: 10px; margin: 1rem 0;">
-                    <button class="tab-btn active" onclick="switchCredTab('aws')">AWS</button>
-                    <button class="tab-btn" onclick="switchCredTab('azure')">Azure</button>
-                    <button class="tab-btn" onclick="switchCredTab('gcp')">GCP</button>
+                    <button class="tab-btn active" style="height: 44px; padding: 0 2rem;" onclick="generateInfra()">Generate</button>
                 </div>
 
-                <!-- AWS Panel -->
-                <div id="cred-panel-aws" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
-                    <div>
-                        <label class="meta-label">Access Key ID</label>
-                        <input type="password" id="aws-key" placeholder="AKIA..." style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                <!-- AI Model Configuration -->
+                <details style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+                    <summary style="cursor: pointer; margin-bottom: 0.5rem; color: var(--accent-orange);">🤖 Advanced: AI Model Configuration (Optional)</summary>
+                    <div style="display: grid; grid-template-columns: 1fr 1.5fr 2fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                        <div>
+                            <label class="meta-label">Provider</label>
+                            <select id="ai-provider" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                                <option value="gemini">Google Gemini</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic Claude</option>
+                                <option value="groq">Groq</option>
+                                <option value="mistral">Mistral</option>
+                                <option value="nvidia">NVIDIA</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="meta-label">Model Name</label>
+                            <input type="text" id="ai-model" placeholder="gemini-1.5-pro" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
+                        <div>
+                            <label class="meta-label">API Key</label>
+                            <input type="password" id="ai-key" placeholder="Enter API Key for selected provider" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
                     </div>
-                    <div>
-                        <label class="meta-label">Secret Key</label>
-                        <input type="password" id="aws-secret" placeholder="wJalrX..." style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
-                    </div>
-                    <div>
-                        <label class="meta-label">Region</label>
-                        <input type="text" id="aws-region" placeholder="us-east-1" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
-                    </div>
-                </div>
+                </details>
 
-                <!-- Azure Panel -->
-                <div id="cred-panel-azure" style="display: none; grid-template-columns: 1fr 1fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
-                    <div>
-                        <label class="meta-label">Client ID</label>
-                        <input type="password" id="az-client-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                <!-- Cloud Credentials (BYOK) -->
+                <details style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+                    <summary style="cursor: pointer; margin-bottom: 0.5rem; color: var(--accent-blue);">🔑 Advanced: Provide Cloud Credentials (Optional)</summary>
+                    
+                    <div style="display: flex; gap: 10px; margin: 1rem 0;">
+                        <button class="tab-btn active" onclick="switchCredTab('aws')">AWS</button>
+                        <button class="tab-btn" onclick="switchCredTab('azure')">Azure</button>
+                        <button class="tab-btn" onclick="switchCredTab('gcp')">GCP</button>
                     </div>
-                    <div>
-                        <label class="meta-label">Client Secret</label>
-                        <input type="password" id="az-client-secret" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
-                    </div>
-                    <div>
-                        <label class="meta-label">Subscription ID</label>
-                        <input type="password" id="az-subscription-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
-                    </div>
-                    <div>
-                        <label class="meta-label">Tenant ID</label>
-                        <input type="password" id="az-tenant-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
-                    </div>
-                </div>
 
-                <!-- GCP Panel -->
-                <div id="cred-panel-gcp" style="display: none; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
-                    <label class="meta-label">Google Credentials JSON</label>
-                    <textarea id="gcp-json" placeholder='{ "type": "service_account", ... }' style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem; font-family: 'JetBrains Mono'; height: 100px;"></textarea>
-                </div>
-            </details>
-
-            
-            <!-- Live Console Output -->
-
-            <div id="live-console-modal" class="modal">
-                <div class="modal-content" style="max-width: 800px;">
-                    <div class="modal-header">
-                        <h2>🚀 Agent Live Stream</h2>
-                        <button class="tab-btn" onclick="closeLiveModal()">Minimize</button>
+                    <!-- AWS Panel -->
+                    <div id="cred-panel-aws" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                        <div>
+                            <label class="meta-label">Access Key ID</label>
+                            <input type="password" id="aws-key" placeholder="AKIA..." style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
+                        <div>
+                            <label class="meta-label">Secret Key</label>
+                            <input type="password" id="aws-secret" placeholder="wJalrX..." style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
+                        <div>
+                            <label class="meta-label">Region</label>
+                            <input type="text" id="aws-region" placeholder="us-east-1" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
                     </div>
-                    <pre id="live-console" class="log-view" style="height: 400px; margin-top: 1rem; border: 1px solid var(--accent-blue);"></pre>
-                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">The agent is currently architecting and implementing your request. Do not refresh.</p>
+
+                    <!-- Azure Panel -->
+                    <div id="cred-panel-azure" style="display: none; grid-template-columns: 1fr 1fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                        <div>
+                            <label class="meta-label">Client ID</label>
+                            <input type="password" id="az-client-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
+                        <div>
+                            <label class="meta-label">Client Secret</label>
+                            <input type="password" id="az-client-secret" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
+                        <div>
+                            <label class="meta-label">Subscription ID</label>
+                            <input type="password" id="az-subscription-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
+                        <div>
+                            <label class="meta-label">Tenant ID</label>
+                            <input type="password" id="az-tenant-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                        </div>
+                    </div>
+
+                    <!-- GCP Panel -->
+                    <div id="cred-panel-gcp" style="display: none; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                        <label class="meta-label">Google Credentials JSON</label>
+                        <textarea id="gcp-json" placeholder='{ "type": "service_account", ... }' style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem; font-family: 'JetBrains Mono'; height: 100px;"></textarea>
+                    </div>
+                </details>
+
+                <!-- Live Console Output -->
+                <div id="live-console-modal" class="modal">
+                    <div class="modal-content" style="max-width: 800px;">
+                        <div class="modal-header">
+                            <h2>🚀 Agent Live Stream</h2>
+                            <button class="tab-btn" onclick="closeLiveModal()">Minimize</button>
+                        </div>
+                        <pre id="live-console" class="log-view" style="height: 400px; margin-top: 1rem; border: 1px solid var(--accent-blue);"></pre>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">The agent is currently architecting and implementing your request. Do not refresh.</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <main>
-
-        <div class="section-header">
-            <h2>Workspaces</h2>
-            <button class="tab-btn active" onclick="refreshData()">Refresh</button>
-        </div>
-        <div class="projects-grid" id="projects-grid">
-            <!-- Projects injected by JS -->
-        </div>
-    </main>
+    <!-- ═══ WORKSPACES TAB ═══ -->
+    <div id="view-workspaces" class="primary-view" style="display: none;">
+        <main>
+            <div class="section-header">
+                <h2>Workspaces</h2>
+                <button class="tab-btn active" onclick="refreshData()">Refresh</button>
+            </div>
+            <div class="projects-grid" id="projects-grid">
+                <!-- Projects injected by JS -->
+            </div>
+        </main>
+    </div>
 
     <!-- Project Detail Modal -->
     <div id="project-modal" class="modal">
@@ -164,6 +176,7 @@
                 </div>
                 <div style="display: flex; gap: 10px;">
                     <button class="tab-btn" style="background: var(--accent-orange); color: white;" onclick="checkDrift()">🔍 Scan for Drift</button>
+                    <button class="tab-btn" style="background: var(--status-failed); color: white;" onclick="deleteProject()">🗑️ Delete</button>
                     <button class="tab-btn" onclick="closeModal()">Close</button>
                 </div>
             </div>
@@ -205,11 +218,9 @@
                      <div id="modal-tab-logs-content"></div>
                 </div>
 
-
-
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3"></script>
 </body>
 </html>

@@ -10,14 +10,26 @@ if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
+# Ensure project root is on sys.path so imports work without PYTHONPATH
+_project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+os.chdir(_project_root)
+
 from crewai import Crew, Process, Task
-from agents import TerraformAgents
-from tasks import TerraformTasks
-from tools.security_tools import SecurityAuditor
-from tools.financial_tools import CostEstimator
-from tools.cloud_tools import CloudSync
-from tools.terraform_tools import TerraformTools
-from tools.project_tracker import ProjectTracker
+from agents.terraform_architect import TerraformArchitect
+from agents.terraform_developer import TerraformDeveloper
+from agents.security_reviewer import SecurityReviewer
+from agents.cost_optimizer import CostOptimizer
+from agents.deployment_planner import DeploymentPlanner
+from workflows.terraform_generation import TerraformGenerationTasks
+from workflows.terraform_validation import TerraformValidationTasks
+from workflows.terraform_deployment import TerraformDeploymentTasks
+from tools.security.scanning_tools import SecurityAuditor
+from tools.finance.cost_estimation import CostEstimator
+from tools.cloud.aws_tools import CloudSync
+from tools.terraform.terraform_tools import TerraformTools
+from tools.project.tracker import ProjectTracker
 
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 os.environ["OTEL_SDK_DISABLED"] = "true"
@@ -51,8 +63,11 @@ def main():
     parser.add_argument("--model-key", type=str, help="API Key for the selected model")
     args = parser.parse_args()
 
-    agents = TerraformAgents(model_name=args.model, api_key=args.model_key)
-    tasks = TerraformTasks()
+    architect_agent_cls = TerraformArchitect(model_name=args.model, api_key=args.model_key)
+    developer_agent_cls = TerraformDeveloper(model_name=args.model, api_key=args.model_key)
+    auditor_agent_cls = SecurityReviewer(model_name=args.model, api_key=args.model_key)
+    finops_agent_cls = CostOptimizer(model_name=args.model, api_key=args.model_key)
+    deployer_agent_cls = DeploymentPlanner(model_name=args.model, api_key=args.model_key)
     auditor = SecurityAuditor()
     estimator = CostEstimator()
     cloud = CloudSync()
@@ -62,8 +77,9 @@ def main():
     if args.destroy:
         slug = args.destroy
         print(f"\n☢️  DESTRUCTIVE ACTION: Destroying workspace '{slug}'")
-        decom_agent = agents.deployment_specialist()
-        decom_task = tasks.decommissioning_task(decom_agent, slug)
+        decom_agent_cls = DeploymentPlanner(model_name=args.model, api_key=args.model_key)
+        decom_agent = decom_agent_cls.get_agent()
+        decom_task = TerraformDeploymentTasks.decommissioning_task(decom_agent, slug)
         crew_decom = Crew(agents=[decom_agent], tasks=[decom_task], verbose=True)
         crew_decom.kickoff()
         ProjectTracker.save(slug, status="destroyed")
@@ -87,8 +103,8 @@ def main():
     detected_provider = readiness['provider']
     print(f"Cloud Readiness: {detected_provider} Ready")
     
-    architect_agent = agents.cloud_architect()
-    arch_task = tasks.design_architecture_task(architect_agent, requirement)
+    architect_agent = architect_agent_cls.get_agent()
+    arch_task = TerraformGenerationTasks.design_architecture_task(architect_agent, requirement)
     
     crew_arch = Crew(agents=[architect_agent], tasks=[arch_task], verbose=True)
     arch_result = str(crew_arch.kickoff())
@@ -99,6 +115,7 @@ def main():
     print(f"\nBuilding Project Workspace: {output_base}/")
 
     # Track project from the start
+    owner_id = os.getenv("owner_id")
     cli_flags = ["--apply"] if do_apply else []
     if budget != 100.0:
         cli_flags.append(f"--budget={budget}")
@@ -107,7 +124,7 @@ def main():
 
     ProjectTracker.save(slug, prompt=requirement, status="generating",
                         budget=budget, provider=detected_provider, flags=cli_flags,
-                        mermaid_diagram=mermaid_diagram)
+                        mermaid_diagram=mermaid_diagram, owner_id=owner_id)
 
     # 3. Main Development & Audit Loop
     max_rounds = 3
@@ -119,16 +136,16 @@ def main():
         print(f"\n--- Round {current_round}: Deployment & Audit ---")
         
         # Run main developer workflow
-        developer_agent = agents.terraform_developer()
-        auditor_agent = agents.security_reviewer()
-        finops_agent = agents.finops_specialist()
+        developer_agent = developer_agent_cls.get_agent()
+        auditor_agent = auditor_agent_cls.get_agent()
+        finops_agent = finops_agent_cls.get_agent()
 
-        deployer_agent = agents.deployment_specialist()
+        deployer_agent = deployer_agent_cls.get_agent()
 
-        dev_task = tasks.write_terraform_task(developer_agent, slug)
-        audit_task = tasks.audit_task(auditor_agent, slug)
-        cost_task = tasks.financial_analysis_task(finops_agent, slug, budget)
-        deploy_task = tasks.deployment_task(deployer_agent, slug) if do_apply else None
+        dev_task = TerraformGenerationTasks.write_terraform_task(developer_agent, slug, arch_result)
+        audit_task = TerraformValidationTasks.audit_task(auditor_agent, slug)
+        cost_task = TerraformValidationTasks.financial_analysis_task(finops_agent, slug, budget)
+        deploy_task = TerraformDeploymentTasks.deployment_task(deployer_agent, slug) if do_apply else None
 
         active_tasks = [dev_task, audit_task, cost_task]
 
@@ -204,7 +221,7 @@ def main():
     ProjectTracker.save(slug, prompt=requirement, status=final_status,
                         budget=budget, estimated_cost=total_cost,
                         security_issues=final_security, provider=detected_provider,
-                        flags=cli_flags, mermaid_diagram=mermaid_diagram)
+                        flags=cli_flags, mermaid_diagram=mermaid_diagram, owner_id=owner_id)
 
 
     print("\n" + "="*50)

@@ -1,4 +1,5 @@
 import os
+import litellm
 from dotenv import load_dotenv
 from crewai import LLM
 
@@ -9,6 +10,12 @@ load_dotenv()
 os.environ["LITELLM_LOGGING"] = "DEBUG"
 os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+
+# ─── Rate Limit / Retry Settings ───
+# LiteLLM will automatically wait & retry on 429 with exponential backoff
+litellm.num_retries = 5                # Global retry count
+litellm.request_timeout = 300          # 5 min timeout per request (complex prompts)
+litellm.retry_after = 10               # Min 10s wait between retries
 
 def get_llm(model_name=None, api_key=None):
     """
@@ -61,7 +68,7 @@ def get_llm(model_name=None, api_key=None):
         # Add thinking support for DeepSeek models
         if "deepseek" in model_part.lower():
             extra_kwargs["extra_body"] = {
-                "chat_template_kwargs": {"thinking": True, "reasoning_effort": "high"}
+                "chat_template_kwargs": {"thinking": False}
             }
     elif provider in ["gemini", "google_ai"]:
 
@@ -78,6 +85,8 @@ def get_llm(model_name=None, api_key=None):
         model=model_name,
         temperature=0.7,
         api_key=api_key,
+        num_retries=5,
+        timeout=300,
         **extra_kwargs
     )
 

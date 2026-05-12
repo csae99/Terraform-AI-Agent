@@ -3,10 +3,10 @@ import re
 import sys
 import google.generativeai as genai
 from dotenv import load_dotenv
-from tools.security_tools import SecurityAuditor
-from tools.financial_tools import CostEstimator
-from tools.cloud_tools import CloudSync
-from tools.terraform_tools import TerraformTools
+from tools.security.scanning_tools import SecurityAuditor
+from tools.finance.cost_estimation import CostEstimator
+from tools.cloud.aws_tools import CloudSync
+from tools.terraform.terraform_tools import TerraformTools
 
 # This script verifies the Phase 4 logic WITHOUT relying on the CrewAI library
 # which currently has environment-specific routing issues with Gemini.

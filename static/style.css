@@ -73,7 +73,75 @@ h1 {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
-    padding: 2rem;
+    padding: 1.5rem 2rem;
+}
+
+/* Primary Navigation Tabs */
+.primary-nav {
+    display: flex;
+    gap: 0;
+    padding: 0 2rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+}
+
+.primary-nav-tab {
+    position: relative;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.9rem 1.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    transition: color 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.primary-nav-tab:hover {
+    color: var(--text-primary);
+}
+
+.primary-nav-tab.active {
+    color: var(--text-primary);
+}
+
+.primary-nav-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+    border-radius: 2px 2px 0 0;
+}
+
+.primary-nav-tab i {
+    font-size: 0.85rem;
+}
+
+.nav-badge {
+    background: var(--accent-blue);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+}
+
+.primary-view {
+    animation: viewFadeIn 0.25s ease-out;
+}
+
+@keyframes viewFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .stat-card {
@@ -170,6 +238,7 @@ main {
 }
 
 .status-deployed { background: rgba(16, 185, 129, 0.1); color: var(--status-deployed); }
+.status-generated { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); }
 .status-generating { background: rgba(245, 158, 11, 0.1); color: var(--status-generating); }
 .status-destroyed { background: rgba(239, 68, 68, 0.1); color: var(--status-destroyed); }
 .status-failed { background: rgba(220, 38, 38, 0.1); color: var(--status-failed); }

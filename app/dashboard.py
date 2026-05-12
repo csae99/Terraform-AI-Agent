@@ -11,16 +11,35 @@ import sys
 import io
 import subprocess
 import threading
-from flask import Flask, jsonify, send_from_directory, abort, request
+from flask import Flask, jsonify, send_from_directory, abort, request, redirect, url_for
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+import time
 
 # Force UTF-8 encoding for console output on Windows
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-from tools.project_tracker import ProjectTracker
+# Ensure project root is on sys.path so imports work without PYTHONPATH
+_project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
-app = Flask(__name__, static_folder="static", static_url_path="/static")
+from tools.project.tracker import ProjectTracker, UserTracker
+
+basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+static_dir = os.path.join(basedir, "static")
+app = Flask(__name__, static_folder=static_dir, static_url_path="/static")
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "super-secret-key")
+
+# Setup Login Manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login_page"
+
+@login_manager.user_loader
+def load_user(user_id):
+    return UserTracker.get_by_id(int(user_id))
 
 OUTPUT_DIR = "output"
 
@@ -28,16 +47,14 @@ OUTPUT_DIR = "output"
 active_logs = {}
 
 def run_agent_workflow(prompt, budget, apply, credentials=None, ai_config=None):
-    """Background task to run the crew_runner.py process."""
-    # Use 'python' directly as it is more reliable in containerized environments
-    cmd = ["python", "crew_runner.py", prompt, "--budget", str(budget), "--auto-fix"]
+    """Background task to run the main.py agent process."""
+    cmd = [sys.executable, "app/main.py", prompt, "--budget", str(budget), "--auto-fix"]
     if apply:
         cmd.append("--apply")
     
     # Handle AI Config overrides
     if ai_config:
         if ai_config.get("model"):
-            # Ensure model has provider prefix if needed
             model = ai_config.get("model")
             provider = ai_config.get("provider")
             if "/" not in model and provider:
@@ -46,7 +63,6 @@ def run_agent_workflow(prompt, budget, apply, credentials=None, ai_config=None):
         if ai_config.get("key"):
             cmd.extend(["--model-key", ai_config.get("key")])
 
-    # We use a unique ID for this run's logs (simple prompt-based slug for now)
     temp_slug = "active-run"
     active_logs[temp_slug] = "🚀 Starting Multi-Agent Workflow...\n"
     
@@ -54,8 +70,13 @@ def run_agent_workflow(prompt, budget, apply, credentials=None, ai_config=None):
     env = os.environ.copy()
     if credentials:
         for key, value in credentials.items():
-            if value: # Only set if a value was provided
-                env[key] = value
+            if value:
+                env[key] = str(value)
+    
+    # Pass owner_id into subprocess environment so main.py can read it
+    owner_id = credentials.get("owner_id") if credentials else None
+    if owner_id:
+        env["owner_id"] = str(owner_id)
 
     try:
         process = subprocess.Popen(
@@ -67,54 +88,63 @@ def run_agent_workflow(prompt, budget, apply, credentials=None, ai_config=None):
             encoding='utf-8',
             env=env
         )
-    except Exception as e:
-        active_logs[temp_slug] = f"❌ Failed to start process: {str(e)}\n"
-        print(f"Subprocess start error: {str(e)}")
-        return
 
-
-        
         for line in iter(process.stdout.readline, ''):
             active_logs[temp_slug] += line
             # Keep log size reasonable (last 500 lines)
-            lines = active_logs[temp_slug].split('\n')
-            if len(lines) > 500:
-                active_logs[temp_slug] = '\n'.join(lines[-500:])
-            
+            log_lines = active_logs[temp_slug].split('\n')
+            if len(log_lines) > 500:
+                active_logs[temp_slug] = '\n'.join(log_lines[-500:])
+
         process.stdout.close()
         process.wait()
-        active_logs[temp_slug] += f"\n✅ Workflow Finished with exit code {process.returncode}\n"
+
+        if process.returncode == 0:
+            active_logs[temp_slug] += "\n✅ Workflow Finished successfully.\n"
+        else:
+            active_logs[temp_slug] += f"\n❌ Workflow Finished with exit code {process.returncode}\n"
     except Exception as e:
         active_logs[temp_slug] += f"\n❌ Error: {str(e)}\n"
 
 # ─── Page Routes ───────────────────────────────────────────────────
 
 @app.route("/")
+@login_required
 def index():
     """Serve the dashboard SPA."""
-    return send_from_directory("static", "index.html")
+    return send_from_directory(static_dir, "index.html")
+
+@app.route("/login")
+def login_page():
+    """Serve the login page."""
+    return send_from_directory(static_dir, "login.html")
 
 
 # ─── API Routes ────────────────────────────────────────────────────
 
 @app.route("/api/projects")
+@login_required
 def list_projects():
-    """Return metadata for all projects."""
-    projects = ProjectTracker.load_all()
+    """Return metadata for projects owned by the current user."""
+    projects = ProjectTracker.load_all(owner_id=current_user.id)
     return jsonify(projects)
 
 @app.route("/api/generate", methods=["POST"])
+@login_required
 def generate_infrastructure():
     """Trigger the multi-agent workflow."""
     data = request.json
     prompt = data.get("prompt")
     budget = data.get("budget", 100)
     apply = data.get("apply", False)
-    credentials = data.get("credentials")
+    credentials = data.get("credentials") or {}
     ai_config = data.get("ai_config")
 
     if not prompt:
         return jsonify({"error": "No prompt provided"}), 400
+
+    # Attach owner_id to credentials so it passes to the background thread
+    credentials["owner_id"] = current_user.id
 
     # Start workflow in a background thread
     thread = threading.Thread(target=run_agent_workflow, args=(prompt, budget, apply, credentials, ai_config))
@@ -125,17 +155,67 @@ def generate_infrastructure():
 
 
 @app.route("/api/logs/active")
+@login_required
 def get_active_logs():
     """Stream active logs to the dashboard."""
     return jsonify({"logs": active_logs.get("active-run", "No active run.")})
 
+# ─── Auth API ──────────────────────────────────────────────────────
 
-@app.route("/api/projects/<slug>")
-def get_project(slug):
-    """Return detailed metadata for a single project."""
+@app.route("/api/auth/register", methods=["POST"])
+def register():
+    data = request.json
+    user = UserTracker.register(data['username'], data['password'], data.get('email'))
+    if user:
+        login_user(user)
+        return jsonify({"message": "User created", "user": user.username})
+    return jsonify({"error": "Username already exists"}), 400
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    data = request.json
+    user = UserTracker.get_by_username(data['username'])
+    if user and user.check_password(data['password']):
+        login_user(user, remember=True)
+        return jsonify({"message": "Login successful", "user": user.username})
+    return jsonify({"error": "Invalid credentials"}), 401
+
+@app.route("/api/auth/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login_page'))
+
+@app.route("/api/auth/me")
+def get_me():
+    if current_user.is_authenticated:
+        return jsonify({"username": current_user.username, "id": current_user.id})
+    return jsonify({"error": "Not logged in"}), 401
+
+
+@app.route("/api/projects/<slug>", methods=["GET", "DELETE"])
+@login_required
+def get_or_delete_project(slug):
+    """Return or delete a single project."""
+    if request.method == "DELETE":
+        import shutil
+        project = ProjectTracker.load(slug)
+        if not project:
+            abort(404, description=f"Project '{slug}' not found")
+
+        # Delete from database
+        ProjectTracker.delete(slug)
+
+        # Delete output directory if it exists
+        project_dir = os.path.join(OUTPUT_DIR, slug)
+        if os.path.isdir(project_dir):
+            shutil.rmtree(project_dir, ignore_errors=True)
+
+        return jsonify({"message": f"Project '{slug}' deleted successfully."})
+
+    # GET request
     meta = ProjectTracker.load(slug)
     if not meta:
-        # Try to infer from filesystem
         project_dir = os.path.join(OUTPUT_DIR, slug)
         if os.path.isdir(project_dir):
             meta = ProjectTracker._infer_metadata(slug)
@@ -232,9 +312,10 @@ def get_project_readme(slug):
 
 
 @app.route("/api/stats")
+@login_required
 def get_stats():
-    """Return aggregate dashboard statistics."""
-    projects = ProjectTracker.load_all()
+    """Return aggregate dashboard statistics scoped to the current user."""
+    projects = ProjectTracker.load_all(owner_id=current_user.id)
 
     total = len(projects)
     deployed = sum(1 for p in projects if p.get("status") == "deployed")
@@ -280,23 +361,21 @@ def get_diff(slug, snapshot=None):
     return jsonify({"diff": diff_text})
 
 @app.route('/api/projects/<slug>/drift')
+@login_required
 def check_drift(slug):
     project = ProjectTracker.load(slug)
     if not project:
         abort(404)
 
     try:
-        from agents import TerraformAgents
-        from tasks import TerraformTasks
+        from agents.deployment_planner import DeploymentPlanner
+        from workflows.terraform_deployment import TerraformDeploymentTasks
         from crewai import Crew
         
-        agents = TerraformAgents()
-        tasks = TerraformTasks()
+        agent_cls = DeploymentPlanner()
+        agent = agent_cls.get_agent()
+        task = TerraformDeploymentTasks.drift_detection_task(agent, slug)
         
-        agent = agents.deployment_specialist()
-        task = tasks.drift_detection_task(agent, slug)
-        
-        # Trigger the drift detection task
         crew = Crew(agents=[agent], tasks=[task], verbose=True)
         result_obj = crew.kickoff()
         result = str(result_obj)
@@ -311,10 +390,41 @@ def check_drift(slug):
 
 
 
+# ─── Background Scheduler ──────────────────────────────────────────
+
+def drift_scheduler():
+    """Background thread to check for drift every hour."""
+    print("🕒 Drift Scheduler started...")
+    while True:
+        try:
+            time.sleep(3600)
+            print("🚀 Running scheduled drift scan...")
+            projects = ProjectTracker.load_all()
+            for p in projects:
+                if p['status'] == 'deployed':
+                    print(f"  🔍 Scanning project: {p['slug']}")
+                    from agents.deployment_planner import DeploymentPlanner
+                    from workflows.terraform_deployment import TerraformDeploymentTasks
+                    from crewai import Crew
+                    
+                    agent_cls = DeploymentPlanner()
+                    agent = agent_cls.get_agent()
+                    task = TerraformDeploymentTasks.drift_detection_task(agent, p['slug'])
+                    crew = Crew(agents=[agent], tasks=[task], verbose=False)
+                    result = str(crew.kickoff())
+                    status = "in_sync" if "IN SYNC" in result.upper() else "drifted"
+                    ProjectTracker.save(p['slug'], drift_status=status)
+        except Exception as e:
+            print(f"❌ Scheduler error: {str(e)}")
+
 if __name__ == "__main__":
+    # Start scheduler thread
+    sched_thread = threading.Thread(target=drift_scheduler)
+    sched_thread.daemon = True
+    sched_thread.start()
 
     print("\n" + "=" * 50)
-    print("  🚀 Terraform AI Agent — Dashboard")
+    print("  🚀 Terraform AI Agent — Portal Evolution")
     print("  📍 http://localhost:5000")
     print("=" * 50 + "\n")
     app.run(host="0.0.0.0", port=5000, debug=True)

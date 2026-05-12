@@ -21,6 +21,7 @@ services:
       - "5000:5000"
     environment:
       - DATABASE_URL=postgresql://terra_user:terra_password@db:5432/terraform_agent
+      - PYTHONPATH=/app
       # Load other env vars from .env file
     env_file:
       - .env
@@ -30,7 +31,7 @@ services:
 
     depends_on:
       - db
-    entrypoint: python dashboard.py
+    entrypoint: python app/dashboard.py
 
 volumes:
   postgres_data:

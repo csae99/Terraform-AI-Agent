@@ -2,8 +2,8 @@ import os
 import sys
 from dotenv import load_dotenv
 import google.generativeai as genai
-from tools.financial_tools import CostEstimator
-from tools.terraform_tools import TerraformTools
+from tools.finance.cost_estimation import CostEstimator
+from tools.terraform.terraform_tools import TerraformTools
 
 # Phase 5 Verification Script: Testing Dynamic Budgeting & Reports
 load_dotenv()

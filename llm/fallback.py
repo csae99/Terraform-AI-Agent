@@ -3,9 +3,9 @@ import litellm
 import google.generativeai as genai
 from dotenv import load_dotenv
 import time
-from tools.security_tools import SecurityAuditor
-from tools.financial_tools import CostEstimator
-from tools.cloud_tools import CloudSync
+from tools.security.scanning_tools import SecurityAuditor
+from tools.finance.cost_estimation import CostEstimator
+from tools.cloud.aws_tools import CloudSync
 
 def get_ai_completion(model, prompt):
     """

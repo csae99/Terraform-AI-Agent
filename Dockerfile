@@ -82,9 +82,9 @@ RUN mkdir -p /app/output
 EXPOSE 5000
 
 # CLI mode (default)
-ENTRYPOINT ["python", "crew_runner.py"]
+ENTRYPOINT ["python", "app/main.py"]
 CMD ["--help"]
 
 # For Dashboard mode:
-# docker run -p 5000:5000 --env-file .env -v $(pwd)/output:/app/output --entrypoint python terraform-ai-agent dashboard.py
+# docker run -p 5000:5000 --env-file .env -v $(pwd)/output:/app/output --entrypoint python terraform-ai-agent app/dashboard.py
 

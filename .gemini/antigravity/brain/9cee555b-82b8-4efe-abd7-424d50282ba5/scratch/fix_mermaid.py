@@ -1,14 +1,22 @@
-import sqlite3
-conn = sqlite3.connect('terraform_agent.db')
-cursor = conn.cursor()
-new_mermaid = """graph TD
-    AWS["AWS Cloud"]
-    S3["S3 Bucket: shubham-nvidia-70b"]
-    
-    AWS -->|Create| S3
-    S3 -.->|Versioning| AWS"""
+import sys
+sys.path.insert(0,'.')
+from tools.project.tracker import ProjectTracker
 
-cursor.execute('UPDATE projects SET mermaid_diagram = ? WHERE slug = ?', (new_mermaid, 'shubham-nvidia-70b'))
-conn.commit()
-print(f"Updated {cursor.rowcount} rows.")
-conn.close()
+mermaid = """graph LR
+    AWS["AWS Cloud"] -->|Create| S3["S3 Bucket"]"""
+
+ProjectTracker.save('simple-s3-bucket', mermaid_diagram=mermaid)
+print('Fixed simple-s3-bucket mermaid')
+
+# Fix others if they have similar issues
+projects = ProjectTracker.load_all()
+for p in projects:
+    diag = p.get('mermaid_diagram', '')
+    if diag and 'graph' in diag and 'participant' in diag:
+        # replace participant with simple nodes
+        lines = []
+        for line in diag.split('\n'):
+            if 'participant' in line: continue
+            lines.append(line)
+        ProjectTracker.save(p['slug'], mermaid_diagram='\n'.join(lines))
+        print(f'Fixed {p["slug"]} mermaid')
