@@ -1,4 +1,4 @@
-# Terraform AI Agent - Setup Guide
+# Terraform AI Agent - Setup Guide (Phase 8)
 
 This guide provides step-by-step instructions for setting up the Universal Terraform AI Agent on both Windows and Linux.
 
@@ -79,15 +79,19 @@ The agent will pull `infracost/infracost` and `bridgecrew/checkov` automatically
 Create a `.env` file in the root directory:
 ```env
 # Active Model
-DEFAULT_MODEL=gemini/gemini-1.5-flash
+DEFAULT_MODEL=gemini/gemini-2.0-flash
 
 # Keys
 GEMINI_API_KEY=your_key_here
+# MISTRAL_API_KEY=your_key_optional
 # INFRACOST_API_KEY=your_key_optional
 
-# Phase 3: Cloud Sync (Required for Enterprise Mode)
+# Cloud Sync (Required for Live Deployments)
 AWS_ACCESS_KEY_ID=your_aws_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret
+
+# Dashboard
+FLASK_SECRET_KEY=your_random_secret
 ```
 
 ---
@@ -111,18 +115,34 @@ To prevent "Chicken and Egg" problems, the agent creates a `bootstrap/` director
 By default, the agent enforces a `-tf-state` suffix for all buckets it manages, ensuring your cloud account remains organized.
 
 ---
-## 🚀 Phase 5: Self-Healing Deployment
+## 🚀 Self-Healing Deployment
 
 To trigger a live deployment, use the `--apply` flag:
 ```powershell
-python crew_runner.py --apply --budget 100 "create an s3 bucket"
+python app/main.py --apply --budget 100 "create an s3 bucket"
 ```
 
 The agent will:
 1.  **Generate** the modular Terraform code.
 2.  **Audit** for security (Checkov) and costs (Infracost).
 3.  **Plan & Apply**: It will first run `terraform plan`. If successful, it proceeds to `terraform apply`.
-4.  **Self-Heal**: If a cloud provider error occurs (e.g., `BucketAlreadyExists` or `InvalidAMI`), the agent captures the log, identifies the fix, and automatically retries the deployment.
+4.  **Self-Heal**: If a cloud provider error occurs (e.g., `BucketAlreadyExists` or `InvalidAMI`), the Pattern Memory is consulted for known fixes, and the agent automatically retries with targeted guidance.
+
+---
+
+## 🖥️ Web Dashboard
+
+Launch the web dashboard for a full GUI experience:
+```powershell
+python app/dashboard.py
+# Open http://localhost:5000
+```
+
+Features:
+- Submit infrastructure requirements with budget and AI model configuration.
+- View all generated projects with code, visual topology, FinOps reports.
+- Live agent log streaming during generation.
+- User authentication (login/register).
 
 ---
 
@@ -160,4 +180,4 @@ docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
 > ```
 
 ---
-*Last Updated: 2026-04-25*
+*Last Updated: 2026-05-16*
