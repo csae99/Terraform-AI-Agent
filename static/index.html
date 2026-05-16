@@ -4,12 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terraform AI Agent | Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <meta name="description" content="Autonomous Infrastructure Platform — Generate, audit, and deploy Terraform with AI agents.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='url(%23g)'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='18' font-weight='bold' fill='white'>T</text><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop stop-color='%233b82f6'/><stop offset='1' stop-color='%238b5cf6'/></linearGradient></defs></svg>">
+    <link rel="stylesheet" href="/static/style.css?v=8">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({ startOnLoad: false, theme: 'dark' });</script>
 </head>
 <body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
     <header>
         <div class="logo-container">
             <div class="logo-icon">T</div>
@@ -37,35 +42,35 @@
 
     <!-- ═══ BUILD TAB ═══ -->
     <div id="view-build" class="primary-view">
-        <div style="padding: 0 2rem 2rem 2rem;">
-            <div class="stat-card" style="display: flex; flex-direction: column; gap: 1rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2 style="font-size: 1.1rem; font-weight: 600;">Build New Infrastructure</h2>
+        <div class="build-container">
+            <div class="stat-card build-card">
+                <div class="build-header">
+                    <h2 class="build-title">Build New Infrastructure</h2>
                     <span id="gen-status" class="status-badge status-generating" style="display: none;">Processing...</span>
                 </div>
-                <div style="display: flex; gap: 1rem; align-items: flex-end;">
-                    <div style="flex: 1;">
+                <div class="build-row">
+                    <div class="build-prompt-col">
                         <label class="meta-label">Infrastructure Requirement</label>
-                        <textarea id="infra-prompt" placeholder="e.g., Create a private S3 bucket with versioning..." style="width: 100%; background: var(--bg-main); border: 1px solid var(--border); color: white; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem; font-family: inherit; resize: vertical; min-height: 44px;"></textarea>
+                        <textarea id="infra-prompt" class="form-textarea" placeholder="e.g., Create a private S3 bucket with versioning..."></textarea>
                     </div>
-                    <div style="width: 150px;">
+                    <div class="build-budget-col">
                         <label class="meta-label">Budget (USD)</label>
-                        <input type="number" id="infra-budget" value="100" style="width: 100%; background: var(--bg-main); border: 1px solid var(--border); color: white; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;">
+                        <input type="number" id="infra-budget" class="form-input" value="100">
                     </div>
-                    <div>
-                        <label class="meta-label" style="display: block; margin-bottom: 0.5rem;">Live Deploy</label>
-                        <input type="checkbox" id="infra-apply" style="width: 20px; height: 20px;">
+                    <div class="build-toggle-col">
+                        <label class="meta-label">Live Deploy</label>
+                        <input type="checkbox" id="infra-apply">
                     </div>
-                    <button class="tab-btn active" style="height: 44px; padding: 0 2rem;" onclick="generateInfra()">Generate</button>
+                    <button class="btn-generate tab-btn active" id="btn-generate" onclick="generateInfra()">Generate</button>
                 </div>
 
                 <!-- AI Model Configuration -->
-                <details style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-                    <summary style="cursor: pointer; margin-bottom: 0.5rem; color: var(--accent-orange);">🤖 Advanced: AI Model Configuration (Optional)</summary>
-                    <div style="display: grid; grid-template-columns: 1fr 1.5fr 2fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                <details class="advanced-section">
+                    <summary class="summary-orange">🤖 Advanced: AI Model Configuration (Optional)</summary>
+                    <div class="config-grid-3">
                         <div>
                             <label class="meta-label">Provider</label>
-                            <select id="ai-provider" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <select id="ai-provider" class="form-input form-input-sm">
                                 <option value="gemini">Google Gemini</option>
                                 <option value="openai">OpenAI</option>
                                 <option value="anthropic">Anthropic Claude</option>
@@ -76,77 +81,77 @@
                         </div>
                         <div>
                             <label class="meta-label">Model Name</label>
-                            <input type="text" id="ai-model" placeholder="gemini-1.5-pro" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="text" id="ai-model" class="form-input form-input-sm" placeholder="gemini-2.0-flash">
                         </div>
                         <div>
                             <label class="meta-label">API Key</label>
-                            <input type="password" id="ai-key" placeholder="Enter API Key for selected provider" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="password" id="ai-key" class="form-input form-input-sm" placeholder="Enter API Key for selected provider">
                         </div>
                     </div>
                 </details>
 
                 <!-- Cloud Credentials (BYOK) -->
-                <details style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-                    <summary style="cursor: pointer; margin-bottom: 0.5rem; color: var(--accent-blue);">🔑 Advanced: Provide Cloud Credentials (Optional)</summary>
-                    
-                    <div style="display: flex; gap: 10px; margin: 1rem 0;">
+                <details class="advanced-section">
+                    <summary class="summary-blue">🔑 Advanced: Provide Cloud Credentials (Optional)</summary>
+
+                    <div class="cred-tabs">
                         <button class="tab-btn active" onclick="switchCredTab('aws')">AWS</button>
                         <button class="tab-btn" onclick="switchCredTab('azure')">Azure</button>
                         <button class="tab-btn" onclick="switchCredTab('gcp')">GCP</button>
                     </div>
 
                     <!-- AWS Panel -->
-                    <div id="cred-panel-aws" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <div id="cred-panel-aws" class="config-grid-3">
                         <div>
                             <label class="meta-label">Access Key ID</label>
-                            <input type="password" id="aws-key" placeholder="AKIA..." style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="password" id="aws-key" class="form-input form-input-sm" placeholder="AKIA...">
                         </div>
                         <div>
                             <label class="meta-label">Secret Key</label>
-                            <input type="password" id="aws-secret" placeholder="wJalrX..." style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="password" id="aws-secret" class="form-input form-input-sm" placeholder="wJalrX...">
                         </div>
                         <div>
                             <label class="meta-label">Region</label>
-                            <input type="text" id="aws-region" placeholder="us-east-1" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="text" id="aws-region" class="form-input form-input-sm" placeholder="us-east-1">
                         </div>
                     </div>
 
                     <!-- Azure Panel -->
-                    <div id="cred-panel-azure" style="display: none; grid-template-columns: 1fr 1fr; gap: 1rem; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <div id="cred-panel-azure" class="config-grid-2" style="display: none;">
                         <div>
                             <label class="meta-label">Client ID</label>
-                            <input type="password" id="az-client-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="password" id="az-client-id" class="form-input form-input-sm">
                         </div>
                         <div>
                             <label class="meta-label">Client Secret</label>
-                            <input type="password" id="az-client-secret" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="password" id="az-client-secret" class="form-input form-input-sm">
                         </div>
                         <div>
                             <label class="meta-label">Subscription ID</label>
-                            <input type="password" id="az-subscription-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="password" id="az-subscription-id" class="form-input form-input-sm">
                         </div>
                         <div>
                             <label class="meta-label">Tenant ID</label>
-                            <input type="password" id="az-tenant-id" style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem;">
+                            <input type="password" id="az-tenant-id" class="form-input form-input-sm">
                         </div>
                     </div>
 
                     <!-- GCP Panel -->
-                    <div id="cred-panel-gcp" style="display: none; background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <div id="cred-panel-gcp" class="cred-panel-block" style="display: none;">
                         <label class="meta-label">Google Credentials JSON</label>
-                        <textarea id="gcp-json" placeholder='{ "type": "service_account", ... }' style="width: 100%; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; padding: 0.5rem; margin-top: 0.25rem; font-family: 'JetBrains Mono'; height: 100px;"></textarea>
+                        <textarea id="gcp-json" class="form-textarea gcp-textarea" placeholder='{ "type": "service_account", ... }'></textarea>
                     </div>
                 </details>
 
                 <!-- Live Console Output -->
                 <div id="live-console-modal" class="modal">
-                    <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-content modal-content-sm">
                         <div class="modal-header">
                             <h2>🚀 Agent Live Stream</h2>
                             <button class="tab-btn" onclick="closeLiveModal()">Minimize</button>
                         </div>
-                        <pre id="live-console" class="log-view" style="height: 400px; margin-top: 1rem; border: 1px solid var(--accent-blue);"></pre>
-                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">The agent is currently architecting and implementing your request. Do not refresh.</p>
+                        <pre id="live-console" class="log-view live-console-border" style="height: 400px; margin: 1rem 2rem;"></pre>
+                        <p class="live-console-note" style="padding: 0 2rem 1rem;">The agent is currently architecting and implementing your request. Do not refresh.</p>
                     </div>
                 </div>
             </div>
@@ -158,7 +163,19 @@
         <main>
             <div class="section-header">
                 <h2>Workspaces</h2>
-                <button class="tab-btn active" onclick="refreshData()">Refresh</button>
+                <div class="workspace-toolbar">
+                    <div class="search-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-input" class="search-input" placeholder="Search projects..." oninput="filterProjects()">
+                    </div>
+                    <select id="status-filter" class="filter-select" onchange="filterProjects()">
+                        <option value="all">All Status</option>
+                        <option value="generated">Generated</option>
+                        <option value="deployed">Deployed</option>
+                        <option value="destroyed">Destroyed</option>
+                    </select>
+                    <button class="tab-btn active" onclick="refreshData()">Refresh</button>
+                </div>
             </div>
             <div class="projects-grid" id="projects-grid">
                 <!-- Projects injected by JS -->
@@ -174,9 +191,9 @@
                     <h2 id="modal-project-slug" style="display: inline-block; margin-right: 1rem;">Project Details</h2>
                     <span id="modal-drift-status" class="status-badge" style="display: none;"></span>
                 </div>
-                <div style="display: flex; gap: 10px;">
-                    <button class="tab-btn" style="background: var(--accent-orange); color: white;" onclick="checkDrift()">🔍 Scan for Drift</button>
-                    <button class="tab-btn" style="background: var(--status-failed); color: white;" onclick="deleteProject()">🗑️ Delete</button>
+                <div class="modal-header-actions">
+                    <button class="tab-btn btn-warning" onclick="checkDrift()">🔍 Scan for Drift</button>
+                    <button class="tab-btn btn-danger" onclick="deleteProject()">🗑️ Delete</button>
                     <button class="tab-btn" onclick="closeModal()">Close</button>
                 </div>
             </div>
@@ -189,28 +206,28 @@
                     <button class="modal-tab" onclick="switchModalTab('logs')">📋 Deployment Logs</button>
                 </div>
 
-                <div id="modal-tab-code" class="modal-tab-content active" style="overflow-y: auto; max-height: 600px;">
+                <div id="modal-tab-code" class="modal-tab-content active">
                     <div id="file-tabs" class="file-tabs"></div>
                     <div id="modal-tab-code-content"></div>
                 </div>
 
-                <div id="modal-tab-visual" class="modal-tab-content" style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 2rem; overflow: auto; min-height: 400px; display: none;">
-                    <div id="mermaid-container" class="mermaid" style="display: flex; justify-content: center;"></div>
+                <div id="modal-tab-visual" class="modal-tab-content modal-tab-visual" style="display: none;">
+                    <div id="mermaid-container" class="mermaid mermaid-center"></div>
                 </div>
 
                 <div id="modal-tab-evolution" class="modal-tab-content" style="display: none;">
-                    <div style="display: flex; gap: 20px;">
-                        <div id="snapshot-list" style="width: 250px; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px;">
-                            <h4 style="margin-top: 0;">Snapshots</h4>
+                    <div class="evolution-layout">
+                        <div class="snapshot-sidebar">
+                            <h4>Snapshots</h4>
                             <div id="snapshot-items"></div>
                         </div>
-                        <div id="diff-viewer" style="flex: 1; background: #000; padding: 1rem; border-radius: 8px; font-family: 'JetBrains Mono'; font-size: 0.85rem; overflow-x: auto;">
+                        <div id="diff-viewer" class="diff-viewer">
                             Select a snapshot to see changes...
                         </div>
                     </div>
                 </div>
 
-                <div id="modal-tab-financial" class="modal-tab-content" style="display: none; overflow-y: auto; max-height: 600px;">
+                <div id="modal-tab-financial" class="modal-tab-content" style="display: none;">
                     <div id="modal-financial-report" class="markdown-body"></div>
                 </div>
 
@@ -221,6 +238,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=3"></script>
+    <script src="/static/app.js?v=8"></script>
 </body>
 </html>

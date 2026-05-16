@@ -1,5 +1,5 @@
 """
-Terraform AI Agent - Web Dashboard (Phase 6b: Interactive)
+Terraform AI Agent - Web Dashboard (Phase 8: Orchestrated Platform)
 Usage:
     python dashboard.py
     -> http://localhost:5000
@@ -388,6 +388,37 @@ def check_drift(slug):
         print(f"Drift check error: {str(e)}")
         return jsonify({"message": f"Error during drift scan: {str(e)}", "status": "unknown"}), 500
 
+
+@app.route('/api/patterns')
+@login_required
+def get_patterns():
+    """Return the failure pattern knowledge base."""
+    from memory.pattern_manager import PatternManager
+    pm = PatternManager()
+    return jsonify({"count": pm.count, "patterns": pm._patterns})
+
+
+@app.route('/api/projects/<slug>/retry', methods=['POST'])
+@login_required
+def retry_project(slug):
+    """Re-submit a project's original prompt for regeneration."""
+    project = ProjectTracker.load(slug)
+    if not project:
+        abort(404, description=f"Project '{slug}' not found")
+
+    prompt = project.get('prompt')
+    if not prompt:
+        return jsonify({"error": "No original prompt found for this project."}), 400
+
+    budget = project.get('budget', 100)
+    credentials = {"owner_id": current_user.id}
+    ai_config = request.json.get('ai_config') if request.json else None
+
+    thread = threading.Thread(target=run_agent_workflow, args=(prompt, budget, False, credentials, ai_config))
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({"message": f"Retrying generation for '{slug}'", "status": "processing"})
 
 
 # ─── Background Scheduler ──────────────────────────────────────────
