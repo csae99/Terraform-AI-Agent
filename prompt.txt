@@ -1,0 +1,38 @@
+Create a production-valid Terraform configuration for AWS EKS with:
+
+* EKS Auto Mode NOT enabled
+* public EKS API endpoint enabled
+* managed node group using m5.4xlarge
+* node group max size = 5
+* minimum 2 public subnets across different AZs
+* VPC, IGW, route tables, subnet associations
+* required IAM roles AND policy attachments
+* security groups
+* provider.tf and versions.tf
+* outputs.tf
+* tags required for Kubernetes LoadBalancer support
+* Terraform AWS provider v5+
+* code must pass terraform validate
+* code should be deployable without modification
+
+IMPORTANT REQUIREMENTS:
+
+* Use a FULL Terraform module-based architecture
+* Create reusable child modules inside a `modules/` directory
+* At minimum create separate modules for:
+
+  * vpc
+  * iam
+  * eks
+  * security_groups
+* Each module must contain:
+
+  * main.tf
+  * variables.tf
+  * outputs.tf
+* Root module should only orchestrate child modules
+* Root main.tf must call modules using:
+  source = "./modules/<module-name>"
+* Do NOT place all resources in a single root main.tf
+* Follow Terraform production best practices
+* Add proper variable passing between modules
