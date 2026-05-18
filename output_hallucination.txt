@@ -5,7 +5,8 @@ Make sure it is Public eks cluster and also create other resources such as vpc ,
 -----------------
 This is what went wrong in the above output:
 
-No — this is **not a correct or production-ready EKS Terraform implementation**, even if the agent claims it was “successful”. It is missing several mandatory resources and configurations required for a functional public EKS cluster.
+No — this is **not a correct or production-ready EKS Terraform implementation**, even if the agent claims it was “successful”. 
+It is missing several mandatory resources and configurations required for a functional public EKS cluster.
 
 Here’s a detailed review of what is correct vs what is missing/broken.
 
@@ -340,5 +341,206 @@ I would rate this implementation:
 
 It resembles a rough scaffold, not a fully working EKS deployment.
 
-The agent understood the architecture conceptually, but missed several AWS/EKS mandatory requirements.
+The agent understood the architecture conceptually, but missed several AWS/EKS mandatory requirements
 
+
+------------------------------
+I tested the code on another machine.
+These are some of my input from manual testing :
+
+- The project_slug is not being genrated properly. The slug is gentrated like this "terraform-project-20260518-1808"
+- Modular code is not being genrated sometimes , Infracost also not being shown sometimes. There is no consistency.
+- Terraform validate we do is not correct because when i did manaully via cli got following errors:
+  ".\terraform.exe "-chdir=.\output\terraform-project-20260518-1808" validate
+╷
+│ Error: Module not installed
+│
+│   on main.tf line 1:
+│    1: module "vpc" {
+│
+│ This module is not yet installed. Run "terraform init" to install all modules required by this configuration.
+╵
+╷
+│ Error: Module not installed
+│
+│   on main.tf line 5:
+│    5: module "iam" {
+│
+│ This module is not yet installed. Run "terraform init" to install all modules required by this configuration.
+╵
+╷
+│ Error: Module not installed
+│
+│   on main.tf line 9:
+│    9: module "security_groups" {
+│
+│ This module is not yet installed. Run "terraform init" to install all modules required by this configuration.
+╵
+╷
+│ Error: Module not installed
+│
+│   on main.tf line 14:
+│   14: module "eks" {
+│
+│ This module is not yet installed. Run "terraform init" to install all modules required by this configuration.
+╵
+
+C:\Users\shubhamg\Documents\Terraform-AI-Agent>.\terraform.exe "-chdir=.\output\terraform-project-20260518-1808" init
+Initializing modules...
+- iam in modules\iam
+- security_groups in modules\security_groups
+- eks in modules\eks
+- vpc in modules\vpc
+╷
+│ Error: Invalid character
+│
+│   on modules\security_groups\main.tf line 3, in resource "aws_security_group" "eks_sg":
+│    3:   egress { from_port = 0; to_port = 0; protocol = "-1"; cidr_blocks = ["0.0.0.0/0"] }
+│
+│ The ";" character is not valid. Use newlines to separate arguments and blocks, and commas to separate items in collection values.
+╵
+╷
+│ Error: Invalid single-argument block definition
+│
+│   on modules\security_groups\main.tf line 3, in resource "aws_security_group" "eks_sg":
+│    3:   egress { from_port = 0; to_port = 0; protocol = "-1"; cidr_blocks = ["0.0.0.0/0"] }
+│
+│ A single-line block definition must end with a closing brace immediately after its single argument definition.
+╵
+╷
+│ Error: Invalid character
+│
+│   on modules\vpc\main.tf line 2, in resource "aws_subnet" "s1":
+│    2: resource "aws_subnet" "s1" { vpc_id = aws_vpc.main.id; cidr_block = "10.0.1.0/24"; availability_zone = "us-east-1a" }
+│
+│ The ";" character is not valid. Use newlines to separate arguments and blocks, and commas to separate items in collection values.
+╵
+╷
+│ Error: Invalid single-argument block definition
+│
+│   on modules\vpc\main.tf line 2, in resource "aws_subnet" "s1":
+│    2: resource "aws_subnet" "s1" { vpc_id = aws_vpc.main.id; cidr_block = "10.0.1.0/24"; availability_zone = "us-east-1a" }
+│
+│ A single-line block definition must end with a closing brace immediately after its single argument definition.
+╵
+
+C:\Users\shubhamg\Documents\Terraform-AI-Agent>.\terraform.exe "-chdir=.\output\terraform-project-20260518-1808" fmt
+
+C:\Users\shubhamg\Documents\Terraform-AI-Agent>.\terraform.exe "-chdir=.\output\terraform-project-20260518-1808" init
+Initializing modules...
+- security_groups in modules\security_groups
+- vpc in modules\vpc
+- iam in modules\iam
+- eks in modules\eks
+╷
+│ Error: Invalid character
+│
+│   on modules\security_groups\main.tf line 3, in resource "aws_security_group" "eks_sg":
+│    3:   egress { from_port = 0; to_port = 0; protocol = "-1"; cidr_blocks = ["0.0.0.0/0"] }
+│
+│ The ";" character is not valid. Use newlines to separate arguments and blocks, and commas to separate items in collection values.
+╵
+╷
+│ Error: Invalid single-argument block definition
+│
+│   on modules\security_groups\main.tf line 3, in resource "aws_security_group" "eks_sg":
+│    3:   egress { from_port = 0; to_port = 0; protocol = "-1"; cidr_blocks = ["0.0.0.0/0"] }
+│
+│ A single-line block definition must end with a closing brace immediately after its single argument definition.
+╵
+╷
+│ Error: Invalid character
+│
+│   on modules\vpc\main.tf line 2, in resource "aws_subnet" "s1":
+│    2: resource "aws_subnet" "s1" { vpc_id = aws_vpc.main.id; cidr_block = "10.0.1.0/24"; availability_zone = "us-east-1a" }
+│
+│ The ";" character is not valid. Use newlines to separate arguments and blocks, and commas to separate items in collection values.
+╵
+╷
+│ Error: Invalid single-argument block definition
+│
+│   on modules\vpc\main.tf line 2, in resource "aws_subnet" "s1":
+│    2: resource "aws_subnet" "s1" { vpc_id = aws_vpc.main.id; cidr_block = "10.0.1.0/24"; availability_zone = "us-east-1a" }
+│
+│ A single-line block definition must end with a closing brace immediately after its single argument definition.
+╵
+
+C:\Users\shubhamg\Documents\Terraform-AI-Agent>.\terraform.exe "-chdir=.\output\terraform-project-20260518-1808" init
+Initializing modules...
+- vpc in modules\vpc
+- security_groups in modules\security_groups
+- iam in modules\iam
+- eks in modules\eks
+╷
+│ Error: Missing newline after argument
+│
+│   on modules\security_groups\main.tf line 7, in resource "aws_security_group" "eks_sg":
+│    7:     cidr_blocks = ["0.0.0.0/0"] }
+│
+│ An argument definition must end with a newline.
+╵
+╷
+│ Error: Missing newline after argument
+│
+│   on modules\vpc\main.tf line 5, in resource "aws_subnet" "s1":
+│    5:     availability_zone = "us-east-1a" }
+│
+│ An argument definition must end with a newline.
+╵
+╷
+│ Error: Invalid character
+│
+│   on modules\vpc\main.tf line 11, in resource "aws_subnet" "s1":
+│   11: resource "aws_route_table" "rt" { vpc_id = aws_vpc.main.id; route { cidr_block = "0.0.0.0/0"; gateway_id = aws_internet_gateway.igw.id } }
+│
+│ The ";" character is not valid. Use newlines to separate arguments and blocks, and commas to separate items in collection values.
+╵
+
+C:\Users\shubhamg\Documents\Terraform-AI-Agent>.\terraform.exe "-chdir=.\output\terraform-project-20260518-1808" init
+Initializing modules...
+- vpc in modules\vpc
+- iam in modules\iam
+- eks in modules\eks
+- security_groups in modules\security_groups
+╷
+│ Error: Invalid character
+│
+│   on modules\vpc\main.tf line 13, in resource "aws_route_table" "rt":
+│   13: resource "aws_route_table" "rt" { vpc_id = aws_vpc.main.id; route { cidr_block = "0.0.0.0/0"; gateway_id = aws_internet_gateway.igw.id } }
+│
+│ The ";" character is not valid. Use newlines to separate arguments and blocks, and commas to separate items in collection values.
+╵
+╷
+│ Error: Invalid single-argument block definition
+│
+│   on modules\vpc\main.tf line 13, in resource "aws_route_table" "rt":
+│   13: resource "aws_route_table" "rt" { vpc_id = aws_vpc.main.id; route { cidr_block = "0.0.0.0/0"; gateway_id = aws_internet_gateway.igw.id } }
+│
+│ A single-line block definition must end with a closing brace immediately after its single argument definition.
+╵
+
+C:\Users\shubhamg\Documents\Terraform-AI-Agent>.\terraform.exe "-chdir=.\output\terraform-project-20260518-1808" init
+Initializing modules...
+- security_groups in modules\security_groups
+- iam in modules\iam
+- eks in modules\eks
+- vpc in modules\vpc
+╷
+│ Error: Invalid character
+│
+│   on modules\vpc\main.tf line 20, in resource "aws_route_table_association" "a1":
+│   20: resource "aws_route_table_association" "a1" { subnet_id = aws_subnet.s1.id; route_table_id = aws_route_table.rt.id }
+│
+│ The ";" character is not valid. Use newlines to separate arguments and blocks, and commas to separate items in collection values.
+╵
+╷
+│ Error: Invalid single-argument block definition
+│
+│   on modules\vpc\main.tf line 20, in resource "aws_route_table_association" "a1":
+│   20: resource "aws_route_table_association" "a1" { subnet_id = aws_subnet.s1.id; route_table_id = aws_route_table.rt.id }
+│
+│ A single-line block definition must end with a closing brace immediately after its single argument definition."
+
+I had to manually fix these errors.
+
+These are the errors pr bugs we need to take care of .
