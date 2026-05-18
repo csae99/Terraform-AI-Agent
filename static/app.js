@@ -366,41 +366,54 @@ async function generateInfra() {
     }
 }
 
+let eventSource = null;
+
 function startPollingLogs() {
     const genBtn = document.getElementById('btn-generate');
-    if (logInterval) clearInterval(logInterval);
-
-    logInterval = setInterval(async () => {
+    const consoleElem = document.getElementById('live-console');
+    
+    if (eventSource) {
+        eventSource.close();
+    }
+    
+    eventSource = new EventSource('/api/logs/active');
+    
+    eventSource.onmessage = function(event) {
         try {
-            const res = await fetch('/api/logs/active');
-            const data = await res.json();
-            const consoleElem = document.getElementById('live-console');
-
+            const data = JSON.parse(event.data);
             if (data.logs && data.logs !== "No active run.") {
-                consoleElem.innerText = data.logs;
+                consoleElem.innerText += data.logs;
                 consoleElem.scrollTop = consoleElem.scrollHeight;
-            }
+                
+                const fullText = consoleElem.innerText;
+                if (fullText.includes('✅ Workflow Finished') || fullText.includes('❌ Workflow Finished') || fullText.includes('❌ Error')) {
+                    eventSource.close();
+                    genBtn.disabled = false;
+                    genBtn.innerText = "Generate";
+                    document.getElementById('gen-status').style.display = 'none';
 
-            if (data.logs && (data.logs.includes('✅ Workflow Finished') || data.logs.includes('❌ Workflow Finished'))) {
-                clearInterval(logInterval);
-                genBtn.disabled = false;
-                genBtn.innerText = "Generate";
-                document.getElementById('gen-status').style.display = 'none';
-
-                const isSuccess = data.logs.includes('✅ Workflow Finished');
-                setTimeout(() => {
-                    init();
-                    closeLiveModal();
-                    switchPrimaryTab('workspaces');
-                    showToast(
-                        isSuccess ? "Infrastructure generation complete!" : "Workflow finished with errors. Check logs.",
-                        isSuccess ? "success" : "error",
-                        6000
-                    );
-                }, 1500);
+                    const isSuccess = fullText.includes('✅ Workflow Finished');
+                    setTimeout(() => {
+                        init();
+                        closeLiveModal();
+                        switchPrimaryTab('workspaces');
+                        showToast(
+                            isSuccess ? "Infrastructure generation complete!" : "Workflow finished with errors. Check logs.",
+                            isSuccess ? "success" : "error",
+                            6000
+                        );
+                    }, 1500);
+                }
             }
-        } catch (e) { console.error("Log polling error", e); }
-    }, 1000);
+        } catch (e) {
+            console.error("SSE parsing error", e);
+        }
+    };
+    
+    eventSource.onerror = function() {
+        console.error("SSE connection error");
+        eventSource.close();
+    };
 }
 
 function closeLiveModal() {

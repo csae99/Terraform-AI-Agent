@@ -15,24 +15,4 @@ Create a production-valid Terraform configuration for AWS EKS with:
 * code must pass terraform validate
 * code should be deployable without modification
 
-IMPORTANT REQUIREMENTS:
 
-* Use a FULL Terraform module-based architecture
-* Create reusable child modules inside a `modules/` directory
-* At minimum create separate modules for:
-
-  * vpc
-  * iam
-  * eks
-  * security_groups
-* Each module must contain:
-
-  * main.tf
-  * variables.tf
-  * outputs.tf
-* Root module should only orchestrate child modules
-* Root main.tf must call modules using:
-  source = "./modules/<module-name>"
-* Do NOT place all resources in a single root main.tf
-* Follow Terraform production best practices
-* Add proper variable passing between modules

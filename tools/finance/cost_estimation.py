@@ -152,22 +152,28 @@ class CostEstimator:
         report += "\n## 💡 Optimization Recommendations\n"
         
         has_aws = any("aws_" in str(res.get('name', '')).lower() for res in resources)
-        has_compute = any("instance" in str(res.get('name', '')).lower() or "lambda" in str(res.get('name', '')).lower() for res in resources)
+        res_names = [str(res.get('name', '')).lower() for res in resources]
+        has_compute = any("instance" in n or "lambda" in n or "ecs" in n or "rds" in n for n in res_names)
+        has_eks = any("eks" in n for n in res_names)
         
         if not resources:
             report += "1. **Local Execution**: No billable cloud resources detected. Cost is $0.\n"
             report += "2. **Architecture Efficiency**: Current local-first approach is 100% cost-optimized.\n"
         elif is_over:
-            if has_aws and has_compute:
+            if has_eks:
+                report += "1. **EKS Node Sizing**: Consider using smaller instance types (e.g., t3.medium) for your node groups.\n"
+                report += "2. **Spot Instances**: Use Spot Instances for EKS worker nodes to reduce compute costs by up to 70%.\n"
+                report += "3. **Fargate Profiles**: For serverless compute, consider AWS Fargate instead of managed node groups to avoid paying for idle capacity.\n"
+            elif has_aws and has_compute:
                 report += "1. **Right-Sizing**: Consider switching to smaller instance types for the highest impact resources.\n"
                 report += "2. **Spot Instances**: If this is a dev/test environment, evaluate using Spot instances for up to 90% savings.\n"
             else:
                 report += "1. **Resource Consolidation**: Review if billable resources can be shared or removed.\n"
-            report += "3. **Cleanup**: Ensure all resources are tagged for automated destruction after their lifecycle.\n"
+            report += "4. **Cleanup**: Ensure all resources are tagged for automated destruction after their lifecycle.\n"
         else:
             report += "1. **Maintain Current State**: All resources are within efficient spending boundaries.\n"
-            if has_aws and has_compute:
-                report += "2. **Reserved Instances**: If this load is permanent, consider 1-year reservations for further 30% savings.\n"
+            if has_aws and (has_compute or has_eks):
+                report += "2. **Reserved Instances**: If this load is permanent, consider 1-year reservations or Compute Savings Plans for a further 30% savings.\n"
             elif not has_aws:
                 report += "2. **Zero-Waste**: Architecture relies on low-cost or local providers, minimizing financial risk.\n"
 

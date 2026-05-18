@@ -9,3 +9,7 @@ flask
 sqlalchemy
 psycopg2-binary
 flask-login
+fastapi
+uvicorn
+sse-starlette
+aiofiles

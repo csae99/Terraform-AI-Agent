@@ -139,6 +139,34 @@
       "severity": "MEDIUM",
       "description": "A resource creation or modification timed out.",
       "fix": "Increase the timeout using a `timeouts` block inside the resource. Example: timeouts { create = \"30m\" }. Check if the resource is stuck due to a misconfiguration."
+    },
+    {
+      "error_substring": "The \";\" character is not valid",
+      "category": "hcl_formatting",
+      "severity": "CRITICAL",
+      "description": "LLM wrote single-line HCL using semicolons to separate arguments. Terraform HCL does not support semicolons.",
+      "fix": "Replace all semicolons (;) with newlines. Each argument must be on its own line. Each closing brace } must be on its own line. Example: instead of 'vpc_id = x; cidr = y', use two separate lines."
+    },
+    {
+      "error_substring": "A single-line block definition must end with a closing brace",
+      "category": "hcl_formatting",
+      "severity": "CRITICAL",
+      "description": "LLM compressed a multi-argument block onto a single line. Terraform requires multi-line formatting for blocks with multiple arguments.",
+      "fix": "Split the block across multiple lines. Each argument inside a block (resource, data, module) must be on its own line with proper indentation."
+    },
+    {
+      "error_substring": "Missing newline after argument",
+      "category": "hcl_formatting",
+      "severity": "CRITICAL",
+      "description": "An argument definition and a closing brace are on the same line. HCL requires a newline between the last argument and the closing brace.",
+      "fix": "Ensure every closing brace } is on its own dedicated line, never on the same line as an argument value."
+    },
+    {
+      "error_substring": "At least two subnets in different Availability Zones",
+      "category": "eks_configuration",
+      "severity": "CRITICAL",
+      "description": "EKS cluster creation requires at least 2 subnets across 2 different Availability Zones.",
+      "fix": "Create at least 2 subnets in different AZs. Use data.aws_availability_zones.available.names[0] and [1]. Pass both subnet IDs to the EKS cluster vpc_config.subnet_ids."
     }
   ]
 }

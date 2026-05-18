@@ -32,14 +32,29 @@ from orchestrator.retry_handler import RetryContext, should_retry
 
 # ── Helper utilities ─────────────────────────────────────────────────
 
-def get_project_slug(architect_output: str) -> str:
+import uuid
+import re
+
+def get_project_slug(architect_output: str, prompt: str = "") -> str:
     """Extract a URL-friendly slug from the architect's output."""
-    match = re.search(r"PROJECT_SLUG:\s*(.*)", architect_output)
+    # Handle possible markdown bolding, spaces/underscores, and case insensitivity
+    match = re.search(r"\*?\*?project[_\s]slug\*?\*?:?\*?\*?\s*([^\n\r]+)", architect_output, re.IGNORECASE)
     if match:
-        name = match.group(1).strip()
+        name = match.group(1).replace("*", "").strip()
         slug = name.lower().replace(" ", "-").replace("_", "-")
-        return re.sub(r"[^a-z0-9-]", "", slug)
-    return "terraform-project-" + datetime.now().strftime("%Y%m%d-%H%M")
+        slug = re.sub(r"[^a-z0-9-]", "", slug)
+        if slug:
+            return slug
+    
+    # Fallback: extract the first 3-4 meaningful words from the prompt
+    if prompt:
+        words = [w for w in re.sub(r'[^a-zA-Z0-9\s]', '', prompt).lower().split() if len(w) > 3]
+        if words:
+            return "-".join(words[:4])
+            
+    # Ultimate fallback if LLM completely failed and no prompt
+    short_id = str(uuid.uuid4())[:8]
+    return f"aws-infrastructure-{short_id}"
 
 
 def extract_mermaid(text: str) -> str:
@@ -101,7 +116,7 @@ def run_full_pipeline(
     crew_arch = Crew(agents=[architect_agent], tasks=[arch_task], verbose=True)
     arch_result = str(crew_arch.kickoff())
 
-    slug = get_project_slug(arch_result)
+    slug = get_project_slug(arch_result, prompt)
     mermaid_diagram = extract_mermaid(arch_result)
     output_base = os.path.join("output", slug)
     print(f"\nBuilding Project Workspace: {output_base}/")
@@ -161,6 +176,17 @@ def run_full_pipeline(
 
         # ── Security analysis for self-healing ───────────────────
         audit_results = auditor.run_comprehensive_scan(output_base)
+        
+        # Ensure terraform is syntactically valid before considering this round a success
+        val_result = TerraformTools._validate_terraform_code(slug)
+        if "Failed" in val_result:
+            if should_retry(retry):
+                print(f"\n[!] Terraform Validation Failed. Retrying...")
+                retry.increment_round(f"Terraform validation failed: {val_result}")
+                continue
+            else:
+                print("\n[!] Max retries reached. Validation failed.")
+                
         findings = audit_results.get("findings", [])
         critical_count = len(
             [f for f in findings if f.get("severity") in ["CRITICAL", "HIGH"]]

@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import shutil
 from datetime import datetime
@@ -32,6 +33,10 @@ class TerraformTools:
         # Create the full file path
         filepath = os.path.join(output_base, clean_filename)
 
+        # ── Sanitize HCL content (fix common LLM hallucinations) ──
+        if filepath.endswith(".tf"):
+            content = TerraformTools._sanitize_hcl(content)
+
         try:
             # Create the project folder if it doesn't exist
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -39,9 +44,48 @@ class TerraformTools:
             # Write the content to the file
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
+
+            # Auto-format with terraform fmt (best-effort, non-blocking)
+            TerraformTools._auto_fmt(filepath)
+
             return f"Successfully wrote to {filepath} (Project: {slug})"
         except Exception as e:
             return f"Failed to write file {filename}. Error: {str(e)}"
+
+    @staticmethod
+    def _sanitize_hcl(content: str) -> str:
+        """Fix common LLM hallucinations in HCL output.
+
+        1. Replace semicolons with newlines (LLMs write single-line blocks)
+        2. Ensure closing braces are on their own lines
+        3. Ensure arguments before closing braces end with newlines
+        """
+        # Replace ; with newline (the #1 LLM HCL error)
+        content = content.replace(";", "\n")
+
+        # Ensure } is on its own line (not glued to the previous argument)
+        # Match: non-whitespace followed by } on the same line
+        content = re.sub(r'(\S)\s*\}', r'\1\n}', content)
+
+        # Clean up any triple+ newlines
+        content = re.sub(r'\n{3,}', '\n\n', content)
+
+        return content
+
+    @staticmethod
+    def _auto_fmt(filepath: str) -> None:
+        """Best-effort terraform fmt on a single file. Silent on failure."""
+        try:
+            directory = os.path.dirname(filepath)
+            subprocess.run(
+                ["terraform", "fmt", os.path.basename(filepath)],
+                cwd=directory,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception:
+            pass  # fmt is optional — don't block the pipeline
 
     @staticmethod
     def _validate_terraform_code(project_slug: str = "workspace") -> str:
@@ -51,7 +95,7 @@ class TerraformTools:
             return f"No terraform files found in {output_dir}. Are you sure the slug is correct?"
 
         try:
-            # Init
+            # Init (MUST run before validate so modules are installed)
             init_process = subprocess.run(
                 ["terraform", "init", "-backend=false"],
                 cwd=output_dir,

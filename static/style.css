@@ -1,10 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono&display=swap');
 
 :root {
-    --bg-main: #0a0b10;
-    --bg-card: #161922;
-    --bg-header: rgba(16, 18, 26, 0.8);
-    --bg-input: rgba(0, 0, 0, 0.4);
+    --bg-main: #090a0f;
+    --bg-card: rgba(22, 25, 34, 0.6);
+    --bg-header: rgba(16, 18, 26, 0.7);
+    --bg-input: rgba(0, 0, 0, 0.3);
     --accent-blue: #3b82f6;
     --accent-purple: #8b5cf6;
     --accent-orange: #f97316;
@@ -14,12 +14,14 @@
     --status-generating: #f59e0b;
     --status-destroyed: #ef4444;
     --status-failed: #dc2626;
-    --border: rgba(255, 255, 255, 0.1);
-    --glass: rgba(255, 255, 255, 0.03);
-    --radius-sm: 4px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
-    --radius-xl: 16px;
+    --border: rgba(255, 255, 255, 0.08);
+    --glass: rgba(255, 255, 255, 0.02);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.15);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -69,15 +71,19 @@ h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.025em; }
 
 .stat-card {
     background: var(--bg-card);
-    border: 1px solid var(--border);
-    padding: 1.5rem;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    padding: 1.75rem;
     border-radius: var(--radius-lg);
-    transition: transform 0.2s ease, border-color 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
 
 .stat-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(59, 130, 246, 0.3);
+    transform: translateY(-4px);
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: var(--shadow-glow);
 }
 
 .stat-label { font-size: 0.875rem; color: var(--text-secondary); display: block; margin-bottom: 0.5rem; }
