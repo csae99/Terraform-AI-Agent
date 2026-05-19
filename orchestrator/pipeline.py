@@ -46,11 +46,12 @@ def get_project_slug(architect_output: str, prompt: str = "") -> str:
         if slug:
             return slug
     
-    # Fallback: extract the first 3-4 meaningful words from the prompt
+    # Fallback: extract the first 3 meaningful words from the prompt
     if prompt:
-        words = [w for w in re.sub(r'[^a-zA-Z0-9\s]', '', prompt).lower().split() if len(w) > 3]
+        generic = {"create", "make", "build", "generate", "terraform", "configuration", "infrastructure", "production", "valid", "code", "the", "a", "an", "for", "with", "using", "setup", "deploy", "provision"}
+        words = [w for w in re.sub(r'[^a-zA-Z0-9\s]', '', prompt).lower().split() if len(w) > 2 and w not in generic]
         if words:
-            return "-".join(words[:4])
+            return "-".join(words[:3])
             
     # Ultimate fallback if LLM completely failed and no prompt
     short_id = str(uuid.uuid4())[:8]
