@@ -146,8 +146,16 @@ def run_full_pipeline(
         finops_agent = finops_agent_cls.get_agent()
         deployer_agent = deployer_agent_cls.get_agent()
 
+        # Check if we have previous errors/advice to inject
+        error_guidance = ""
+        if retry.current_round > 1 and retry.errors:
+            latest_error = retry.errors[-1]
+            error_guidance = TerraformValidationTasks.build_error_context(latest_error)
+            if retry.advice:
+                error_guidance += f"\nAdvice from pattern memory:\n{retry.advice}"
+
         dev_task = TerraformGenerationTasks.write_terraform_task(
-            developer_agent, slug, arch_result
+            developer_agent, slug, arch_result, error_guidance=error_guidance
         )
         audit_task = TerraformValidationTasks.audit_task(auditor_agent, slug)
         cost_task = TerraformValidationTasks.financial_analysis_task(
@@ -181,12 +189,15 @@ def run_full_pipeline(
         # Ensure terraform is syntactically valid before considering this round a success
         val_result = TerraformTools._validate_terraform_code(slug)
         if "Failed" in val_result:
-            if should_retry(retry):
+            if should_retry(val_result):
                 print(f"\n[!] Terraform Validation Failed. Retrying...")
-                retry.increment_round(f"Terraform validation failed: {val_result}")
+                retry.record_errors(f"Terraform validation failed: {val_result}")
+                retry.advance()
                 continue
             else:
-                print("\n[!] Max retries reached. Validation failed.")
+                print("\n[!] Hard stop or max retries reached. Validation failed.")
+                retry.record_errors(f"Terraform validation failed (hard stop): {val_result}")
+                break
                 
         findings = audit_results.get("findings", [])
         critical_count = len(
@@ -213,9 +224,15 @@ def run_full_pipeline(
             break
 
         # ── Record errors & enrich with pattern advice ───────────
-        error_summary = f"Round {retry.current_round}: {critical_count} critical/high issues."
+        error_summary = ""
+        if critical_count > 0:
+            error_summary += f"Security audit failed:\n{auditor.format_report(audit_results)}\n"
         if not is_deployed:
-            error_summary += " Deployment failed."
+            error_summary += f"Deployment failed. Raw output:\n{crew_result}\n"
+        
+        if not error_summary:
+            error_summary = f"Round {retry.current_round}: Verification failed for unknown reasons."
+
         retry.record_errors(error_summary)
 
         if retry.current_round < retry.max_rounds:

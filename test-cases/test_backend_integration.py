@@ -1,8 +1,9 @@
 import pytest
 import os
-from tools.project_tracker import ProjectTracker
-from tools.deployment_tools import DeploymentTools
-from agents import TerraformAgents
+from tools.project.tracker import ProjectTracker
+from tools.deployment.deployment_tools import DeploymentTools
+from agents.terraform_architect import TerraformArchitect
+from agents.terraform_developer import TerraformDeveloper
 
 def test_project_tracker_db_save_load():
     """Verify metadata persistence in SQL DB."""
@@ -22,12 +23,15 @@ def test_project_tracker_db_save_load():
 
 def test_drift_detection_logic_no_dir():
     """Verify drift tool handles missing directories gracefully."""
-    result = DeploymentTools.detect_drift("non-existent-project")
+    result = DeploymentTools.detect_drift.func("non-existent-project")
     assert "Error" in result or "not found" in result.lower()
 
 def test_agent_initialization():
     """Verify agents can be initialized with custom model config."""
-    agents = TerraformAgents(model_name="openai/gpt-4o", api_key="sk-fake-key")
-    architect = agents.architect()
-    assert architect.role == "Cloud Architect"
-    # Note: We don't call the LLM here to avoid using credits
+    architect_agent = TerraformArchitect(model_name="openai/gpt-4o", api_key="sk-fake-key")
+    architect = architect_agent.get_agent()
+    assert "Architect" in architect.role
+
+    developer_agent = TerraformDeveloper(model_name="openai/gpt-4o", api_key="sk-fake-key")
+    developer = developer_agent.get_agent()
+    assert "Developer" in developer.role
