@@ -12,8 +12,8 @@ import argparse
 
 # Force UTF-8 encoding for console output on Windows
 if sys.platform == "win32" and "pytest" not in sys.modules:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True, write_through=True)
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True, write_through=True)
 
 # Ensure project root is on sys.path so imports work without PYTHONPATH
 _project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
