@@ -3,6 +3,35 @@ import litellm
 from dotenv import load_dotenv
 from crewai import LLM
 
+# Monkey-patch GeminiCompletion to solve the type mismatch for safety_settings between CrewAI and Google GenAI SDK.
+# GeminiCompletion validates safety_settings to be a dict, but Google GenAI SDK's GenerateContentConfig expects a list.
+try:
+    from crewai.llms.providers.gemini.completion import GeminiCompletion
+    
+    _orig_prepare_generation_config = GeminiCompletion._prepare_generation_config
+    
+    def _patched_prepare_generation_config(self, *args, **kwargs):
+        original_settings = self.safety_settings
+        if isinstance(original_settings, dict):
+            # Convert dictionary mapping {"CATEGORY": "THRESHOLD"}
+            # to list of dicts [{"category": "CATEGORY", "threshold": "THRESHOLD"}]
+            # which is what GenerateContentConfig expects.
+            self.safety_settings = [
+                {"category": cat, "threshold": thresh}
+                for cat, thresh in original_settings.items()
+            ]
+        try:
+            return _orig_prepare_generation_config(self, *args, **kwargs)
+        finally:
+            self.safety_settings = original_settings
+
+    GeminiCompletion._prepare_generation_config = _patched_prepare_generation_config
+    import logging
+    logging.getLogger("terraform-dashboard").info("Successfully monkey-patched GeminiCompletion._prepare_generation_config")
+except Exception as e:
+    import logging
+    logging.getLogger("terraform-dashboard").warning(f"Failed to monkey-patch GeminiCompletion: {e}")
+
 # Load environment variables
 load_dotenv()
 
@@ -80,12 +109,12 @@ def get_llm(model_name=None, api_key=None):
         model_name = f"gemini/{model_part}"
         
         # Disable all safety blocks to prevent false positive empty responses
-        extra_kwargs["safety_settings"] = [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-        ]
+        extra_kwargs["safety_settings"] = {
+            "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+            "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+            "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+            "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"
+        }
 
     if not api_key:
         print(f"Warning: No API key found for provider '{provider}'.")

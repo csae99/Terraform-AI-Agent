@@ -232,7 +232,39 @@ async function switchModalTab(tabId) {
     } else if (tabId === 'financial' && currentProject) {
         const res = await apiFetch(`/api/projects/${currentProject.slug}/report`);
         const data = await res.json();
-        document.getElementById('modal-financial-report').innerText = data.content;
+        
+        let html = "";
+        if (data.content) {
+            // Parse markdown using marked
+            html = typeof marked !== 'undefined' ? marked.parse(data.content) : `<pre>${data.content}</pre>`;
+            
+            // Regex to match "STATUS: OVER BUDGET" or "STATUS: WITHIN BUDGET" inside strong/heading tags
+            // and wrap in beautiful CSS class-styled card elements
+            html = html.replace(
+                /(?:<h3>)?(⚠️|✅|🔴|🟢|🛑)?\s*<strong>STATUS:\s*(OVER BUDGET|WITHIN BUDGET)<\/strong>(?:<\/h3>)?/gi,
+                (match, icon, status) => {
+                    const isOver = status.toUpperCase().includes("OVER");
+                    const finalIcon = icon || (isOver ? "⚠️" : "✅");
+                    const alertClass = isOver ? "finops-danger" : "finops-success";
+                    const desc = isOver 
+                        ? "Projected monthly costs exceed the allocated budget limit." 
+                        : "Projected monthly costs are compliant with the allocated budget.";
+                    return `
+                        <div class="finops-alert ${alertClass}">
+                            <span class="alert-icon">${finalIcon}</span>
+                            <div>
+                                <div class="alert-title">STATUS: ${status.toUpperCase()}</div>
+                                <p class="alert-desc">${desc}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            );
+        } else {
+            html = "<p class='empty-state'>No FinOps report available.</p>";
+        }
+        
+        document.getElementById('modal-financial-report').innerHTML = html;
     } else if (tabId === 'logs' && currentProject) {
         const res = await apiFetch(`/api/projects/${currentProject.slug}/logs/terraform_plan`);
         const data = await res.json();
