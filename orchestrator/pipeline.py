@@ -77,6 +77,7 @@ def run_full_pipeline(
     model_name: str = None,
     model_key: str = None,
     owner_id: str = None,
+    new_project: bool = False,
     cli_flags: list = None,
 ) -> dict:
     """Execute the full multi-agent Terraform pipeline.
@@ -118,6 +119,15 @@ def run_full_pipeline(
     arch_result = str(crew_arch.kickoff())
 
     slug = get_project_slug(arch_result, prompt)
+    base_slug = slug
+    if new_project:
+        counter = 1
+        while ProjectTracker.load(slug) is not None or os.path.exists(os.path.join("output", slug)):
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+    # Replace references to the base slug in the architecture design document with the actual slug
+    if slug != base_slug:
+        arch_result = re.sub(re.escape(base_slug), slug, arch_result, flags=re.IGNORECASE)
     mermaid_diagram = extract_mermaid(arch_result)
     output_base = os.path.join("output", slug)
     print(f"\nBuilding Project Workspace: {output_base}/")
@@ -181,7 +191,17 @@ def run_full_pipeline(
             verbose=True,
         )
 
-        crew_result = str(crew_dev.kickoff())
+        try:
+            crew_result = str(crew_dev.kickoff())
+        except Exception as e:
+            print(f"\n[!] Developer Crew failed with error: {str(e)}")
+            ProjectTracker.update_status(slug, "failed")
+            return {
+                "slug": slug,
+                "status": "failed",
+                "estimated_cost": "0.00",
+                "security_issues": 0,
+            }
 
         # ── Security analysis for self-healing ───────────────────
         audit_results = auditor.run_comprehensive_scan(output_base)

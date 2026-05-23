@@ -11,12 +11,20 @@ class CostEstimator:
         if binary_path:
             self.binary_path = os.path.abspath(binary_path)
         elif platform.system() == "Windows":
-            self.binary_path = os.path.abspath("infracost.exe")
+            local_bin = os.path.abspath("infracost.exe")
+            if os.path.exists(local_bin):
+                self.binary_path = local_bin
+            else:
+                self.binary_path = shutil.which("infracost.exe") or shutil.which("infracost") or local_bin
         else:
             self.binary_path = shutil.which("infracost") or os.path.abspath("infracost")
         
-        # Check if infracost is installed natively (inside Docker or local install)
-        self._use_native = shutil.which("infracost") is not None
+        # Check if we are running in a Docker container
+        is_in_docker = os.getenv("RUNNING_IN_DOCKER") == "true" or os.path.exists('/.dockerenv')
+        
+        # Use native mode if inside docker (native infracost is installed in container)
+        # Otherwise, fall back to Docker execution on host (unless native is explicitly in path/disk)
+        self._use_native = is_in_docker or (shutil.which("infracost") is not None) or (shutil.which("infracost.exe") is not None) or (platform.system() == "Windows" and os.path.exists(self.binary_path))
 
     @tool
     def get_monthly_cost(directory_path: str) -> str:
@@ -75,7 +83,7 @@ class CostEstimator:
             if self._use_native:
                 # Native mode: infracost installed directly (e.g., inside Docker)
                 cmd = [
-                    "infracost", "breakdown",
+                    self.binary_path, "breakdown",
                     "--path", abs_project_path,
                     "--format", "json"
                 ]
@@ -84,19 +92,23 @@ class CostEstimator:
                 result = subprocess.run(cmd, capture_output=True, text=True, env=env)
             else:
                 # Docker mode: run infracost via Docker container
-                current_dir = os.getcwd()
-                relative_path = os.path.relpath(abs_project_path, current_dir)
-                # Normalize path separators for Docker
+                # Format Windows host path as /c/path/to/dir for Docker mount compatibility
+                docker_mount_path = abs_project_path
                 if platform.system() == "Windows":
-                    relative_path = relative_path.replace("\\", "/")
+                    if len(abs_project_path) > 1 and abs_project_path[1] == ":":
+                        drive = abs_project_path[0].lower()
+                        path_part = abs_project_path[2:].replace("\\", "/")
+                        docker_mount_path = f"/{drive}{path_part}"
+                    else:
+                        docker_mount_path = abs_project_path.replace("\\", "/")
                 
                 cmd = [
                     "docker", "run", "--rm",
-                    "-v", f"{current_dir}:/code",
+                    "-v", f"{docker_mount_path}:/code",
                     "-e", f"INFRACOST_API_KEY={api_key}",
                     "infracost/infracost:latest",
                     "breakdown",
-                    "--path", f"/code/{relative_path}",
+                    "--path", "/code",
                     "--format", "json"
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True)
@@ -105,8 +117,18 @@ class CostEstimator:
                 return {"error": "INFRACOST_FAILURE", "details": result.stderr}
 
             data = json.loads(result.stdout)
+            
+            # Safely extract total monthly cost (try root, fallback to project breakdown)
+            root_cost = data.get("totalMonthlyCost")
+            if root_cost is None:
+                projects = data.get("projects", [{}])
+                if projects:
+                    root_cost = projects[0].get("breakdown", {}).get("totalMonthlyCost", "0.00")
+                else:
+                    root_cost = "0.00"
+                    
             return {
-                "total_monthly_cost": data.get("totalMonthlyCost", "0.00"),
+                "total_monthly_cost": str(root_cost),
                 "currency": data.get("currency", "USD"),
                 "resources": data.get("projects", [{}])[0].get("breakdown", {}).get("resources", []),
                 "all_data": data

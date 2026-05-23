@@ -4,17 +4,28 @@ import json
 import sys
 import io
 import asyncio
+import logging
+import traceback
 from fastapi import FastAPI, HTTPException, Request, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from typing import Optional
 import sse_starlette
 
+logger = logging.getLogger("terraform-dashboard")
+logging.basicConfig(level=logging.INFO)
+
 # Force UTF-8 encoding for console output on Windows
 if sys.platform == "win32" and "pytest" not in sys.modules:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    try:
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        if hasattr(sys.stderr, 'buffer'):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    except AttributeError:
+        pass
 
 # Ensure project root is on sys.path so imports work without PYTHONPATH
 _project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -28,7 +39,20 @@ static_dir = os.path.join(basedir, "static")
 
 app = FastAPI(title="Terraform AI Agent Dashboard")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("FLASK_SECRET_KEY", "super-secret-key"))
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.method} {request.url}: {exc}")
+    logger.error(traceback.format_exc())
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 OUTPUT_DIR = "output"
 active_logs = {}
@@ -49,11 +73,37 @@ def get_current_user_optional(request: Request):
         return UserTracker.get_by_id(int(user_id))
     return None
 
+def _run_subprocess_sync(cmd, env, cwd, temp_slug):
+    import subprocess
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+            cwd=cwd,
+            text=True,
+            bufsize=1,
+            encoding='utf-8',
+            errors='replace'
+        )
+        for line in iter(process.stdout.readline, ''):
+            active_logs[temp_slug] += line
+        process.wait()
+        return process.returncode
+    except Exception as e:
+        logger.error(f"Error in sync subprocess execution: {e}")
+        raise
+
 # --- Background Task ---
-async def run_agent_workflow(prompt: str, budget: float, apply: bool, credentials: dict = None, ai_config: dict = None):
-    cmd = [sys.executable, "app/main.py", prompt, "--budget", str(budget), "--auto-fix"]
+async def run_agent_workflow(prompt: str, budget: float, apply: bool, credentials: dict = None, ai_config: dict = None, new_project: bool = False):
+    # Use absolute path to main.py so it works regardless of CWD
+    main_script = os.path.join(_project_root, "app", "main.py")
+    cmd = [sys.executable, main_script, prompt, "--budget", str(budget), "--auto-fix"]
     if apply:
         cmd.append("--apply")
+    if new_project:
+        cmd.append("--new-project")
     
     if ai_config:
         if ai_config.get("model"):
@@ -78,30 +128,35 @@ async def run_agent_workflow(prompt: str, budget: float, apply: bool, credential
     if owner_id:
         env["owner_id"] = str(owner_id)
 
+    # Ensure PYTHONPATH includes project root for subprocess imports
+    env["PYTHONPATH"] = _project_root
+    env["PYTHONUNBUFFERED"] = "1"
+    # Disable CrewAI telemetry in subprocess
+    env["CREWAI_DISABLE_TELEMETRY"] = "true"
+    env["OTEL_SDK_DISABLED"] = "true"
+
+    logger.info(f"Running agent workflow: {' '.join(cmd)}")
+    active_logs[temp_slug] += f"Command: {' '.join(cmd)}\n"
     try:
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            env=env
+        loop = asyncio.get_running_loop()
+        returncode = await loop.run_in_executor(
+            None,
+            _run_subprocess_sync,
+            cmd,
+            env,
+            _project_root,
+            temp_slug
         )
-
-        while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
-            active_logs[temp_slug] += line.decode('utf-8', errors='replace')
-            log_lines = active_logs[temp_slug].split('\n')
-            if len(log_lines) > 500:
-                active_logs[temp_slug] = '\n'.join(log_lines[-500:])
-
-        await process.wait()
-        if process.returncode == 0:
+        if returncode == 0:
             active_logs[temp_slug] += "\n✅ Workflow Finished successfully.\n"
         else:
-            active_logs[temp_slug] += f"\n❌ Workflow Finished with exit code {process.returncode}\n"
+            active_logs[temp_slug] += f"\n❌ Workflow Finished with exit code {returncode}\n"
     except Exception as e:
-        active_logs[temp_slug] += f"\n❌ Error: {str(e)}\n"
+        error_detail = traceback.format_exc()
+        logger.error(f"Agent workflow error: {type(e).__name__}: {e}")
+        logger.error(error_detail)
+        active_logs[temp_slug] += f"\n❌ Error ({type(e).__name__}): {str(e) or 'No details available'}\n"
+        active_logs[temp_slug] += f"Traceback:\n{error_detail}\n"
 
 # --- Page Routes ---
 @app.get("/")
@@ -137,20 +192,29 @@ async def get_stats(user=Depends(get_current_user)):
 
 @app.post("/api/generate")
 async def generate_infrastructure(request: Request, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
-    data = await request.json()
-    prompt = data.get("prompt")
-    budget = data.get("budget", 100)
-    apply = data.get("apply", False)
-    credentials = data.get("credentials") or {}
-    ai_config = data.get("ai_config")
+    try:
+        data = await request.json()
+        prompt = data.get("prompt")
+        budget = data.get("budget", 100)
+        apply = data.get("apply", False)
+        new_project = data.get("new_project", False)
+        credentials = data.get("credentials") or {}
+        ai_config = data.get("ai_config")
 
-    if not prompt:
-        raise HTTPException(status_code=400, detail="No prompt provided")
+        if not prompt:
+            raise HTTPException(status_code=400, detail="No prompt provided")
 
-    credentials["owner_id"] = user.id
-    active_logs["active-run"] = "" # Reset log
-    background_tasks.add_task(run_agent_workflow, prompt, budget, apply, credentials, ai_config)
-    return {"message": "Workflow started", "status": "processing"}
+        credentials["owner_id"] = user.id
+        active_logs["active-run"] = "" # Reset log
+        logger.info(f"Generate request from user {user.id}: prompt='{prompt[:80]}...' budget={budget} apply={apply} new_project={new_project}")
+        background_tasks.add_task(run_agent_workflow, prompt, budget, apply, credentials, ai_config, new_project)
+        return {"message": "Workflow started", "status": "processing"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Generate endpoint error: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def log_generator(request: Request):
     """Generator for Server-Sent Events (SSE) log streaming."""
@@ -173,6 +237,22 @@ async def log_generator(request: Request):
 @app.get("/api/logs/active")
 async def stream_logs(request: Request):
     return sse_starlette.EventSourceResponse(log_generator(request))
+
+@app.get("/api/test_run")
+async def test_run(background_tasks: BackgroundTasks):
+    prompt = "Create a local file named hello.txt with content 'Hello World' using the Terraform local provider"
+    ai_config = {
+        "provider": "gemini",
+        "model": "gemini-2.0-flash",
+        "key": "AIzaSyC283dI15JyTciEC6Ihljkw2WllRB_bhQM"
+    }
+    active_logs["active-run"] = ""
+    background_tasks.add_task(run_agent_workflow, prompt, 5.0, False, {}, ai_config)
+    return {"status": "started"}
+
+@app.get("/api/test_logs")
+async def test_logs():
+    return {"logs": active_logs.get("active-run", "")}
 
 # --- Auth API ---
 @app.post("/api/auth/register")
@@ -292,9 +372,19 @@ async def get_project_report(slug: str):
     report_path = os.path.join(project_dir, "FINANCIAL_REPORT.md")
     if os.path.exists(report_path):
         with open(report_path, "r", encoding="utf-8") as f:
-            return {"report": f.read()}
-    return {"report": "No financial report generated for this project."}
+            content = f.read()
+            return {"report": content, "content": content}
+    msg = "No financial report generated for this project."
+    return {"report": msg, "content": msg}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("dashboard:app", host="0.0.0.0", port=5000, reload=True)
+    os.chdir(_project_root)
+    uvicorn.run(
+        "app.dashboard:app",
+        host="0.0.0.0",
+        port=5000,
+        reload=True,
+        reload_dirs=[os.path.join(_project_root, "app"), os.path.join(_project_root, "static")],
+        reload_excludes=["venv*", "output", "__pycache__", ".git", "*.db", "scratch"],
+    )

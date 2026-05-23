@@ -12,8 +12,13 @@ import argparse
 
 # Force UTF-8 encoding for console output on Windows
 if sys.platform == "win32" and "pytest" not in sys.modules:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True, write_through=True)
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True, write_through=True)
+    try:
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True, write_through=True)
+        if hasattr(sys.stderr, 'buffer'):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True, write_through=True)
+    except AttributeError:
+        pass
 
 # Ensure project root is on sys.path so imports work without PYTHONPATH
 _project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -36,6 +41,7 @@ def main():
     parser.add_argument("--auto-fix", action="store_true", help="Automatically proceed (non-interactive)")
     parser.add_argument("--model", type=str, help="LLM Model to use (e.g. openai/gpt-4o)")
     parser.add_argument("--model-key", type=str, help="API Key for the selected model")
+    parser.add_argument("--new-project", action="store_true", help="Generate a unique project slug if it already exists")
     args = parser.parse_args()
 
     # Handle Destructive Actions
@@ -53,6 +59,8 @@ def main():
         cli_flags.append(f"--budget={args.budget}")
     if args.auto_fix:
         cli_flags.append("--auto-fix")
+    if args.new_project:
+        cli_flags.append("--new-project")
 
     owner_id = os.getenv("owner_id")
 
@@ -64,6 +72,7 @@ def main():
         model_name=args.model,
         model_key=args.model_key,
         owner_id=owner_id,
+        new_project=args.new_project,
         cli_flags=cli_flags,
     )
 

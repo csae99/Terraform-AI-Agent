@@ -319,6 +319,7 @@ async function generateInfra() {
     const prompt = document.getElementById('infra-prompt').value;
     const budget = document.getElementById('infra-budget').value;
     const apply = document.getElementById('infra-apply').checked;
+    const new_project = document.getElementById('infra-new-project').checked;
     const genBtn = document.getElementById('btn-generate');
 
     if (!prompt) return showToast("Please enter an infrastructure requirement.", "error");
@@ -349,20 +350,35 @@ async function generateInfra() {
     consoleElem.innerText = "🚀 Connecting to Agent Engine...\n";
 
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        
         const response = await apiFetch('/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, budget, apply, credentials, ai_config })
+            body: JSON.stringify({ prompt, budget, apply, new_project, credentials, ai_config }),
+            signal: controller.signal
         });
-        if (!response.ok) throw new Error(await response.text());
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({ detail: response.statusText }));
+            throw new Error(errData.detail || `Server error: ${response.status}`);
+        }
         showToast("Generation started! Watch the live stream.", "info");
         startPollingLogs();
     } catch (e) {
-        consoleElem.innerText += "\n❌ Error: " + e.message;
+        let errorMsg = e.message;
+        if (e.name === 'AbortError') {
+            errorMsg = "Request timed out. Is the server running?";
+        } else if (errorMsg === 'Failed to fetch') {
+            errorMsg = "Could not connect to server. Check if the dashboard is running on port 5000.";
+        }
+        consoleElem.innerText += "\n❌ Error: " + errorMsg;
         genBtn.disabled = false;
         genBtn.innerText = "Generate";
         document.getElementById('gen-status').style.display = 'none';
-        showToast("Failed to start generation: " + e.message, "error");
+        showToast("Failed to start generation: " + errorMsg, "error");
     }
 }
 

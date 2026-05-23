@@ -118,7 +118,7 @@
                 if (res.ok) {
                     window.location.href = '/';
                 } else {
-                    errorElem.innerText = data.error || "Authentication failed";
+                    errorElem.innerText = data.detail || data.error || "Authentication failed";
                     errorElem.style.display = 'block';
                 }
             } catch (err) {

@@ -2,7 +2,7 @@ import litellm
 import os
 import sys
 
-api_key = "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"
+api_key = "nvapi-"
 model = "openai/abacusai/dracarys-llama-3.1-70b-instruct"
 base_url = "https://integrate.api.nvidia.com/v1"
 

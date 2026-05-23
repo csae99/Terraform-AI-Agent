@@ -13,9 +13,10 @@ os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 
 # ─── Rate Limit / Retry Settings ───
 # LiteLLM will automatically wait & retry on 429 with exponential backoff
-litellm.num_retries = 5                # Global retry count
-litellm.request_timeout = 300          # 5 min timeout per request (complex prompts)
-litellm.retry_after = 10               # Min 10s wait between retries
+litellm.set_verbose = True
+litellm.num_retries = 2                # Reduced from 5 to fail faster on free tier limits
+litellm.request_timeout = 120          # 2 min timeout per request
+litellm.retry_after = 5                # Min 5s wait between retries
 
 def get_llm(model_name=None, api_key=None):
     """
@@ -77,6 +78,14 @@ def get_llm(model_name=None, api_key=None):
         # For litellm with API Key, use gemini/ prefix
         model_part = model_name.split("/")[-1]
         model_name = f"gemini/{model_part}"
+        
+        # Disable all safety blocks to prevent false positive empty responses
+        extra_kwargs["safety_settings"] = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
 
     if not api_key:
         print(f"Warning: No API key found for provider '{provider}'.")

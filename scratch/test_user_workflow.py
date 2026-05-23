@@ -60,7 +60,7 @@ def run():
         "ai_config": {
             "model": "gemini-3.1-flash-lite",
             "provider": "gemini",
-            "key": "AIzaSyC283dI15JyTciEC6Ihljkw2WllRB_bhQM"
+            "key": "AIzaSyDvwxYTOcgr546EeY4PE481nU6fy8pX0Tk"
         }
     }
     

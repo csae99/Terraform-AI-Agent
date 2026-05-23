@@ -63,10 +63,6 @@ class TerraformTools:
         # Replace ; with newline (the #1 LLM HCL error)
         content = content.replace(";", "\n")
 
-        # Ensure } is on its own line (not glued to the previous argument)
-        # Match: non-whitespace followed by } on the same line
-        content = re.sub(r'(\S)\s*\}', r'\1\n}', content)
-
         # Clean up any triple+ newlines
         content = re.sub(r'\n{3,}', '\n\n', content)
 

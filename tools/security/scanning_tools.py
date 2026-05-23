@@ -115,10 +115,12 @@ class SecurityAuditor:
             for report in data:
                 failed_checks = report.get("results", {}).get("failed_checks", [])
                 for check in failed_checks:
+                    # Checkov open-source JSON often omits 'severity' without an API key. 
+                    # Defaulting to HIGH ensures the orchestrator doesn't ignore these findings!
                     findings.append({
                         "engine": "checkov",
                         "rule_id": check.get("check_id"),
-                        "severity": (check.get("severity") or "medium").upper(),
+                        "severity": check.get("severity", "HIGH").upper(),
                         "description": check.get("check_name"),
                         "resolution": check.get("guideline") or "Follow standard best practices.",
                         "impact": "Security vulnerability detected in configuration"
