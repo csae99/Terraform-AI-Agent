@@ -139,45 +139,61 @@ python app/dashboard.py
 ```
 
 Features:
-- Submit infrastructure requirements with budget and AI model configuration.
-- View all generated projects with code, visual topology, FinOps reports.
-- Live agent log streaming during generation.
-- User authentication (login/register).
+- **Build Interface**: Submit infrastructure requirements with budget constraints, choice of AI model configuration, and credentials sync.
+- **New Workspace Toggle**: Next to "Live Deploy", the "New Workspace" toggle checkbox allows the user to decide whether to overwrite the existing workspace project folder in-place or generate a fresh workspace sequential slug (e.g. `<slug>-1`, `<slug>-2`) to prevent state loss.
+- **FinOps Presentation Layer**: Integrated with `marked.js` to parse cost estimation markdown files dynamically into responsive HTML tables, highlighting budget status compliances (danger/success) inside glowing glassmorphism alert cards.
+- **Workspace Explorer**: Browse generated projects with tabbed code viewers, visual Mermaid topology, version-controlled evolution diff comparisons, and raw deployment logs.
+- **User Authentication**: Secure user register, login, and project isolation database logic.
 
 ---
 
-## 🐳 Docker (Zero-Install Setup)
+## 🐳 Docker Compose Orchestration
 
-If you don't want to install Python, Terraform, Infracost, etc. manually, use Docker:
+Instead of launching individual containers, you can use **Docker Compose** to run the complete multi-service database-backed dashboard environment:
+
+### 1. Build and Start Services
+```bash
+docker compose up --build
+```
+This launches:
+- **`terraform-db`**: A PostgreSQL 15 database container mapped to a persistent Docker volume (`postgres_data`), storing user registrations and project history.
+- **`terraform-dashboard`**: The FastAPI-based dashboard application server exposed on port `5000`.
+
+### 2. Native In-Container Execution
+When running inside Docker (`RUNNING_IN_DOCKER=true`), the backend automatic environment detection configures the agent tools (e.g., Infracost, Checkov, and tfsec) to run natively within the container instead of making host-to-container calls. This ensures maximum compatibility and eliminates host filesystem binary issues.
+
+### 3. Registry Distribution (Pushing to Docker Hub)
+To tag and publish the built agent image to a container registry:
+```bash
+# 1. Log in to your Docker Hub registry
+docker login
+
+# 2. Tag the locally built image (e.g. for user 'shubham554')
+docker tag terraform-ai-agent-agent:latest shubham554/terraform-ai-agent:v1
+
+# 3. Push it to Docker Hub
+docker push shubham554/terraform-ai-agent:v1
+```
+*Note: In `docker-compose.yml`, the image key can be set to `shubham554/terraform-ai-agent:v1` to run the tagged registry image directly.*
+
+---
+
+## 🐳 Running Single CLI Containers
+
+If you only want to use the CLI agent inside Docker:
 
 ```bash
-# 1. Build the image (one-time)
+# 1. Build the CLI image
 docker build -t terraform-ai-agent .
 
-# 2. Create your .env file from the example
-cp .env.example .env
-# Edit .env with your API keys
-
-# 3. Run the agent
+# 2. Run the generator
 docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
   terraform-ai-agent --budget 100 "create a vpc with a public subnet"
 
-# 4. Live deploy
+# 3. Live deploy
 docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
   terraform-ai-agent --apply --budget 100 "create a private s3 bucket"
-
-# 5. Destroy
-docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
-  terraform-ai-agent --destroy my-project-slug
 ```
 
-> **Tip**: For AWS credentials, either add them to `.env` or mount your AWS config:
-> ```bash
-> docker run --rm -it --env-file .env \
->   -v $(pwd)/output:/app/output \
->   -v ~/.aws:/root/.aws:ro \
->   terraform-ai-agent --apply "create an s3 bucket"
-> ```
-
 ---
-*Last Updated: 2026-05-16*
+*Last Updated: 2026-05-24*

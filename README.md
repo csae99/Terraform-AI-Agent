@@ -84,27 +84,35 @@ The dashboard provides:
 
 ---
 
-## 🐳 Docker (Run Anywhere)
+## 🐳 Docker Orchestration
 
-Build once, run on any machine — Linux, Mac, or Windows:
+You can run the entire platform (PostgreSQL database + web dashboard) anywhere via Docker Compose:
+
 ```bash
-# Build the image
-docker build -t terraform-ai-agent .
+# Build and run the services
+docker compose up --build
+```
+This spawns:
+* **`terraform-db`**: PostgreSQL 15 database storing registrations and workspaces.
+* **`terraform-dashboard`**: Web dashboard listening on `http://localhost:5000`.
 
-# Generate & audit (no cloud deployment)
-docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
-  terraform-ai-agent --budget 100 "create a vpc with a public subnet"
-
-# Live deploy (creates real resources)
-docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
-  terraform-ai-agent --apply --budget 100 "create a private s3 bucket"
-
-# Destroy infrastructure
-docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
-  terraform-ai-agent --destroy infra-s3-private
+### Push to Container Registry
+To distribute the built agent image:
+```bash
+docker login
+docker tag terraform-ai-agent-agent:latest shubham554/terraform-ai-agent:v1
+docker push shubham554/terraform-ai-agent:v1
 ```
 
-> **Note**: The `-v` flag mounts the `output/` directory so generated code and logs persist on your host. The `--env-file` passes your API keys and AWS credentials into the container.
+### Run Single CLI container
+```bash
+# Build the CLI image
+docker build -t terraform-ai-agent .
+
+# Generate and audit (no cloud deployment)
+docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
+  terraform-ai-agent --budget 100 "create a vpc with a public subnet"
+```
 
 ---
 
@@ -159,4 +167,4 @@ terraform-ai-agent/
 
 ---
 
-*Last Updated: 2026-05-16*
+*Last Updated: 2026-05-24*
