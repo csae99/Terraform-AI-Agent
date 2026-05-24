@@ -68,9 +68,9 @@ class ProjectTracker:
     OUTPUT_DIR = "output"
 
     @staticmethod
-    def save(slug, prompt="", status="generated", budget=0.0,
-             estimated_cost=0.0, security_issues=0, provider="Local", 
-             flags=None, mermaid_diagram="", drift_status="unknown", owner_id=None):
+    def save(slug, prompt=None, status=None, budget=None,
+             estimated_cost=None, security_issues=None, provider=None, 
+             flags=None, mermaid_diagram=None, drift_status=None, owner_id=None):
         """Save or update project metadata in DB."""
         session = SessionLocal()
         try:
@@ -79,17 +79,28 @@ class ProjectTracker:
             if not project:
                 project = ProjectModel(slug=slug)
                 session.add(project)
-            
-            if prompt: project.prompt = prompt
-            if status: project.status = status
-            if budget: project.budget = budget
-            project.estimated_cost = estimated_cost
-            project.security_issues = security_issues
-            if provider: project.provider = provider
-            if mermaid_diagram: project.mermaid_diagram = mermaid_diagram
-            if drift_status: project.drift_status = drift_status
-            if flags is not None: project.flags = flags
-            if owner_id: project.owner_id = owner_id
+                # Set initial values
+                project.prompt = prompt or ""
+                project.status = status or "generated"
+                project.budget = budget if budget is not None else 100.0
+                project.estimated_cost = estimated_cost if estimated_cost is not None else 0.0
+                project.security_issues = security_issues if security_issues is not None else 0
+                project.provider = provider or "Local"
+                project.mermaid_diagram = mermaid_diagram or ""
+                project.drift_status = drift_status or "unknown"
+                project.flags = flags if flags is not None else []
+                project.owner_id = owner_id
+            else:
+                if prompt is not None: project.prompt = prompt
+                if status is not None: project.status = status
+                if budget is not None: project.budget = budget
+                if estimated_cost is not None: project.estimated_cost = estimated_cost
+                if security_issues is not None: project.security_issues = security_issues
+                if provider is not None: project.provider = provider
+                if mermaid_diagram is not None: project.mermaid_diagram = mermaid_diagram
+                if drift_status is not None: project.drift_status = drift_status
+                if flags is not None: project.flags = flags
+                if owner_id is not None: project.owner_id = owner_id
             
             session.commit()
             return ProjectTracker.load(slug)

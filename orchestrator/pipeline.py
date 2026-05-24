@@ -16,10 +16,12 @@ from agents.terraform_developer import TerraformDeveloper
 from agents.security_reviewer import SecurityReviewer
 from agents.cost_optimizer import CostOptimizer
 from agents.deployment_planner import DeploymentPlanner
+from agents.testing_agent import TestingAgent
 
 from workflows.terraform_generation import TerraformGenerationTasks
 from workflows.terraform_validation import TerraformValidationTasks
 from workflows.terraform_deployment import TerraformDeploymentTasks
+from workflows.terraform_testing import TerraformTestingTasks
 
 from tools.security.scanning_tools import SecurityAuditor
 from tools.finance.cost_estimation import CostEstimator
@@ -27,7 +29,7 @@ from tools.cloud.aws_tools import CloudSync
 from tools.terraform.terraform_tools import TerraformTools
 from tools.project.tracker import ProjectTracker
 
-from orchestrator.retry_handler import RetryContext, should_retry
+from orchestrator.retry_handler import RetryContext, should_retry, _get_pattern_manager
 
 
 # ── Helper utilities ─────────────────────────────────────────────────
@@ -67,6 +69,63 @@ def extract_mermaid(text: str) -> str:
     return ""
 
 
+def inject_floci_overrides(slug: str):
+    """Write a providers_override.tf file to force Terraform to use local Floci emulated endpoints."""
+    output_base = os.path.join("output", slug)
+    if not os.path.exists(output_base):
+        os.makedirs(output_base)
+        
+    is_in_docker = os.path.exists('/.dockerenv') or os.environ.get("RUNNING_IN_DOCKER") == "true"
+    floci_host = "floci" if is_in_docker else "localhost"
+    floci_endpoint = f"http://{floci_host}:4566"
+    
+    override_content = f"""
+provider "aws" {{
+  region                      = "us-east-1"
+  access_key                  = "mock_access_key"
+  secret_key                  = "mock_secret_key"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  s3_use_path_style           = true
+  endpoints {{
+    apigateway     = "{floci_endpoint}"
+    apigatewayv2   = "{floci_endpoint}"
+    autoscaling    = "{floci_endpoint}"
+    cloudformation = "{floci_endpoint}"
+    cloudfront     = "{floci_endpoint}"
+    cloudwatch     = "{floci_endpoint}"
+    cognitoidp     = "{floci_endpoint}"
+    cognitoidentity= "{floci_endpoint}"
+    dynamodb       = "{floci_endpoint}"
+    ec2            = "{floci_endpoint}"
+    ecs            = "{floci_endpoint}"
+    eks            = "{floci_endpoint}"
+    elasticsearch  = "{floci_endpoint}"
+    firehose       = "{floci_endpoint}"
+    iam            = "{floci_endpoint}"
+    kinesis        = "{floci_endpoint}"
+    kms            = "{floci_endpoint}"
+    lambda         = "{floci_endpoint}"
+    redshift       = "{floci_endpoint}"
+    route53        = "{floci_endpoint}"
+    s3             = "{floci_endpoint}"
+    secretsmanager = "{floci_endpoint}"
+    ses            = "{floci_endpoint}"
+    sns            = "{floci_endpoint}"
+    sqs            = "{floci_endpoint}"
+    ssm            = "{floci_endpoint}"
+    stepfunctions  = "{floci_endpoint}"
+    sts            = "{floci_endpoint}"
+  }}
+}}
+"""
+    override_path = os.path.join(output_base, "providers_override.tf")
+    with open(override_path, "w") as f:
+        f.write(override_content)
+    print(f"[Local Test] Injected Floci overrides at {override_path}")
+
+
 # ── Main Pipeline ────────────────────────────────────────────────────
 
 def run_full_pipeline(
@@ -79,6 +138,7 @@ def run_full_pipeline(
     owner_id: str = None,
     new_project: bool = False,
     cli_flags: list = None,
+    test_local: bool = False,
 ) -> dict:
     """Execute the full multi-agent Terraform pipeline.
 
@@ -88,6 +148,7 @@ def run_full_pipeline(
     Returns:
         dict with keys: slug, status, estimated_cost, security_issues
     """
+    is_test_local = test_local or os.environ.get("TEST_LOCAL") == "true" or "--test-local" in (cli_flags or [])
 
     if cli_flags is None:
         cli_flags = []
@@ -102,6 +163,7 @@ def run_full_pipeline(
     auditor_agent_cls = SecurityReviewer(model_name=model_name, api_key=model_key)
     finops_agent_cls = CostOptimizer(model_name=model_name, api_key=model_key)
     deployer_agent_cls = DeploymentPlanner(model_name=model_name, api_key=model_key)
+    testing_agent_cls = TestingAgent(model_name=model_name, api_key=model_key)
 
     auditor = SecurityAuditor()
     estimator = CostEstimator()
@@ -155,6 +217,7 @@ def run_full_pipeline(
         auditor_agent = auditor_agent_cls.get_agent()
         finops_agent = finops_agent_cls.get_agent()
         deployer_agent = deployer_agent_cls.get_agent()
+        testing_agent = testing_agent_cls.get_agent()
 
         # Check if we have previous errors/advice to inject
         error_guidance = ""
@@ -176,6 +239,11 @@ def run_full_pipeline(
             if do_apply
             else None
         )
+        testing_task = (
+            TerraformTestingTasks.behavior_testing_task(testing_agent, slug)
+            if do_apply
+            else None
+        )
 
         active_tasks = [dev_task, audit_task, cost_task]
         active_agents = [developer_agent, auditor_agent, finops_agent]
@@ -183,6 +251,10 @@ def run_full_pipeline(
         if deploy_task:
             active_tasks.append(deploy_task)
             active_agents.append(deployer_agent)
+
+        if testing_task:
+            active_tasks.append(testing_task)
+            active_agents.append(testing_agent)
 
         crew_dev = Crew(
             agents=active_agents,
@@ -202,6 +274,9 @@ def run_full_pipeline(
                 "estimated_cost": "0.00",
                 "security_issues": 0,
             }
+
+        if is_test_local:
+            inject_floci_overrides(slug)
 
         # ── Security analysis for self-healing ───────────────────
         audit_results = auditor.run_comprehensive_scan(output_base)
@@ -235,12 +310,44 @@ def run_full_pipeline(
                 )
 
         # Check deployment success
-        is_deployed = "🚀 Deployment Successful!" in crew_result if do_apply else True
+        is_deployed = True
+        if do_apply:
+            if deploy_task and hasattr(deploy_task, "output") and deploy_task.output:
+                is_deployed = "🚀 Deployment Successful!" in str(deploy_task.output.raw)
+            else:
+                log_path = os.path.join(output_base, "logs", "terraform_apply.log")
+                if os.path.exists(log_path):
+                    try:
+                        with open(log_path, "r", encoding="utf-8") as f:
+                            apply_log = f.read()
+                        is_deployed = "Apply complete!" in apply_log
+                    except Exception as e:
+                        print(f"[Deployment Check] Warning: failed to read apply log: {e}")
+                        is_deployed = False
+                else:
+                    is_deployed = False
 
         if critical_count == 0 and is_deployed:
             print(
                 "\n✅ Verification SUCCESS! No security issues and deployment is live."
             )
+            if retry.current_round > 1:
+                main_tf_path = os.path.join(output_base, "main.tf")
+                fix_applied_content = ""
+                if os.path.exists(main_tf_path):
+                    try:
+                        with open(main_tf_path, "r", encoding="utf-8") as f:
+                            fix_applied_content = f.read()
+                    except Exception as e:
+                        print(f"[Self-Learning] Warning: failed to read {main_tf_path}: {e}")
+                
+                pm = _get_pattern_manager()
+                if pm:
+                    print(f"[Self-Learning] Run succeeded in round {retry.current_round}. Calling pattern_manager.learn_from_run...")
+                    pm.learn_from_run(
+                        error_logs="\n".join(retry.errors),
+                        fix_applied=fix_applied_content
+                    )
             break
 
         # ── Record errors & enrich with pattern advice ───────────

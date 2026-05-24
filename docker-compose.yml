@@ -12,9 +12,34 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - agent-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: terraform-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - agent-network
+
+  floci:
+    image: floci/floci:latest
+    container_name: local-aws-floci
+    restart: always
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,dynamodb,ec2,iam,rds,lambda
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - agent-network
 
   agent:
-    image: shubham554/terraform-ai-agent:v1
+    image: shubham554/terraform-ai-agent:v2
     build: .
     container_name: terraform-dashboard
     restart: always
@@ -22,18 +47,50 @@ services:
       - "5000:5000"
     environment:
       - DATABASE_URL=postgresql://terra_user:terra_password@db:5432/terraform_agent
+      - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
       - RUNNING_IN_DOCKER=true
-      # Load other env vars from .env file
     env_file:
       - .env
     volumes:
       - .:/app
       - ./output:/app/output
-
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - db
+      - redis
+      - floci
     entrypoint: python app/dashboard.py
+    networks:
+      - agent-network
+
+  worker:
+    image: shubham554/terraform-ai-agent:v2
+    build: .
+    container_name: terraform-celery-worker
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://terra_user:terra_password@db:5432/terraform_agent
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - RUNNING_IN_DOCKER=true
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - ./output:/app/output
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - db
+      - redis
+      - floci
+    entrypoint: celery -A workers.celery_worker.celery_app worker --loglevel=info
+    networks:
+      - agent-network
 
 volumes:
   postgres_data:
+
+networks:
+  agent-network:
+    driver: bridge

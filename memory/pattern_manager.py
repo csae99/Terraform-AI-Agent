@@ -97,6 +97,76 @@ class PatternManager:
         self._patterns.append(pattern)
         self._persist()
 
+    def learn_from_run(self, error_logs: str, fix_applied: str) -> None:
+        """Call LLM to extract a reusable failure pattern and persist it."""
+        import litellm
+        
+        # Check if we have an API key configured for LiteLLM calls
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            print("[PatternManager] Skip dynamic learning: No API key found.")
+            return
+
+        model = os.getenv("DEFAULT_MODEL", "gemini/gemini-1.5-flash")
+        
+        prompt = f"""
+You are an expert DevOps engineer and AI teacher.
+We had a Terraform execution failure that we successfully fixed in a self-healing loop.
+Please analyze the error log and the fix that was applied to create a new, reusable "Failure Pattern" that can be used to prevent this issue in the future.
+
+ERROR LOG:
+\"\"\"{error_logs}\"\"\"
+
+FIX APPLIED:
+\"\"\"{fix_applied}\"\"\"
+
+Your task is to extract:
+1. Error Substring: A unique, exact, case-insensitive substring from the error log that reliably identifies this specific error. Keep it concise (e.g. "BucketAlreadyExists" or "Unsupported attribute"). Do NOT include dynamic/unique identifiers like bucket names, IP addresses, or resource IDs.
+2. Description: A short, clear description of the problem.
+3. Fix Advice: General, actionable developer advice on how to fix this issue (e.g., "Append a random suffix to the bucket name to ensure uniqueness").
+4. Category: A category label (e.g. "aws_s3", "syntax_error", "iam_permissions", "network_configs").
+5. Severity: One of: "CRITICAL", "HIGH", "MEDIUM", "LOW".
+
+Return the output strictly in the following JSON format:
+{{
+  "error_substring": "...",
+  "description": "...",
+  "fix": "...",
+  "category": "...",
+  "severity": "..."
+}}
+"""
+        try:
+            response = litellm.completion(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                response_format={"type": "json_object"}
+            )
+            content = response.choices[0].message.content
+            parsed = json.loads(content)
+            
+            sub = parsed.get("error_substring")
+            desc = parsed.get("description")
+            fix = parsed.get("fix")
+            cat = parsed.get("category", "auto_learned")
+            sev = parsed.get("severity", "MEDIUM")
+            
+            if sub and fix:
+                # Add to memory catalog
+                self.add_pattern(
+                    error_substring=sub,
+                    description=desc or f"Auto-learned pattern for error: {sub}",
+                    fix=fix,
+                    category=cat,
+                    severity=sev
+                )
+                print(f"[PatternManager] Successfully auto-learned failure pattern: {sub}")
+            else:
+                print(f"[PatternManager] Failed to auto-learn: JSON missing required fields.")
+        except Exception as e:
+            print(f"[PatternManager] Warning: failed to learn from run: {e}")
+
     def _persist(self) -> None:
         """Write the current patterns back to disk."""
         data = {"patterns": self._patterns}

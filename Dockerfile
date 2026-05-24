@@ -66,10 +66,10 @@ WORKDIR /app
 # Install Python dependencies (cached layer)
 RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=1000 --retries=10 -r requirements.txt
 
 # Install Checkov as a pip package (avoids Docker-in-Docker)
-RUN pip install --no-cache-dir checkov
+RUN pip install --no-cache-dir --default-timeout=1000 --retries=10 checkov
 
 # Copy application code
 COPY . .

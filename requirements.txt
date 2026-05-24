@@ -13,3 +13,7 @@ fastapi
 uvicorn
 sse-starlette
 aiofiles
+celery
+redis
+boto3
+requests

@@ -33,6 +33,17 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from tools.project.tracker import ProjectTracker, UserTracker
+import redis
+from workers.celery_worker import run_agent_pipeline_task
+
+# Connect to Redis for shared logging
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+try:
+    r_client = redis.from_url(redis_url)
+    logger.info("Connected to Redis successfully.")
+except Exception as e:
+    logger.warning(f"Failed to connect to Redis: {e}")
+    r_client = None
 
 basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 static_dir = os.path.join(basedir, "static")
@@ -190,6 +201,15 @@ async def get_stats(user=Depends(get_current_user)):
         "total_security_issues": total_security_issues
     }
 
+def get_active_logs(key: str) -> str:
+    if r_client:
+        try:
+            val = r_client.get(key)
+            return val.decode("utf-8") if val else ""
+        except Exception:
+            pass
+    return active_logs.get("active-run", "")
+
 @app.post("/api/generate")
 async def generate_infrastructure(request: Request, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
     try:
@@ -205,9 +225,16 @@ async def generate_infrastructure(request: Request, background_tasks: Background
             raise HTTPException(status_code=400, detail="No prompt provided")
 
         credentials["owner_id"] = user.id
-        active_logs["active-run"] = "" # Reset log
         logger.info(f"Generate request from user {user.id}: prompt='{prompt[:80]}...' budget={budget} apply={apply} new_project={new_project}")
-        background_tasks.add_task(run_agent_workflow, prompt, budget, apply, credentials, ai_config, new_project)
+        
+        if r_client:
+            r_client.delete("logs:active-run")
+            r_client.set("logs:active-run", "🚀 Queueing Celery Job...\n")
+            run_agent_pipeline_task.delay(prompt, budget, apply, credentials, ai_config, new_project)
+        else:
+            active_logs["active-run"] = "🚀 Starting Workflow locally...\n"
+            background_tasks.add_task(run_agent_workflow, prompt, budget, apply, credentials, ai_config, new_project)
+            
         return {"message": "Workflow started", "status": "processing"}
     except HTTPException:
         raise
@@ -219,11 +246,11 @@ async def generate_infrastructure(request: Request, background_tasks: Background
 async def log_generator(request: Request):
     """Generator for Server-Sent Events (SSE) log streaming."""
     last_idx = 0
-    temp_slug = "active-run"
+    temp_slug = "logs:active-run"
     while True:
         if await request.is_disconnected():
             break
-        logs = active_logs.get(temp_slug, "")
+        logs = get_active_logs(temp_slug)
         if len(logs) > last_idx:
             new_logs = logs[last_idx:]
             last_idx = len(logs)

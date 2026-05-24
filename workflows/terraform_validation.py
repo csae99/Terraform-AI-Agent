@@ -23,8 +23,9 @@ class TerraformValidationTasks:
                         f'1. Use `get_monthly_cost` to get the total estimated spend.\n'
                         f'2. Use `generate_financial_report` to create the detailed breakdown.\n'
                         f'3. Compare the total cost against the budget: ${budget}.\n'
-                        f'4. If the cost exceeds the budget, provide optimization suggestions.',
-            expected_output='A cost analysis summary with budget status.',
+                        f'4. Formulate intelligent, resource-specific optimization recommendations (e.g. S3 lifecycle policies, compute sizing, or reserved plans if applicable).\n'
+                        f'5. Use the `Append Optimization Recommendations` tool to save your custom recommendations directly into the generated FINANCIAL_REPORT.md file.',
+            expected_output='A cost analysis summary with budget status, with custom recommendations successfully appended to the financial report.',
             agent=agent
         )
 

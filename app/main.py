@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--model", type=str, help="LLM Model to use (e.g. openai/gpt-4o)")
     parser.add_argument("--model-key", type=str, help="API Key for the selected model")
     parser.add_argument("--new-project", action="store_true", help="Generate a unique project slug if it already exists")
+    parser.add_argument("--test-local", action="store_true", help="Run in local cloud emulation mode with Floci")
     args = parser.parse_args()
 
     # Handle Destructive Actions
@@ -61,6 +62,8 @@ def main():
         cli_flags.append("--auto-fix")
     if args.new_project:
         cli_flags.append("--new-project")
+    if args.test_local:
+        cli_flags.append("--test-local")
 
     owner_id = os.getenv("owner_id")
 
@@ -74,6 +77,7 @@ def main():
         owner_id=owner_id,
         new_project=args.new_project,
         cli_flags=cli_flags,
+        test_local=args.test_local,
     )
 
 

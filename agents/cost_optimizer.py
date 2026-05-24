@@ -10,7 +10,11 @@ class CostOptimizer(BaseAgent):
             backstory='You are an expert in cloud economics. You MUST ONLY report costs that are returned by your tools. '
                       'DO NOT speculate or hallucinate costs (like Azure costs for AWS resources). '
                       'If the tool returns 0, you must report 0 and explain that the current configuration has no billed resources.',
-            tools=[CostEstimator.get_monthly_cost, CostEstimator.generate_financial_report],
+            tools=[
+                CostEstimator.get_monthly_cost, 
+                CostEstimator.generate_financial_report, 
+                CostEstimator.append_optimization_recommendations
+            ],
             verbose=True,
             allow_delegation=False,
             llm=self.llm

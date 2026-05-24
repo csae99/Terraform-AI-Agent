@@ -1,4 +1,4 @@
-# Terraform AI Agent - Setup Guide (Phase 8)
+# Terraform AI Agent - Setup Guide (Phase 9)
 
 This guide provides step-by-step instructions for setting up the Universal Terraform AI Agent on both Windows and Linux.
 
@@ -6,7 +6,7 @@ This guide provides step-by-step instructions for setting up the Universal Terra
 
 1.  **Python 3.9+**: The core engine of the agent.
 2.  **Terraform CLI**: Required for infrastructure validation and deployment.
-3.  **Docker**: Essential for FinOps (Infracost) and Security (Checkov).
+3.  **Docker**: Essential for FinOps (Infracost), Security (Checkov), and local cloud emulation (Floci).
 4.  **AWS CLI**: Required for live deployments in Phase 5.
 5.  **API Keys**: Gemini API key (Primary) and an Infracost API token.
 
@@ -92,6 +92,12 @@ AWS_SECRET_ACCESS_KEY=your_aws_secret
 
 # Dashboard
 FLASK_SECRET_KEY=your_random_secret
+
+# Redis Broker Url (Optional, defaults to redis://redis:6379/0)
+REDIS_URL=redis://localhost:6379/0
+
+# Enable Local AWS Emulation Mode (Floci)
+TEST_LOCAL=true
 ```
 
 ---
@@ -157,12 +163,22 @@ docker compose up --build
 ```
 This launches:
 - **`terraform-db`**: A PostgreSQL 15 database container mapped to a persistent Docker volume (`postgres_data`), storing user registrations and project history.
+- **`redis`**: A Redis broker running on port `6379` managing the Celery task queue.
+- **`floci`**: Local AWS emulator mapping all services on port `4566`.
+- **`worker`**: Background Celery worker executing tasks concurrently.
 - **`terraform-dashboard`**: The FastAPI-based dashboard application server exposed on port `5000`.
 
-### 2. Native In-Container Execution
+### 2. Local Cloud Emulation Mode
+By setting `TEST_LOCAL=true` in the environment, the dashboard and worker containers route all AWS-targeted Terraform scripts through Floci's endpoint `http://floci:4566` via automatic HCL configuration injection.
+
+### 3. Continuous QA Testing & Self-Learning
+- A dedicated **QA Testing Agent** executes HTTP checks, S3 read/write checks, and AWS resource status tests immediately after live/emulated deployment.
+- When self-healing succeeds, the **Dynamic Self-Learning Loop** uses the LLM to extract root causes and update `failure_patterns.json` dynamically.
+
+### 4. Native In-Container Execution
 When running inside Docker (`RUNNING_IN_DOCKER=true`), the backend automatic environment detection configures the agent tools (e.g., Infracost, Checkov, and tfsec) to run natively within the container instead of making host-to-container calls. This ensures maximum compatibility and eliminates host filesystem binary issues.
 
-### 3. Registry Distribution (Pushing to Docker Hub)
+### 5. Registry Distribution (Pushing to Docker Hub)
 To tag and publish the built agent image to a container registry:
 ```bash
 # 1. Log in to your Docker Hub registry
