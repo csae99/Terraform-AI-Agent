@@ -135,6 +135,14 @@ We introduced a user-controlled toggle (Option 4) that allows users to either ov
   - Defined a custom bridge network `agent-network` at the bottom of the configuration file.
   - Connected all five services (`db`, `redis`, `floci`, `agent`, `worker`) to the network to guarantee isolated, collision-free inter-service DNS name resolution.
 
+### 19. Project Failure Status Tracking Fix
+- **File modified:** [pipeline.py](file:///c:/Users/User/Music/Terraform-AI-Agent/orchestrator/pipeline.py)
+  - Fixed a crash where developer crew execution failures caused the pipeline to throw an `AttributeError`. Replaced the legacy/non-existent `ProjectTracker.update_status(slug, "failed")` method call with the correct SQL-backed database method `ProjectTracker.save(slug, status="failed")`.
+
+### 20. Invalid Default LLM Model Correction
+- **Files modified:** [.env](file:///c:/Users/User/Music/Terraform-AI-Agent/.env), [test_post.py](file:///c:/Users/User/Music/Terraform-AI-Agent/scratch/test_post.py), [test_user_workflow.py](file:///c:/Users/User/Music/Terraform-AI-Agent/scratch/test_user_workflow.py), [test_e2e.py](file:///c:/Users/User/Music/Terraform-AI-Agent/scratch/test_e2e.py)
+  - Fixed the `ValueError: Invalid response from LLM call - None or empty` error by replacing the invalid/non-existent `gemini-3.1-flash-lite` model with the stable, high-rate-limit `gemini-2.0-flash` model (10 RPM compared to the restrictive 2 RPM of `gemini-1.5-flash` on the free tier) across all default settings and test suites.
+
 ---
 
 ## Verification Results
@@ -166,3 +174,12 @@ A custom test script was executed at `scratch/test_toggle.py` to assert the data
 * The third execution automatically resolves to `test-unique-slug-2`.
 * When `new_project` is `False`, the system overwrites the existing folder/record in-place.
 All assertions in the test script passed successfully!
+
+### 3. OpenRouter Stability Fix (Stealth 502 Error Resolution)
+To resolve the transient `502 - Invalid URL` error returned by OpenRouter's generic router (`openrouter/free`) routing to the offline/misconfigured `"Stealth"` provider:
+- **Model Redirection / Mapping**: Added automatic mapping in `get_llm()` within `llm/config.py` to redirect generic `openrouter/free` or `free` requests to the stable and highly capable `openrouter/meta-llama/llama-3.3-70b-instruct:free` model.
+- **Default Model & Fallback Updates**:
+  - Modified `.env` to set `DEFAULT_MODEL` to `openrouter/meta-llama/llama-3.3-70b-instruct:free`.
+  - Updated the fallback model configuration in `llm/config.py` to target `openrouter/meta-llama/llama-3.3-70b-instruct:free`.
+  - Updated the test endpoint (`/api/test_run`) in `app/dashboard.py` to run using `meta-llama/llama-3.3-70b-instruct:free`.
+

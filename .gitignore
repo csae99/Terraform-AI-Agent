@@ -1,13 +1,62 @@
+# ── Environment & Secrets ──────────────────
 .env
+.env.*
+!.env.example
+
+# ── Python ─────────────────────────────────
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 venv/
 venv313/
 env/
+*.egg-info/
+dist/
+build/
+
+# ── Terraform ──────────────────────────────
 .terraform/
 *.tfstate
 *.tfstate.backup
+*.tfplan
+.terraform.lock.hcl
+
+# ── Output / Generated ────────────────────
 output/
+
+# ── Scratch / Test scripts (may contain keys) ──
+scratch/
+
+# ── Logs (may contain keys in commands) ────
+*.log
+akslogs.json
+akslogs.txt
+
+# ── Tool binaries ─────────────────────────
 .infracost/
 infracost.exe
 tfsec.exe
+checkov.exe
+
+# ── IDE / Editor ──────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS Files ──────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Database files ────────────────────────
+*.db
+*.sqlite3
+
+# ── Docker volumes / data ─────────────────
+postgres_data/
+redis_data/
+
+# ── Prompt files (may contain sensitive context) ──
+prompt.txt

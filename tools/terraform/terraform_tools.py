@@ -48,6 +48,11 @@ class TerraformTools:
             # Auto-format with terraform fmt (best-effort, non-blocking)
             TerraformTools._auto_fmt(filepath)
 
+            # Throttle rapid sequential writes to avoid rate-limiting
+            # the LLM between tool calls (free-tier models are sensitive)
+            import time
+            time.sleep(1)
+
             return f"Successfully wrote to {filepath} (Project: {slug})"
         except Exception as e:
             return f"Failed to write file {filename}. Error: {str(e)}"

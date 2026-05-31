@@ -1,0 +1,1699 @@
+🚀 [Celery Worker] Starting Pipeline...
+[PatternManager] Loaded 24 failure patterns.
+
+==================================================
+      Universal AI Agent - Phase 7 (Visualizer Platform)
+==================================================
+
+Cloud Readiness: AWS Ready
+╭─────────────────────────── ✨ Update Available ✨ ───────────────────────────╮
+│                                                                              │
+│  A new version of CrewAI is available!                                       │
+│                                                                              │
+│  Current version: 1.14.5                                                     │
+│  Latest version:  1.14.6                                                     │
+│                                                                              │
+│  To update, run: uv sync --upgrade-package crewai                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭───────────────────────── 🚀 Crew Execution Started ──────────────────────────╮
+│                                                                              │
+│  Crew Execution Started                                                      │
+│  Name: crew                                                                  │
+│  ID: 7556e26b-1f85-432d-a980-0a622d38c5d9                                    │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭────────────────────────────── 📋 Task Started ───────────────────────────────╮
+│                                                                              │
+│  Task Started                                                                │
+│  Name: Analyze the following infrastructure requirement and design a         │
+│  MINIMAL architecture.                                                       │
+│  Requirement: Create a production-valid Terraform configuration for Azure    │
+│  AKS with:                                                                   │
+│                                                                              │
+│  * AKS private cluster NOT enabled                                           │
+│  * public Kubernetes API server endpoint enabled                             │
+│  * system node pool using Standard_D16s_v5 VM size                           │
+│  * node pool autoscaling enabled                                             │
+│  * minimum node count = 2                                                    │
+│  * maximum node count = 5                                                    │
+│  * minimum 2 subnets across different availability zones                     │
+│  * Virtual Network (VNet)                                                    │
+│  * subnets                                                                   │
+│  * route tables                                                              │
+│  * NSGs (Network Security Groups)                                            │
+│  * subnet associations                                                       │
+│  * NAT Gateway for outbound internet access                                  │
+│  * Azure Container Registry (ACR)                                            │
+│  * managed identity enabled                                                  │
+│  * required role assignments for AKS to pull images from ACR                 │
+│  * Azure CNI networking                                                      │
+│  * RBAC enabled                                                              │
+│  * OIDC issuer enabled                                                       │
+│  * workload identity enabled                                                 │
+│  * Log Analytics Workspace                                                   │
+│  * Azure Monitor Container Insights enabled                                  │
+│  * provider.tf and versions.tf                                               │
+│  * variables.tf                                                              │
+│  * outputs.tf                                                                │
+│  * Terraform azurerm provider v4+                                            │
+│  * code must pass terraform validate                                         │
+│  * code should be deployable without modification                            │
+│  * use best practices for production AKS                                     │
+│  * include tags on all resources                                             │
+│  * avoid deprecated Terraform arguments                                      │
+│  * use latest stable AKS version available from data source                  │
+│  * expose kubeconfig output securely                                         │
+│  * configure node resource group automatically                               │
+│  * include lifecycle and dependency handling where required                  │
+│  * generate complete modular Terraform structure                             │
+│  * ensure compatibility with Terraform 1.6+                                  │
+│  IMPORTANT: DO NOT add NAT Gateways, Private Subnets, or Multi-AZ unless     │
+│  explicitly requested.                                                       │
+│  1. Identify necessary providers and resources.                              │
+│  2. You MUST provide a **Mermaid.js diagram string** representing the        │
+│  architecture.                                                               │
+│  3. The first line of your response must be: PROJECT_SLUG: <slug>            │
+│     - The slug MUST be a descriptive kebab-case name derived from the        │
+│  requirement (e.g., "eks-public-cluster", "s3-versioned-bucket").            │
+│     - NEVER use generic names like "terraform-project" or timestamps.        │
+│                                                                              │
+│  EKS-SPECIFIC RULES:                                                         │
+│  - If creating EKS, ALWAYS include at least 2 public subnets in 2 different  │
+│  AZs (EKS requires this).                                                    │
+│  - ALWAYS include IAM policy attachments (AmazonEKSClusterPolicy,            │
+│  AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryReadOnly,              │
+│  AmazonEKS_CNI_Policy).                                                      │
+│  - ALWAYS include security groups for the cluster and nodes.                 │
+│  - The design MUST include a `provider` block and `terraform {               │
+│  required_providers { } }` block.                                            │
+│                                                                              │
+│  ID: 76d5d1a8-8a86-495e-9486-d067fab6bdc9                                    │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭────────────────────────────── 🤖 Agent Started ──────────────────────────────╮
+│                                                                              │
+│  Agent: Universal Cloud Architect                                            │
+│                                                                              │
+│  Task: Analyze the following infrastructure requirement and design a         │
+│  MINIMAL architecture.                                                       │
+│  Requirement: Create a production-valid Terraform configuration for Azure    │
+│  AKS with:                                                                   │
+│                                                                              │
+│  * AKS private cluster NOT enabled                                           │
+│  * public Kubernetes API server endpoint enabled                             │
+│  * system node pool using Standard_D16s_v5 VM size                           │
+│  * node pool autoscaling enabled                                             │
+│  * minimum node count = 2                                                    │
+│  * maximum node count = 5                                                    │
+│  * minimum 2 subnets across different availability zones                     │
+│  * Virtual Network (VNet)                                                    │
+│  * subnets                                                                   │
+│  * route tables                                                              │
+│  * NSGs (Network Security Groups)                                            │
+│  * subnet associations                                                       │
+│  * NAT Gateway for outbound internet access                                  │
+│  * Azure Container Registry (ACR)                                            │
+│  * managed identity enabled                                                  │
+│  * required role assignments for AKS to pull images from ACR                 │
+│  * Azure CNI networking                                                      │
+│  * RBAC enabled                                                              │
+│  * OIDC issuer enabled                                                       │
+│  * workload identity enabled                                                 │
+│  * Log Analytics Workspace                                                   │
+│  * Azure Monitor Container Insights enabled                                  │
+│  * provider.tf and versions.tf                                               │
+│  * variables.tf                                                              │
+│  * outputs.tf                                                                │
+│  * Terraform azurerm provider v4+                                            │
+│  * code must pass terraform validate                                         │
+│  * code should be deployable without modification                            │
+│  * use best practices for production AKS                                     │
+│  * include tags on all resources                                             │
+│  * avoid deprecated Terraform arguments                                      │
+│  * use latest stable AKS version available from data source                  │
+│  * expose kubeconfig output securely                                         │
+│  * configure node resource group automatically                               │
+│  * include lifecycle and dependency handling where required                  │
+│  * generate complete modular Terraform structure                             │
+│  * ensure compatibility with Terraform 1.6+                                  │
+│  IMPORTANT: DO NOT add NAT Gateways, Private Subnets, or Multi-AZ unless     │
+│  explicitly requested.                                                       │
+│  1. Identify necessary providers and resources.                              │
+│  2. You MUST provide a **Mermaid.js diagram string** representing the        │
+│  architecture.                                                               │
+│  3. The first line of your response must be: PROJECT_SLUG: <slug>            │
+│     - The slug MUST be a descriptive kebab-case name derived from the        │
+│  requirement (e.g., "eks-public-cluster", "s3-versioned-bucket").            │
+│     - NEVER use generic names like "terraform-project" or timestamps.        │
+│                                                                              │
+│  EKS-SPECIFIC RULES:                                                         │
+│  - If creating EKS, ALWAYS include at least 2 public subnets in 2 different  │
+│  AZs (EKS requires this).                                                    │
+│  - ALWAYS include IAM policy attachments (AmazonEKSClusterPolicy,            │
+│  AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryReadOnly,              │
+│  AmazonEKS_CNI_Policy).                                                      │
+│  - ALWAYS include security groups for the cluster and nodes.                 │
+│  - The design MUST include a `provider` block and `terraform {               │
+│  required_providers { } }` block.                                            │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+[OpenAI Retry] Primary call rate-limited/quota error. Retrying original model meta-llama/llama-3.3-70b-instruct:free in 5s (Attempt 1/3)....
+[OpenAI Retry] Primary call rate-limited/quota error. Retrying original model meta-llama/llama-3.3-70b-instruct:free in 10s (Attempt 2/3)....
+[OpenAI Retry] Primary call rate-limited/quota error. Retrying original model meta-llama/llama-3.3-70b-instruct:free in 20s (Attempt 3/3)....
+[OpenAI Fallback] Primary call failed (Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'meta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations', 'provider_name': 'Venice', 'is_byok': False, 'retry_after_seconds': 28, 'retry_after_seconds_raw': 27.904, 'headers': {'Retry-After': '28'}}}, 'user_id': 'user_3EPT8JBlTf0DQL2kzBqphGYyph4'}). Retrying with model: qwen/qwen3-next-80b-a3b-instruct:free...
+[OpenAI Fallback] Model qwen/qwen3-next-80b-a3b-instruct:free failed: Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'qwen/qwen3-next-80b-a3b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations', 'provider_name': 'Venice', 'is_byok': False, 'retry_after_seconds': 28, 'retry_after_seconds_raw': 27.901, 'headers': {'Retry-After': '28'}}}, 'user_id': 'user_3EPT8JBlTf0DQL2kzBqphGYyph4'}
+[OpenAI Fallback] Primary call failed (Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'meta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations', 'provider_name': 'Venice', 'is_byok': False, 'retry_after_seconds': 28, 'retry_after_seconds_raw': 27.904, 'headers': {'Retry-After': '28'}}}, 'user_id': 'user_3EPT8JBlTf0DQL2kzBqphGYyph4'}). Retrying with model: google/gemma-4-31b-it:free...
+[35m[Finalize] todos_count=0, todos_with_results=0[0m
+╭─────────────────────────── ✅ Agent Final Answer ────────────────────────────╮
+│                                                                              │
+│  Agent: Universal Cloud Architect                                            │
+│                                                                              │
+│  Final Answer:                                                               │
+│  PROJECT_SLUG: azure-aks-public-managed-cluster                              │
+│                                                                              │
+│  ### Architecture Analysis                                                   │
+│  The objective is a production-ready, public-facing Azure Kubernetes         │
+│  Service (AKS) cluster utilizing Azure CNI. The design focuses on high       │
+│  availability via multiple subnets across zones, outbound connectivity via   │
+│  a NAT Gateway, and secure integration with Azure Container Registry (ACR)   │
+│  using Managed Identities.                                                   │
+│                                                                              │
+│  **Key Design Decisions:**                                                   │
+│  - **Networking:** Azure CNI is used for pod-level VNet integration. A NAT   │
+│  Gateway is attached to the cluster subnet to ensure stable outbound IP      │
+│  addresses for external API calls.                                           │
+│  - **Identity:** Managed Identity is used for the cluster control plane and  │
+│  Kubelet, removing the need for service principal secrets.                   │
+│  - **Security:** NSGs are applied to subnets to control traffic flow, and    │
+│  RBAC/OIDC/Workload Identity are enabled for modern security standards.      │
+│  - **Observability:** Log Analytics Workspace is integrated via the          │
+│  `oms_agent` add-on for Container Insights.                                  │
+│                                                                              │
+│  ### Architecture Diagram                                                    │
+│  ```mermaid                                                                  │
+│  graph TD                                                                    │
+│      subgraph Azure_Region [Azure Region]                                    │
+│          subgraph VNet [Virtual Network]                                     │
+│              subgraph Subnet1 [Subnet 1 - AZ1]                               │
+│                  AKS_Nodes1[AKS Node Pool Nodes]                             │
+│              end                                                             │
+│              subgraph Subnet2 [Subnet 2 - AZ2]                               │
+│                  AKS_Nodes2[AKS Node Pool Nodes]                             │
+│              end                                                             │
+│              NAT_GW[NAT Gateway]                                             │
+│              RT[Route Table]                                                 │
+│              NSG[Network Security Group]                                     │
+│          end                                                                 │
+│                                                                              │
+│          ACR[Azure Container Registry]                                       │
+│          LAW[Log Analytics Workspace]                                        │
+│          AKS_CP[AKS Control Plane - Public API]                              │
+│      end                                                                     │
+│                                                                              │
+│      AKS_CP -->|Manages| AKS_Nodes1                                          │
+│      AKS_CP -->|Manages| AKS_Nodes2                                          │
+│      AKS_Nodes1 -->|Pulls Images| ACR                                        │
+│      AKS_Nodes2 -->|Pulls Images| ACR                                        │
+│      AKS_Nodes1 -->|Logs| LAW                                                │
+│      AKS_Nodes2 -->|Logs| LAW                                                │
+│      Subnet1 --> NAT_GW                                                      │
+│      Subnet2 --> NAT_GW                                                      │
+│      RT --> Subnet1                                                          │
+│      RT --> Subnet2                                                          │
+│      NSG --> Subnet1                                                         │
+│      NSG --> Subnet2                                                         │
+│      NAT_GW -->|Outbound| Internet((Internet))                               │
+│  ```                                                                         │
+│                                                                              │
+│  ### Implementation                                                          │
+│                                                                              │
+│  #### 1. versions.tf                                                         │
+│  ```hcl                                                                      │
+│  terraform {                                                                 │
+│    required_version = ">= 1.6.0"                                             │
+│    required_providers {                                                      │
+│      azurerm = {                                                             │
+│        source  = "hashicorp/azurerm"                                         │
+│        version = ">= 4.0.0"                                                  │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 2. provider.tf                                                         │
+│  ```hcl                                                                      │
+│  provider "azurerm" {                                                        │
+│    features {                                                                │
+│      resource_group {                                                        │
+│        prevent_deletion_if_contains_resources = false                        │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 3. variables.tf                                                        │
+│  ```hcl                                                                      │
+│  variable "project_name" {                                                   │
+│    type        = string                                                      │
+│    description = "The name of the project"                                   │
+│    default     = "aks-prod-cluster"                                          │
+│  }                                                                           │
+│                                                                              │
+│  variable "location" {                                                       │
+│    type        = string                                                      │
+│    description = "Azure region"                                              │
+│    default     = "East US"                                                   │
+│  }                                                                           │
+│                                                                              │
+│  variable "resource_group_name" {                                            │
+│    type        = string                                                      │
+│    description = "Resource group name"                                       │
+│    default     = "rg-aks-production"                                         │
+│  }                                                                           │
+│                                                                              │
+│  variable "vnet_cidr" {                                                      │
+│    type        = string                                                      │
+│    default     = "10.0.0.0/16"                                               │
+│  }                                                                           │
+│                                                                              │
+│  variable "subnet_cidrs" {                                                   │
+│    type        = list(string)                                                │
+│    default     = ["10.0.1.0/24", "10.0.2.0/24"]                              │
+│  }                                                                           │
+│                                                                              │
+│  variable "node_vm_size" {                                                   │
+│    type        = string                                                      │
+│    default     = "Standard_D16s_v5"                                          │
+│  }                                                                           │
+│                                                                              │
+│  variable "min_count" {                                                      │
+│    type        = number                                                      │
+│    default     = 2                                                           │
+│  }                                                                           │
+│                                                                              │
+│  variable "max_count" {                                                      │
+│    type        = number                                                      │
+│    default     = 5                                                           │
+│  }                                                                           │
+│                                                                              │
+│  variable "tags" {                                                           │
+│    type        = map(string)                                                 │
+│    default = {                                                               │
+│      Environment = "Production"                                              │
+│      ManagedBy   = "Terraform"                                               │
+│      Project     = "AKS-Public"                                              │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 4. main.tf                                                             │
+│  ```hcl                                                                      │
+│  data "azurerm_kubernetes_releases" "available" {                            │
+│    location = var.location                                                   │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_resource_group" "main" {                                  │
+│    name     = var.resource_group_name                                        │
+│    location = var.location                                                   │
+│    tags     = var.tags                                                       │
+│  }                                                                           │
+│                                                                              │
+│  # Networking                                                                │
+│  resource "azurerm_virtual_network" "vnet" {                                 │
+│    name                = "${var.project_name}-vnet"                          │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    address_space       = [var.vnet_cidr]                                     │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet" "subnets" {                                       │
+│    count                = length(var.subnet_cidrs)                           │
+│    name                 = "snet-aks-${count.index}"                          │
+│    resource_group_name  = azurerm_resource_group.main.name                   │
+│    virtual_network_name = azurerm_virtual_network.vnet.name                  │
+│    address_prefixes     = [var.subnet_cidrs[count.index]]                    │
+│    tags                 = var.tags                                           │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_public_ip" "nat_pip" {                                    │
+│    name                = "${var.project_name}-nat-pip"                       │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    allocation_method   = "Static"                                            │
+│    sku                 = "Standard"                                          │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_nat_gateway" "nat" {                                      │
+│    name                = "${var.project_name}-nat-gw"                        │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    sku_name            = "Standard"                                          │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_nat_gateway_public_ip_association" "nat_assoc" {          │
+│    nat_gateway_id       = azurerm_nat_gateway.nat.id                         │
+│    public_ip_address_id = azurerm_public_ip.nat_pip.id                       │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_nat_gateway_association" "nat_subnet_assoc" {      │
+│    count                = length(azurerm_subnet.subnets)                     │
+│    subnet_id            = azurerm_subnet.subnets[count.index].id             │
+│    nat_gateway_id       = azurerm_nat_gateway.nat.id                         │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_network_security_group" "nsg" {                           │
+│    name                = "${var.project_name}-nsg"                           │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_network_security_group_association" "nsg_assoc" {  │
+│    count               = length(azurerm_subnet.subnets)                      │
+│    subnet_id           = azurerm_subnet.subnets[count.index].id              │
+│    network_security_group_id = azurerm_network_security_group.nsg.id         │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_route_table" "rt" {                                       │
+│    name                = "${var.project_name}-rt"                            │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_route_table_association" "rt_assoc" {              │
+│    count                = length(azurerm_subnet.subnets)                     │
+│    subnet_id            = azurerm_subnet.subnets[count.index].id             │
+│    route_table_id       = azurerm_route_table.rt.id                          │
+│  }                                                                           │
+│                                                                              │
+│  # ACR                                                                       │
+│  resource "azurerm_container_registry" "acr" {                               │
+│    name                = "${var.project_name}acr${random_id.suffix.value}"   │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    location            = azurerm_resource_group.main.location                │
+│    sku                 = "Standard"                                          │
+│    admin_enabled       = false                                               │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "random_id" "suffix" {                                             │
+│    byte_length = 4                                                           │
+│  }                                                                           │
+│                                                                              │
+│  # Log Analytics                                                             │
+│  resource "azurerm_log_analytics_workspace" "law" {                          │
+│    name                = "${var.project_name}-law"                           │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    sku                 = "PerGB2018"                                         │
+│    retention_in_days   = 30                                                  │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  # AKS Cluster                                                               │
+│  resource "azurerm_kubernetes_cluster" "aks" {                               │
+│    name                = var.project_name                                    │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    dns_prefix          = var.project_name                                    │
+│    kubernetes_version  =                                                     │
+│  data.azurerm_kubernetes_releases.available.releases[0].semver               │
+│                                                                              │
+│    default_node_pool {                                                       │
+│      name                = "systempool"                                      │
+│      node_count         = var.min_count                                      │
+│      vm_size            = var.node_vm_size                                   │
+│      vnet_subnet_id     = azurerm_subnet.subnets[0].id                       │
+│      enable_auto_scaling = true                                              │
+│      min_count          = var.min_count                                      │
+│      max_count          = var.max_count                                      │
+│      type                = "VirtualMachineScaleSets"                         │
+│    }                                                                         │
+│                                                                              │
+│    identity {                                                                │
+│      type = "SystemAssigned"                                                 │
+│    }                                                                         │
+│                                                                              │
+│    network_profile {                                                         │
+│      network_plugin    = "azure"                                             │
+│      load_balancer_sku = "standard"                                          │
+│      outbound_type     = "userDefinedRouting" # Using NAT Gateway via Route  │
+│  Table/Subnet assoc                                                          │
+│    }                                                                         │
+│                                                                              │
+│    oidc_issuer_enabled       = true                                          │
+│    workload_identity_enabled = true                                          │
+│                                                                              │
+│    azure_policy_enabled = false                                              │
+│                                                                              │
+│    oms_agent {                                                               │
+│      log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id     │
+│    }                                                                         │
+│                                                                              │
+│    tags = var.tags                                                           │
+│                                                                              │
+│    depends_on = [                                                            │
+│      azurerm_subnet_nat_gateway_association.nat_subnet_assoc,                │
+│      azurerm_subnet_network_security_group_association.nsg_assoc             │
+│    ]                                                                         │
+│  }                                                                           │
+│                                                                              │
+│  # Role Assignment for ACR Pull                                              │
+│  resource "azurerm_role_assignment" "aks_acr_pull" {                         │
+│    scope                = azurerm_container_registry.acr.id                  │
+│    role_definition_name = "AcrPull"                                          │
+│    principal_id         =                                                    │
+│  azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id                │
+│    principal_type       = "ServicePrincipal"                                 │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 5. outputs.tf                                                          │
+│  ```hcl                                                                      │
+│  output "aks_cluster_name" {                                                 │
+│    value = azurerm_kubernetes_cluster.aks.name                               │
+│  }                                                                           │
+│                                                                              │
+│  output "kube_config" {                                                      │
+│    value     = azurerm_kubernetes_cluster.aks.kube_config_raw                │
+│    sensitive = true                                                          │
+│  }                                                                           │
+│                                                                              │
+│  output "acr_login_server" {                                                 │
+│    value = azurerm_container_registry.acr.login_server                       │
+│  }                                                                           │
+│                                                                              │
+│  output "nat_gateway_public_ip" {                                            │
+│    value = azurerm_public_ip.nat_pip.ip_address                              │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭───────────────────────────── 📋 Task Completion ─────────────────────────────╮
+│                                                                              │
+│  Task Completed                                                              │
+│  Name: Analyze the following infrastructure requirement and design a         │
+│  MINIMAL architecture.                                                       │
+│  Requirement: Create a production-valid Terraform configuration for Azure    │
+│  AKS with:                                                                   │
+│                                                                              │
+│  * AKS private cluster NOT enabled                                           │
+│  * public Kubernetes API server endpoint enabled                             │
+│  * system node pool using Standard_D16s_v5 VM size                           │
+│  * node pool autoscaling enabled                                             │
+│  * minimum node count = 2                                                    │
+│  * maximum node count = 5                                                    │
+│  * minimum 2 subnets across different availability zones                     │
+│  * Virtual Network (VNet)                                                    │
+│  * subnets                                                                   │
+│  * route tables                                                              │
+│  * NSGs (Network Security Groups)                                            │
+│  * subnet associations                                                       │
+│  * NAT Gateway for outbound internet access                                  │
+│  * Azure Container Registry (ACR)                                            │
+│  * managed identity enabled                                                  │
+│  * required role assignments for AKS to pull images from ACR                 │
+│  * Azure CNI networking                                                      │
+│  * RBAC enabled                                                              │
+│  * OIDC issuer enabled                                                       │
+│  * workload identity enabled                                                 │
+│  * Log Analytics Workspace                                                   │
+│  * Azure Monitor Container Insights enabled                                  │
+│  * provider.tf and versions.tf                                               │
+│  * variables.tf                                                              │
+│  * outputs.tf                                                                │
+│  * Terraform azurerm provider v4+                                            │
+│  * code must pass terraform validate                                         │
+│  * code should be deployable without modification                            │
+│  * use best practices for production AKS                                     │
+│  * include tags on all resources                                             │
+│  * avoid deprecated Terraform arguments                                      │
+│  * use latest stable AKS version available from data source                  │
+│  * expose kubeconfig output securely                                         │
+│  * configure node resource group automatically                               │
+│  * include lifecycle and dependency handling where required                  │
+│  * generate complete modular Terraform structure                             │
+│  * ensure compatibility with Terraform 1.6+                                  │
+│  IMPORTANT: DO NOT add NAT Gateways, Private Subnets, or Multi-AZ unless     │
+│  explicitly requested.                                                       │
+│  1. Identify necessary providers and resources.                              │
+│  2. You MUST provide a **Mermaid.js diagram string** representing the        │
+│  architecture.                                                               │
+│  3. The first line of your response must be: PROJECT_SLUG: <slug>            │
+│     - The slug MUST be a descriptive kebab-case name derived from the        │
+│  requirement (e.g., "eks-public-cluster", "s3-versioned-bucket").            │
+│     - NEVER use generic names like "terraform-project" or timestamps.        │
+│                                                                              │
+│  EKS-SPECIFIC RULES:                                                         │
+│  - If creating EKS, ALWAYS include at least 2 public subnets in 2 different  │
+│  AZs (EKS requires this).                                                    │
+│  - ALWAYS include IAM policy attachments (AmazonEKSClusterPolicy,            │
+│  AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryReadOnly,              │
+│  AmazonEKS_CNI_Policy).                                                      │
+│  - ALWAYS include security groups for the cluster and nodes.                 │
+│  - The design MUST include a `provider` block and `terraform {               │
+│  required_providers { } }` block.                                            │
+│                                                                              │
+│  Agent: Universal Cloud Architect                                            │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+⏳ Cooling down for 10 seconds to prevent rate limits...
+╭────────────────────────────── Crew Completion ───────────────────────────────╮
+│                                                                              │
+│  Crew Execution Completed                                                    │
+│  Name: crew                                                                  │
+│  ID: 7556e26b-1f85-432d-a980-0a622d38c5d9                                    │
+│  Final Output: PROJECT_SLUG: azure-aks-public-managed-cluster                │
+│                                                                              │
+│  ### Architecture Analysis                                                   │
+│  The objective is a production-ready, public-facing Azure Kubernetes         │
+│  Service (AKS) cluster utilizing Azure CNI. The design focuses on high       │
+│  availability via multiple subnets across zones, outbound connectivity via   │
+│  a NAT Gateway, and secure integration with Azure Container Registry (ACR)   │
+│  using Managed Identities.                                                   │
+│                                                                              │
+│  **Key Design Decisions:**                                                   │
+│  - **Networking:** Azure CNI is used for pod-level VNet integration. A NAT   │
+│  Gateway is attached to the cluster subnet to ensure stable outbound IP      │
+│  addresses for external API calls.                                           │
+│  - **Identity:** Managed Identity is used for the cluster control plane and  │
+│  Kubelet, removing the need for service principal secrets.                   │
+│  - **Security:** NSGs are applied to subnets to control traffic flow, and    │
+│  RBAC/OIDC/Workload Identity are enabled for modern security standards.      │
+│  - **Observability:** Log Analytics Workspace is integrated via the          │
+│  `oms_agent` add-on for Container Insights.                                  │
+│                                                                              │
+│  ### Architecture Diagram                                                    │
+│  ```mermaid                                                                  │
+│  graph TD                                                                    │
+│      subgraph Azure_Region [Azure Region]                                    │
+│          subgraph VNet [Virtual Network]                                     │
+│              subgraph Subnet1 [Subnet 1 - AZ1]                               │
+│                  AKS_Nodes1[AKS Node Pool Nodes]                             │
+│              end                                                             │
+│              subgraph Subnet2 [Subnet 2 - AZ2]                               │
+│                  AKS_Nodes2[AKS Node Pool Nodes]                             │
+│              end                                                             │
+│              NAT_GW[NAT Gateway]                                             │
+│              RT[Route Table]                                                 │
+│              NSG[Network Security Group]                                     │
+│          end                                                                 │
+│                                                                              │
+│          ACR[Azure Container Registry]                                       │
+│          LAW[Log Analytics Workspace]                                        │
+│          AKS_CP[AKS Control Plane - Public API]                              │
+│      end                                                                     │
+│                                                                              │
+│      AKS_CP -->|Manages| AKS_Nodes1                                          │
+│      AKS_CP -->|Manages| AKS_Nodes2                                          │
+│      AKS_Nodes1 -->|Pulls Images| ACR                                        │
+│      AKS_Nodes2 -->|Pulls Images| ACR                                        │
+│      AKS_Nodes1 -->|Logs| LAW                                                │
+│      AKS_Nodes2 -->|Logs| LAW                                                │
+│      Subnet1 --> NAT_GW                                                      │
+│      Subnet2 --> NAT_GW                                                      │
+│      RT --> Subnet1                                                          │
+│      RT --> Subnet2                                                          │
+│      NSG --> Subnet1                                                         │
+│      NSG --> Subnet2                                                         │
+│      NAT_GW -->|Outbound| Internet((Internet))                               │
+│  ```                                                                         │
+│                                                                              │
+│  ### Implementation                                                          │
+│                                                                              │
+│  #### 1. versions.tf                                                         │
+│  ```hcl                                                                      │
+│  terraform {                                                                 │
+│    required_version = ">= 1.6.0"                                             │
+│    required_providers {                                                      │
+│      azurerm = {                                                             │
+│        source  = "hashicorp/azurerm"                                         │
+│        version = ">= 4.0.0"                                                  │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 2. provider.tf                                                         │
+│  ```hcl                                                                      │
+│  provider "azurerm" {                                                        │
+│    features {                                                                │
+│      resource_group {                                                        │
+│        prevent_deletion_if_contains_resources = false                        │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 3. variables.tf                                                        │
+│  ```hcl                                                                      │
+│  variable "project_name" {                                                   │
+│    type        = string                                                      │
+│    description = "The name of the project"                                   │
+│    default     = "aks-prod-cluster"                                          │
+│  }                                                                           │
+│                                                                              │
+│  variable "location" {                                                       │
+│    type        = string                                                      │
+│    description = "Azure region"                                              │
+│    default     = "East US"                                                   │
+│  }                                                                           │
+│                                                                              │
+│  variable "resource_group_name" {                                            │
+│    type        = string                                                      │
+│    description = "Resource group name"                                       │
+│    default     = "rg-aks-production"                                         │
+│  }                                                                           │
+│                                                                              │
+│  variable "vnet_cidr" {                                                      │
+│    type        = string                                                      │
+│    default     = "10.0.0.0/16"                                               │
+│  }                                                                           │
+│                                                                              │
+│  variable "subnet_cidrs" {                                                   │
+│    type        = list(string)                                                │
+│    default     = ["10.0.1.0/24", "10.0.2.0/24"]                              │
+│  }                                                                           │
+│                                                                              │
+│  variable "node_vm_size" {                                                   │
+│    type        = string                                                      │
+│    default     = "Standard_D16s_v5"                                          │
+│  }                                                                           │
+│                                                                              │
+│  variable "min_count" {                                                      │
+│    type        = number                                                      │
+│    default     = 2                                                           │
+│  }                                                                           │
+│                                                                              │
+│  variable "max_count" {                                                      │
+│    type        = number                                                      │
+│    default     = 5                                                           │
+│  }                                                                           │
+│                                                                              │
+│  variable "tags" {                                                           │
+│    type        = map(string)                                                 │
+│    default = {                                                               │
+│      Environment = "Production"                                              │
+│      ManagedBy   = "Terraform"                                               │
+│      Project     = "AKS-Public"                                              │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 4. main.tf                                                             │
+│  ```hcl                                                                      │
+│  data "azurerm_kubernetes_releases" "available" {                            │
+│    location = var.location                                                   │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_resource_group" "main" {                                  │
+│    name     = var.resource_group_name                                        │
+│    location = var.location                                                   │
+│    tags     = var.tags                                                       │
+│  }                                                                           │
+│                                                                              │
+│  # Networking                                                                │
+│  resource "azurerm_virtual_network" "vnet" {                                 │
+│    name                = "${var.project_name}-vnet"                          │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    address_space       = [var.vnet_cidr]                                     │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet" "subnets" {                                       │
+│    count                = length(var.subnet_cidrs)                           │
+│    name                 = "snet-aks-${count.index}"                          │
+│    resource_group_name  = azurerm_resource_group.main.name                   │
+│    virtual_network_name = azurerm_virtual_network.vnet.name                  │
+│    address_prefixes     = [var.subnet_cidrs[count.index]]                    │
+│    tags                 = var.tags                                           │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_public_ip" "nat_pip" {                                    │
+│    name                = "${var.project_name}-nat-pip"                       │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    allocation_method   = "Static"                                            │
+│    sku                 = "Standard"                                          │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_nat_gateway" "nat" {                                      │
+│    name                = "${var.project_name}-nat-gw"                        │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    sku_name            = "Standard"                                          │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_nat_gateway_public_ip_association" "nat_assoc" {          │
+│    nat_gateway_id       = azurerm_nat_gateway.nat.id                         │
+│    public_ip_address_id = azurerm_public_ip.nat_pip.id                       │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_nat_gateway_association" "nat_subnet_assoc" {      │
+│    count                = length(azurerm_subnet.subnets)                     │
+│    subnet_id            = azurerm_subnet.subnets[count.index].id             │
+│    nat_gateway_id       = azurerm_nat_gateway.nat.id                         │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_network_security_group" "nsg" {                           │
+│    name                = "${var.project_name}-nsg"                           │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_network_security_group_association" "nsg_assoc" {  │
+│    count               = length(azurerm_subnet.subnets)                      │
+│    subnet_id           = azurerm_subnet.subnets[count.index].id              │
+│    network_security_group_id = azurerm_network_security_group.nsg.id         │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_route_table" "rt" {                                       │
+│    name                = "${var.project_name}-rt"                            │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_route_table_association" "rt_assoc" {              │
+│    count                = length(azurerm_subnet.subnets)                     │
+│    subnet_id            = azurerm_subnet.subnets[count.index].id             │
+│    route_table_id       = azurerm_route_table.rt.id                          │
+│  }                                                                           │
+│                                                                              │
+│  # ACR                                                                       │
+│  resource "azurerm_container_registry" "acr" {                               │
+│    name                = "${var.project_name}acr${random_id.suffix.value}"   │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    location            = azurerm_resource_group.main.location                │
+│    sku                 = "Standard"                                          │
+│    admin_enabled       = false                                               │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "random_id" "suffix" {                                             │
+│    byte_length = 4                                                           │
+│  }                                                                           │
+│                                                                              │
+│  # Log Analytics                                                             │
+│  resource "azurerm_log_analytics_workspace" "law" {                          │
+│    name                = "${var.project_name}-law"                           │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    sku                 = "PerGB2018"                                         │
+│    retention_in_days   = 30                                                  │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  # AKS Cluster                                                               │
+│  resource "azurerm_kubernetes_cluster" "aks" {                               │
+│    name                = var.project_name                                    │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    dns_prefix          = var.project_name                                    │
+│    kubernetes_version  =                                                     │
+│  data.azurerm_kubernetes_releases.available.releases[0].semver               │
+│                                                                              │
+│    default_node_pool {                                                       │
+│      name                = "systempool"                                      │
+│      node_count         = var.min_count                                      │
+│      vm_size            = var.node_vm_size                                   │
+│      vnet_subnet_id     = azurerm_subnet.subnets[0].id                       │
+│      enable_auto_scaling = true                                              │
+│      min_count          = var.min_count                                      │
+│      max_count          = var.max_count                                      │
+│      type                = "VirtualMachineScaleSets"                         │
+│    }                                                                         │
+│                                                                              │
+│    identity {                                                                │
+│      type = "SystemAssigned"                                                 │
+│    }                                                                         │
+│                                                                              │
+│    network_profile {                                                         │
+│      network_plugin    = "azure"                                             │
+│      load_balancer_sku = "standard"                                          │
+│      outbound_type     = "userDefinedRouting" # Using NAT Gateway via Route  │
+│  Table/Subnet assoc                                                          │
+│    }                                                                         │
+│                                                                              │
+│    oidc_issuer_enabled       = true                                          │
+│    workload_identity_enabled = true                                          │
+│                                                                              │
+│    azure_policy_enabled = false                                              │
+│                                                                              │
+│    oms_agent {                                                               │
+│      log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id     │
+│    }                                                                         │
+│                                                                              │
+│    tags = var.tags                                                           │
+│                                                                              │
+│    depends_on = [                                                            │
+│      azurerm_subnet_nat_gateway_association.nat_subnet_assoc,                │
+│      azurerm_subnet_network_security_group_association.nsg_assoc             │
+│    ]                                                                         │
+│  }                                                                           │
+│                                                                              │
+│  # Role Assignment for ACR Pull                                              │
+│  resource "azurerm_role_assignment" "aks_acr_pull" {                         │
+│    scope                = azurerm_container_registry.acr.id                  │
+│    role_definition_name = "AcrPull"                                          │
+│    principal_id         =                                                    │
+│  azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id                │
+│    principal_type       = "ServicePrincipal"                                 │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 5. outputs.tf                                                          │
+│  ```hcl                                                                      │
+│  output "aks_cluster_name" {                                                 │
+│    value = azurerm_kubernetes_cluster.aks.name                               │
+│  }                                                                           │
+│                                                                              │
+│  output "kube_config" {                                                      │
+│    value     = azurerm_kubernetes_cluster.aks.kube_config_raw                │
+│    sensitive = true                                                          │
+│  }                                                                           │
+│                                                                              │
+│  output "acr_login_server" {                                                 │
+│    value = azurerm_container_registry.acr.login_server                       │
+│  }                                                                           │
+│                                                                              │
+│  output "nat_gateway_public_ip" {                                            │
+│    value = azurerm_public_ip.nat_pip.ip_address                              │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────── Tracing Status ───────────────────────────────╮
+│                                                                              │
+│  Info: Tracing is disabled.                                                  │
+│                                                                              │
+│  To enable tracing, do any one of these:                                     │
+│  • Set tracing=True in your Crew/Flow code                                   │
+│  • Set CREWAI_TRACING_ENABLED=true in your project's .env file               │
+│  • Run: crewai traces enable                                                 │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+Building Project Workspace: output/azure-aks-public-managed-cluster/
+
+--- Round 1: Development & Audit ---
+╭─────────────────────────── ✨ Update Available ✨ ───────────────────────────╮
+│                                                                              │
+│  A new version of CrewAI is available!                                       │
+│                                                                              │
+│  Current version: 1.14.5                                                     │
+│  Latest version:  1.14.6                                                     │
+│                                                                              │
+│  To update, run: uv sync --upgrade-package crewai                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭───────────────────────── 🚀 Crew Execution Started ──────────────────────────╮
+│                                                                              │
+│  Crew Execution Started                                                      │
+│  Name: crew                                                                  │
+│  ID: 8c807f9a-5a65-4bb6-9ec9-828dd09930d0                                    │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭────────────────────────────── 📋 Task Started ───────────────────────────────╮
+│                                                                              │
+│  Task Started                                                                │
+│  Name: Based on the Architect's design, implement the Terraform project:     │
+│  azure-aks-public-managed-cluster.                                           │
+│  --- ARCHITECTURE DESIGN ---                                                 │
+│  PROJECT_SLUG: azure-aks-public-managed-cluster                              │
+│                                                                              │
+│  ### Architecture Analysis                                                   │
+│  The objective is a production-ready, public-facing Azure Kubernetes         │
+│  Service (AKS) cluster utilizing Azure CNI. The design focuses on high       │
+│  availability via multiple subnets across zones, outbound connectivity via   │
+│  a NAT Gateway, and secure integration with Azure Container Registry (ACR)   │
+│  using Managed Identities.                                                   │
+│                                                                              │
+│  **Key Design Decisions:**                                                   │
+│  - **Networking:** Azure CNI is used for pod-level VNet integration. A NAT   │
+│  Gateway is attached to the cluster subnet to ensure stable outbound IP      │
+│  addresses for external API calls.                                           │
+│  - **Identity:** Managed Identity is used for the cluster control plane and  │
+│  Kubelet, removing the need for service principal secrets.                   │
+│  - **Security:** NSGs are applied to subnets to control traffic flow, and    │
+│  RBAC/OIDC/Workload Identity are enabled for modern security standards.      │
+│  - **Observability:** Log Analytics Workspace is integrated via the          │
+│  `oms_agent` add-on for Container Insights.                                  │
+│                                                                              │
+│  ### Architecture Diagram                                                    │
+│  ```mermaid                                                                  │
+│  graph TD                                                                    │
+│      subgraph Azure_Region [Azure Region]                                    │
+│          subgraph VNet [Virtual Network]                                     │
+│              subgraph Subnet1 [Subnet 1 - AZ1]                               │
+│                  AKS_Nodes1[AKS Node Pool Nodes]                             │
+│              end                                                             │
+│              subgraph Subnet2 [Subnet 2 - AZ2]                               │
+│                  AKS_Nodes2[AKS Node Pool Nodes]                             │
+│              end                                                             │
+│              NAT_GW[NAT Gateway]                                             │
+│              RT[Route Table]                                                 │
+│              NSG[Network Security Group]                                     │
+│          end                                                                 │
+│                                                                              │
+│          ACR[Azure Container Registry]                                       │
+│          LAW[Log Analytics Workspace]                                        │
+│          AKS_CP[AKS Control Plane - Public API]                              │
+│      end                                                                     │
+│                                                                              │
+│      AKS_CP -->|Manages| AKS_Nodes1                                          │
+│      AKS_CP -->|Manages| AKS_Nodes2                                          │
+│      AKS_Nodes1 -->|Pulls Images| ACR                                        │
+│      AKS_Nodes2 -->|Pulls Images| ACR                                        │
+│      AKS_Nodes1 -->|Logs| LAW                                                │
+│      AKS_Nodes2 -->|Logs| LAW                                                │
+│      Subnet1 --> NAT_GW                                                      │
+│      Subnet2 --> NAT_GW                                                      │
+│      RT --> Subnet1                                                          │
+│      RT --> Subnet2                                                          │
+│      NSG --> Subnet1                                                         │
+│      NSG --> Subnet2                                                         │
+│      NAT_GW -->|Outbound| Internet((Internet))                               │
+│  ```                                                                         │
+│                                                                              │
+│  ### Implementation                                                          │
+│                                                                              │
+│  #### 1. versions.tf                                                         │
+│  ```hcl                                                                      │
+│  terraform {                                                                 │
+│    required_version = ">= 1.6.0"                                             │
+│    required_providers {                                                      │
+│      azurerm = {                                                             │
+│        source  = "hashicorp/azurerm"                                         │
+│        version = ">= 4.0.0"                                                  │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 2. provider.tf                                                         │
+│  ```hcl                                                                      │
+│  provider "azurerm" {                                                        │
+│    features {                                                                │
+│      resource_group {                                                        │
+│        prevent_deletion_if_contains_resources = false                        │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 3. variables.tf                                                        │
+│  ```hcl                                                                      │
+│  variable "project_name" {                                                   │
+│    type        = string                                                      │
+│    description = "The name of the project"                                   │
+│    default     = "aks-prod-cluster"                                          │
+│  }                                                                           │
+│                                                                              │
+│  variable "location" {                                                       │
+│    type        = string                                                      │
+│    description = "Azure region"                                              │
+│    default     = "East US"                                                   │
+│  }                                                                           │
+│                                                                              │
+│  variable "resource_group_name" {                                            │
+│    type        = string                                                      │
+│    description = "Resource group name"                                       │
+│    default     = "rg-aks-production"                                         │
+│  }                                                                           │
+│                                                                              │
+│  variable "vnet_cidr" {                                                      │
+│    type        = string                                                      │
+│    default     = "10.0.0.0/16"                                               │
+│  }                                                                           │
+│                                                                              │
+│  variable "subnet_cidrs" {                                                   │
+│    type        = list(string)                                                │
+│    default     = ["10.0.1.0/24", "10.0.2.0/24"]                              │
+│  }                                                                           │
+│                                                                              │
+│  variable "node_vm_size" {                                                   │
+│    type        = string                                                      │
+│    default     = "Standard_D16s_v5"                                          │
+│  }                                                                           │
+│                                                                              │
+│  variable "min_count" {                                                      │
+│    type        = number                                                      │
+│    default     = 2                                                           │
+│  }                                                                           │
+│                                                                              │
+│  variable "max_count" {                                                      │
+│    type        = number                                                      │
+│    default     = 5                                                           │
+│  }                                                                           │
+│                                                                              │
+│  variable "tags" {                                                           │
+│    type        = map(string)                                                 │
+│    default = {                                                               │
+│      Environment = "Production"                                              │
+│      ManagedBy   = "Terraform"                                               │
+│      Project     = "AKS-Public"                                              │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 4. main.tf                                                             │
+│  ```hcl                                                                      │
+│  data "azurerm_kubernetes_releases" "available" {                            │
+│    location = var.location                                                   │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_resource_group" "main" {                                  │
+│    name     = var.resource_group_name                                        │
+│    location = var.location                                                   │
+│    tags     = var.tags                                                       │
+│  }                                                                           │
+│                                                                              │
+│  # Networking                                                                │
+│  resource "azurerm_virtual_network" "vnet" {                                 │
+│    name                = "${var.project_name}-vnet"                          │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    address_space       = [var.vnet_cidr]                                     │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet" "subnets" {                                       │
+│    count                = length(var.subnet_cidrs)                           │
+│    name                 = "snet-aks-${count.index}"                          │
+│    resource_group_name  = azurerm_resource_group.main.name                   │
+│    virtual_network_name = azurerm_virtual_network.vnet.name                  │
+│    address_prefixes     = [var.subnet_cidrs[count.index]]                    │
+│    tags                 = var.tags                                           │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_public_ip" "nat_pip" {                                    │
+│    name                = "${var.project_name}-nat-pip"                       │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    allocation_method   = "Static"                                            │
+│    sku                 = "Standard"                                          │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_nat_gateway" "nat" {                                      │
+│    name                = "${var.project_name}-nat-gw"                        │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    sku_name            = "Standard"                                          │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_nat_gateway_public_ip_association" "nat_assoc" {          │
+│    nat_gateway_id       = azurerm_nat_gateway.nat.id                         │
+│    public_ip_address_id = azurerm_public_ip.nat_pip.id                       │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_nat_gateway_association" "nat_subnet_assoc" {      │
+│    count                = length(azurerm_subnet.subnets)                     │
+│    subnet_id            = azurerm_subnet.subnets[count.index].id             │
+│    nat_gateway_id       = azurerm_nat_gateway.nat.id                         │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_network_security_group" "nsg" {                           │
+│    name                = "${var.project_name}-nsg"                           │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_network_security_group_association" "nsg_assoc" {  │
+│    count               = length(azurerm_subnet.subnets)                      │
+│    subnet_id           = azurerm_subnet.subnets[count.index].id              │
+│    network_security_group_id = azurerm_network_security_group.nsg.id         │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_route_table" "rt" {                                       │
+│    name                = "${var.project_name}-rt"                            │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_route_table_association" "rt_assoc" {              │
+│    count                = length(azurerm_subnet.subnets)                     │
+│    subnet_id            = azurerm_subnet.subnets[count.index].id             │
+│    route_table_id       = azurerm_route_table.rt.id                          │
+│  }                                                                           │
+│                                                                              │
+│  # ACR                                                                       │
+│  resource "azurerm_container_registry" "acr" {                               │
+│    name                = "${var.project_name}acr${random_id.suffix.value}"   │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    location            = azurerm_resource_group.main.location                │
+│    sku                 = "Standard"                                          │
+│    admin_enabled       = false                                               │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "random_id" "suffix" {                                             │
+│    byte_length = 4                                                           │
+│  }                                                                           │
+│                                                                              │
+│  # Log Analytics                                                             │
+│  resource "azurerm_log_analytics_workspace" "law" {                          │
+│    name                = "${var.project_name}-law"                           │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    sku                 = "PerGB2018"                                         │
+│    retention_in_days   = 30                                                  │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  # AKS Cluster                                                               │
+│  resource "azurerm_kubernetes_cluster" "aks" {                               │
+│    name                = var.project_name                                    │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    dns_prefix          = var.project_name                                    │
+│    kubernetes_version  =                                                     │
+│  data.azurerm_kubernetes_releases.available.releases[0].semver               │
+│                                                                              │
+│    default_node_pool {                                                       │
+│      name                = "systempool"                                      │
+│      node_count         = var.min_count                                      │
+│      vm_size            = var.node_vm_size                                   │
+│      vnet_subnet_id     = azurerm_subnet.subnets[0].id                       │
+│      enable_auto_scaling = true                                              │
+│      min_count          = var.min_count                                      │
+│      max_count          = var.max_count                                      │
+│      type                = "VirtualMachineScaleSets"                         │
+│    }                                                                         │
+│                                                                              │
+│    identity {                                                                │
+│      type = "SystemAssigned"                                                 │
+│    }                                                                         │
+│                                                                              │
+│    network_profile {                                                         │
+│      network_plugin    = "azure"                                             │
+│      load_balancer_sku = "standard"                                          │
+│      outbound_type     = "userDefinedRouting" # Using NAT Gateway via Route  │
+│  Table/Subnet assoc                                                          │
+│    }                                                                         │
+│                                                                              │
+│    oidc_issuer_enabled       = true                                          │
+│    workload_identity_enabled = true                                          │
+│                                                                              │
+│    azure_policy_enabled = false                                              │
+│                                                                              │
+│    oms_agent {                                                               │
+│      log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id     │
+│    }                                                                         │
+│                                                                              │
+│    tags = var.tags                                                           │
+│                                                                              │
+│    depends_on = [                                                            │
+│      azurerm_subnet_nat_gateway_association.nat_subnet_assoc,                │
+│      azurerm_subnet_network_security_group_association.nsg_assoc             │
+│    ]                                                                         │
+│  }                                                                           │
+│                                                                              │
+│  # Role Assignment for ACR Pull                                              │
+│  resource "azurerm_role_assignment" "aks_acr_pull" {                         │
+│    scope                = azurerm_container_registry.acr.id                  │
+│    role_definition_name = "AcrPull"                                          │
+│    principal_id         =                                                    │
+│  azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id                │
+│    principal_type       = "ServicePrincipal"                                 │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 5. outputs.tf                                                          │
+│  ```hcl                                                                      │
+│  output "aks_cluster_name" {                                                 │
+│    value = azurerm_kubernetes_cluster.aks.name                               │
+│  }                                                                           │
+│                                                                              │
+│  output "kube_config" {                                                      │
+│    value     = azurerm_kubernetes_cluster.aks.kube_config_raw                │
+│    sensitive = true                                                          │
+│  }                                                                           │
+│                                                                              │
+│  output "acr_login_server" {                                                 │
+│    value = azurerm_container_registry.acr.login_server                       │
+│  }                                                                           │
+│                                                                              │
+│  output "nat_gateway_public_ip" {                                            │
+│    value = azurerm_public_ip.nat_pip.ip_address                              │
+│  }                                                                           │
+│  ```                                                                         │
+│  ---------------------------                                                 │
+│                                                                              │
+│  ## MANDATORY RULES (FAILURE TO FOLLOW = BROKEN CODE)                        │
+│  1. You MUST use the `Write Terraform File` tool for EVERY SINGLE FILE you   │
+│  create.                                                                     │
+│  2. DO NOT WRITE PLAIN TEXT TERRAFORM. YOU MUST CALL THE TOOL.               │
+│  3. If you need to create 15 files, you MUST call the tool 15 times.         │
+│  4. Structure: Root `main.tf` calling modules in `modules/` directory.       │
+│     Module sources MUST be relative path strings (e.g., source =             │
+│  "./modules/vpc").                                                           │
+│  5. You MUST create a `README.md` in the project ROOT.                       │
+│                                                                              │
+│  ## HCL FORMATTING (CRITICAL)                                                │
+│  - NEVER use semicolons (;) to separate arguments. Use NEWLINES.             │
+│  - Every resource argument MUST be on its own line.                          │
+│  - Every closing brace } MUST be on its own line.                            │
+│  - BAD:  resource "aws_subnet" "s1" { vpc_id = aws_vpc.main.id; cidr_block   │
+│  = "10.0.1.0/24" }                                                           │
+│  - GOOD:                                                                     │
+│    resource "aws_subnet" "s1" {                                              │
+│      vpc_id     = aws_vpc.main.id                                            │
+│      cidr_block = "10.0.1.0/24"                                              │
+│    }                                                                         │
+│                                                                              │
+│  ## REQUIRED FILES                                                           │
+│  - Root `main.tf`: Must include a `terraform { required_providers { } }`     │
+│  block and a `provider` block.                                               │
+│  - Root `variables.tf`: Input variables (e.g., region).                      │
+│  - Root `outputs.tf`: Key outputs (endpoints, IDs, ARNs).                    │
+│                                                                              │
+│  ## EKS / INFRASTRUCTURE COMPLETENESS CHECKLIST                              │
+│  If creating EKS, you MUST include ALL of the following:                     │
+│  - At least 2 subnets across 2 different Availability Zones (EKS requires    │
+│  this).                                                                      │
+│  - Subnets must have `map_public_ip_on_launch = true` for public clusters.   │
+│  - IAM roles MUST have `aws_iam_role_policy_attachment` resources:           │
+│    * Cluster role: AmazonEKSClusterPolicy                                    │
+│    * Node role: AmazonEKSWorkerNodePolicy,                                   │
+│  AmazonEC2ContainerRegistryReadOnly, AmazonEKS_CNI_Policy                    │
+│  - EKS `vpc_config` must include `endpoint_public_access = true` for public  │
+│  clusters.                                                                   │
+│  - Node group must have `depends_on` referencing the IAM policy              │
+│  attachments.                                                                │
+│  - Subnets should be tagged: `kubernetes.io/cluster/<name> = shared`.        │
+│                                                                              │
+│  Project Slug: azure-aks-public-managed-cluster                              │
+│  ID: 17581374-164c-447a-96e2-23e32aaa3a41                                    │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭────────────────────────────── 🤖 Agent Started ──────────────────────────────╮
+│                                                                              │
+│  Agent: Senior Terraform Developer                                           │
+│                                                                              │
+│  Task: Based on the Architect's design, implement the Terraform project:     │
+│  azure-aks-public-managed-cluster.                                           │
+│  --- ARCHITECTURE DESIGN ---                                                 │
+│  PROJECT_SLUG: azure-aks-public-managed-cluster                              │
+│                                                                              │
+│  ### Architecture Analysis                                                   │
+│  The objective is a production-ready, public-facing Azure Kubernetes         │
+│  Service (AKS) cluster utilizing Azure CNI. The design focuses on high       │
+│  availability via multiple subnets across zones, outbound connectivity via   │
+│  a NAT Gateway, and secure integration with Azure Container Registry (ACR)   │
+│  using Managed Identities.                                                   │
+│                                                                              │
+│  **Key Design Decisions:**                                                   │
+│  - **Networking:** Azure CNI is used for pod-level VNet integration. A NAT   │
+│  Gateway is attached to the cluster subnet to ensure stable outbound IP      │
+│  addresses for external API calls.                                           │
+│  - **Identity:** Managed Identity is used for the cluster control plane and  │
+│  Kubelet, removing the need for service principal secrets.                   │
+│  - **Security:** NSGs are applied to subnets to control traffic flow, and    │
+│  RBAC/OIDC/Workload Identity are enabled for modern security standards.      │
+│  - **Observability:** Log Analytics Workspace is integrated via the          │
+│  `oms_agent` add-on for Container Insights.                                  │
+│                                                                              │
+│  ### Architecture Diagram                                                    │
+│  ```mermaid                                                                  │
+│  graph TD                                                                    │
+│      subgraph Azure_Region [Azure Region]                                    │
+│          subgraph VNet [Virtual Network]                                     │
+│              subgraph Subnet1 [Subnet 1 - AZ1]                               │
+│                  AKS_Nodes1[AKS Node Pool Nodes]                             │
+│              end                                                             │
+│              subgraph Subnet2 [Subnet 2 - AZ2]                               │
+│                  AKS_Nodes2[AKS Node Pool Nodes]                             │
+│              end                                                             │
+│              NAT_GW[NAT Gateway]                                             │
+│              RT[Route Table]                                                 │
+│              NSG[Network Security Group]                                     │
+│          end                                                                 │
+│                                                                              │
+│          ACR[Azure Container Registry]                                       │
+│          LAW[Log Analytics Workspace]                                        │
+│          AKS_CP[AKS Control Plane - Public API]                              │
+│      end                                                                     │
+│                                                                              │
+│      AKS_CP -->|Manages| AKS_Nodes1                                          │
+│      AKS_CP -->|Manages| AKS_Nodes2                                          │
+│      AKS_Nodes1 -->|Pulls Images| ACR                                        │
+│      AKS_Nodes2 -->|Pulls Images| ACR                                        │
+│      AKS_Nodes1 -->|Logs| LAW                                                │
+│      AKS_Nodes2 -->|Logs| LAW                                                │
+│      Subnet1 --> NAT_GW                                                      │
+│      Subnet2 --> NAT_GW                                                      │
+│      RT --> Subnet1                                                          │
+│      RT --> Subnet2                                                          │
+│      NSG --> Subnet1                                                         │
+│      NSG --> Subnet2                                                         │
+│      NAT_GW -->|Outbound| Internet((Internet))                               │
+│  ```                                                                         │
+│                                                                              │
+│  ### Implementation                                                          │
+│                                                                              │
+│  #### 1. versions.tf                                                         │
+│  ```hcl                                                                      │
+│  terraform {                                                                 │
+│    required_version = ">= 1.6.0"                                             │
+│    required_providers {                                                      │
+│      azurerm = {                                                             │
+│        source  = "hashicorp/azurerm"                                         │
+│        version = ">= 4.0.0"                                                  │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 2. provider.tf                                                         │
+│  ```hcl                                                                      │
+│  provider "azurerm" {                                                        │
+│    features {                                                                │
+│      resource_group {                                                        │
+│        prevent_deletion_if_contains_resources = false                        │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 3. variables.tf                                                        │
+│  ```hcl                                                                      │
+│  variable "project_name" {                                                   │
+│    type        = string                                                      │
+│    description = "The name of the project"                                   │
+│    default     = "aks-prod-cluster"                                          │
+│  }                                                                           │
+│                                                                              │
+│  variable "location" {                                                       │
+│    type        = string                                                      │
+│    description = "Azure region"                                              │
+│    default     = "East US"                                                   │
+│  }                                                                           │
+│                                                                              │
+│  variable "resource_group_name" {                                            │
+│    type        = string                                                      │
+│    description = "Resource group name"                                       │
+│    default     = "rg-aks-production"                                         │
+│  }                                                                           │
+│                                                                              │
+│  variable "vnet_cidr" {                                                      │
+│    type        = string                                                      │
+│    default     = "10.0.0.0/16"                                               │
+│  }                                                                           │
+│                                                                              │
+│  variable "subnet_cidrs" {                                                   │
+│    type        = list(string)                                                │
+│    default     = ["10.0.1.0/24", "10.0.2.0/24"]                              │
+│  }                                                                           │
+│                                                                              │
+│  variable "node_vm_size" {                                                   │
+│    type        = string                                                      │
+│    default     = "Standard_D16s_v5"                                          │
+│  }                                                                           │
+│                                                                              │
+│  variable "min_count" {                                                      │
+│    type        = number                                                      │
+│    default     = 2                                                           │
+│  }                                                                           │
+│                                                                              │
+│  variable "max_count" {                                                      │
+│    type        = number                                                      │
+│    default     = 5                                                           │
+│  }                                                                           │
+│                                                                              │
+│  variable "tags" {                                                           │
+│    type        = map(string)                                                 │
+│    default = {                                                               │
+│      Environment = "Production"                                              │
+│      ManagedBy   = "Terraform"                                               │
+│      Project     = "AKS-Public"                                              │
+│    }                                                                         │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 4. main.tf                                                             │
+│  ```hcl                                                                      │
+│  data "azurerm_kubernetes_releases" "available" {                            │
+│    location = var.location                                                   │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_resource_group" "main" {                                  │
+│    name     = var.resource_group_name                                        │
+│    location = var.location                                                   │
+│    tags     = var.tags                                                       │
+│  }                                                                           │
+│                                                                              │
+│  # Networking                                                                │
+│  resource "azurerm_virtual_network" "vnet" {                                 │
+│    name                = "${var.project_name}-vnet"                          │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    address_space       = [var.vnet_cidr]                                     │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet" "subnets" {                                       │
+│    count                = length(var.subnet_cidrs)                           │
+│    name                 = "snet-aks-${count.index}"                          │
+│    resource_group_name  = azurerm_resource_group.main.name                   │
+│    virtual_network_name = azurerm_virtual_network.vnet.name                  │
+│    address_prefixes     = [var.subnet_cidrs[count.index]]                    │
+│    tags                 = var.tags                                           │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_public_ip" "nat_pip" {                                    │
+│    name                = "${var.project_name}-nat-pip"                       │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    allocation_method   = "Static"                                            │
+│    sku                 = "Standard"                                          │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_nat_gateway" "nat" {                                      │
+│    name                = "${var.project_name}-nat-gw"                        │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    sku_name            = "Standard"                                          │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_nat_gateway_public_ip_association" "nat_assoc" {          │
+│    nat_gateway_id       = azurerm_nat_gateway.nat.id                         │
+│    public_ip_address_id = azurerm_public_ip.nat_pip.id                       │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_nat_gateway_association" "nat_subnet_assoc" {      │
+│    count                = length(azurerm_subnet.subnets)                     │
+│    subnet_id            = azurerm_subnet.subnets[count.index].id             │
+│    nat_gateway_id       = azurerm_nat_gateway.nat.id                         │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_network_security_group" "nsg" {                           │
+│    name                = "${var.project_name}-nsg"                           │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_network_security_group_association" "nsg_assoc" {  │
+│    count               = length(azurerm_subnet.subnets)                      │
+│    subnet_id           = azurerm_subnet.subnets[count.index].id              │
+│    network_security_group_id = azurerm_network_security_group.nsg.id         │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_route_table" "rt" {                                       │
+│    name                = "${var.project_name}-rt"                            │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "azurerm_subnet_route_table_association" "rt_assoc" {              │
+│    count                = length(azurerm_subnet.subnets)                     │
+│    subnet_id            = azurerm_subnet.subnets[count.index].id             │
+│    route_table_id       = azurerm_route_table.rt.id                          │
+│  }                                                                           │
+│                                                                              │
+│  # ACR                                                                       │
+│  resource "azurerm_container_registry" "acr" {                               │
+│    name                = "${var.project_name}acr${random_id.suffix.value}"   │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    location            = azurerm_resource_group.main.location                │
+│    sku                 = "Standard"                                          │
+│    admin_enabled       = false                                               │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  resource "random_id" "suffix" {                                             │
+│    byte_length = 4                                                           │
+│  }                                                                           │
+│                                                                              │
+│  # Log Analytics                                                             │
+│  resource "azurerm_log_analytics_workspace" "law" {                          │
+│    name                = "${var.project_name}-law"                           │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    sku                 = "PerGB2018"                                         │
+│    retention_in_days   = 30                                                  │
+│    tags                = var.tags                                            │
+│  }                                                                           │
+│                                                                              │
+│  # AKS Cluster                                                               │
+│  resource "azurerm_kubernetes_cluster" "aks" {                               │
+│    name                = var.project_name                                    │
+│    location            = azurerm_resource_group.main.location                │
+│    resource_group_name = azurerm_resource_group.main.name                    │
+│    dns_prefix          = var.project_name                                    │
+│    kubernetes_version  =                                                     │
+│  data.azurerm_kubernetes_releases.available.releases[0].semver               │
+│                                                                              │
+│    default_node_pool {                                                       │
+│      name                = "systempool"                                      │
+│      node_count         = var.min_count                                      │
+│      vm_size            = var.node_vm_size                                   │
+│      vnet_subnet_id     = azurerm_subnet.subnets[0].id                       │
+│      enable_auto_scaling = true                                              │
+│      min_count          = var.min_count                                      │
+│      max_count          = var.max_count                                      │
+│      type                = "VirtualMachineScaleSets"                         │
+│    }                                                                         │
+│                                                                              │
+│    identity {                                                                │
+│      type = "SystemAssigned"                                                 │
+│    }                                                                         │
+│                                                                              │
+│    network_profile {                                                         │
+│      network_plugin    = "azure"                                             │
+│      load_balancer_sku = "standard"                                          │
+│      outbound_type     = "userDefinedRouting" # Using NAT Gateway via Route  │
+│  Table/Subnet assoc                                                          │
+│    }                                                                         │
+│                                                                              │
+│    oidc_issuer_enabled       = true                                          │
+│    workload_identity_enabled = true                                          │
+│                                                                              │
+│    azure_policy_enabled = false                                              │
+│                                                                              │
+│    oms_agent {                                                               │
+│      log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id     │
+│    }                                                                         │
+│                                                                              │
+│    tags = var.tags                                                           │
+│                                                                              │
+│    depends_on = [                                                            │
+│      azurerm_subnet_nat_gateway_association.nat_subnet_assoc,                │
+│      azurerm_subnet_network_security_group_association.nsg_assoc             │
+│    ]                                                                         │
+│  }                                                                           │
+│                                                                              │
+│  # Role Assignment for ACR Pull                                              │
+│  resource "azurerm_role_assignment" "aks_acr_pull" {                         │
+│    scope                = azurerm_container_registry.acr.id                  │
+│    role_definition_name = "AcrPull"                                          │
+│    principal_id         =                                                    │
+│  azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id                │
+│    principal_type       = "ServicePrincipal"                                 │
+│  }                                                                           │
+│  ```                                                                         │
+│                                                                              │
+│  #### 5. outputs.tf                                                          │
+│  ```hcl                                                                      │
+│  output "aks_cluster_name" {                                                 │
+│    value = azurerm_kubernetes_cluster.aks.name                               │
+│  }                                                                           │
+│                                                                              │
+│  output "kube_config" {                                                      │
+│    value     = azurerm_kubernetes_cluster.aks.kube_config_raw                │
+│    sensitive = true                                                          │
+│  }                                                                           │
+│                                                                              │
+│  output "acr_login_server" {                                                 │
+│    value = azurerm_container_registry.acr.login_server                       │
+│  }                                                                           │
+│                                                                              │
+│  output "nat_gateway_public_ip" {                                            │
+│    value = azurerm_public_ip.nat_pip.ip_address                              │
+│  }                                                                           │
+│  ```                                                                         │
+│  ---------------------------                                                 │
+│                                                                              │
+│  ## MANDATORY RULES (FAILURE TO FOLLOW = BROKEN CODE)                        │
+│  1. You MUST use the `Write Terraform File` tool for EVERY SINGLE FILE you   │
+│  create.                                                                     │
+│  2. DO NOT WRITE PLAIN TEXT TERRAFORM. YOU MUST CALL THE TOOL.               │
+│  3. If you need to create 15 files, you MUST call the tool 15 times.         │
+│  4. Structure: Root `main.tf` calling modules in `modules/` directory.       │
+│     Module sources MUST be relative path strings (e.g., source =             │
+│  "./modules/vpc").                                                           │
+│  5. You MUST create a `README.md` in the project ROOT.                       │
+│                                                                              │
+│  ## HCL FORMATTING (CRITICAL)                                                │
+│  - NEVER use semicolons (;) to separate arguments. Use NEWLINES.             │
+│  - Every resource argument MUST be on its own line.                          │
+│  - Every closing brace } MUST be on its own line.                            │
+│  - BAD:  resource "aws_subnet" "s1" { vpc_id = aws_vpc.main.id; cidr_block   │
+│  = "10.0.1.0/24" }                                                           │
+│  - GOOD:                                                                     │
+│    resource "aws_subnet" "s1" {                                              │
+│      vpc_id     = aws_vpc.main.id                                            │
+│      cidr_block = "10.0.1.0/24"                                              │
+│    }                                                                         │
+│                                                                              │
+│  ## REQUIRED FILES                                                           │
+│  - Root `main.tf`: Must include a `terraform { required_providers { } }`     │
+│  block and a `provider` block.                                               │
+│  - Root `variables.tf`: Input variables (e.g., region).                      │
+│  - Root `outputs.tf`: Key outputs (endpoints, IDs, ARNs).                    │
+│                                                                              │
+│  ## EKS / INFRASTRUCTURE COMPLETENESS CHECKLIST                              │
+│  If creating EKS, you MUST include ALL of the following:                     │
+│  - At least 2 subnets across 2 different Availability Zones (EKS requires    │
+│  this).                                                                      │
+│  - Subnets must have `map_public_ip_on_launch = true` for public clusters.   │
+│  - IAM roles MUST have `aws_iam_role_policy_attachment` resources:           │
+│    * Cluster role: AmazonEKSClusterPolicy                                    │
+│    * Node role: AmazonEKSWorkerNodePolicy,                                   │
+│  AmazonEC2ContainerRegistryReadOnly, AmazonEKS_CNI_Policy                    │
+│  - EKS `vpc_config` must include `endpoint_public_access = true` for public  │
+│  clusters.                                                                   │
+│  - Node group must have `depends_on` referencing the IAM policy              │
+│  attachments.                                                                │
+│  - Subnets should be tagged: `kubernetes.io/cluster/<name> = shared`.        │
+│                                                                              │
+│  Project Slug: azure-aks-public-managed-cluster                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+WARNING:terraform-dashboard:[OpenAI Retry] Primary call rate-limited/quota error. Retrying original model meta-llama/llama-3.3-70b-instruct:free in 5s (Attempt 1/3)....

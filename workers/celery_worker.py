@@ -29,7 +29,9 @@ def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None,
         if ai_config.get("model"):
             model = ai_config.get("model")
             provider = ai_config.get("provider")
-            if "/" not in model and provider:
+            if provider == "openrouter" and not model.startswith("openrouter/"):
+                model = f"openrouter/{model}"
+            elif "/" not in model and provider:
                 model = f"{provider}/{model}"
             cmd.extend(["--model", model])
         if ai_config.get("key"):

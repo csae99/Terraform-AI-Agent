@@ -399,10 +399,58 @@ main { padding: 0 2rem 4rem 2rem; }
 .modal-tab-visual {
     background: rgba(0, 0, 0, 0.3);
     border-radius: var(--radius-md);
-    padding: 2rem; overflow: auto; min-height: 400px;
+    padding: 2rem;
+    overflow: auto;
+    min-height: 500px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.mermaid-center { display: flex; justify-content: center; }
+.mermaid-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-height: 450px;
+}
+
+/* Make the Mermaid SVG fill the container and scale up */
+.mermaid-center .mermaid {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.mermaid-center .mermaid svg {
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    min-height: 400px;
+}
+
+/* Mermaid dark theme overrides for better visibility */
+.mermaid-center .mermaid .nodeLabel {
+    font-size: 14px !important;
+    font-weight: 500 !important;
+}
+
+.mermaid-center .mermaid .edgeLabel {
+    font-size: 12px !important;
+}
+
+.mermaid-center .mermaid .node rect,
+.mermaid-center .mermaid .node circle,
+.mermaid-center .mermaid .node polygon {
+    stroke-width: 2px !important;
+}
+
+/* Subgraph title styling */
+.mermaid-center .mermaid .cluster-label .nodeLabel {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+}
 
 /* ─── File Tabs (Code Viewer) ────────────────────────────── */
 .file-tabs {

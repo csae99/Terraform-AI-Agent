@@ -30,6 +30,10 @@ from tools.terraform.terraform_tools import TerraformTools
 from tools.project.tracker import ProjectTracker
 
 from orchestrator.retry_handler import RetryContext, should_retry, _get_pattern_manager
+from orchestrator.completeness_validator import (
+    validate_workspace_completeness,
+    format_completeness_report,
+)
 
 
 # ── Helper utilities ─────────────────────────────────────────────────
@@ -180,6 +184,10 @@ def run_full_pipeline(
     crew_arch = Crew(agents=[architect_agent], tasks=[arch_task], verbose=True)
     arch_result = str(crew_arch.kickoff())
 
+    print("\n⏳ Cooling down for 10 seconds to prevent rate limits...")
+    import time
+    time.sleep(10)
+
     slug = get_project_slug(arch_result, prompt)
     base_slug = slug
     if new_project:
@@ -267,13 +275,54 @@ def run_full_pipeline(
             crew_result = str(crew_dev.kickoff())
         except Exception as e:
             print(f"\n[!] Developer Crew failed with error: {str(e)}")
-            ProjectTracker.update_status(slug, "failed")
+            ProjectTracker.save(slug, status="failed")
             return {
                 "slug": slug,
                 "status": "failed",
                 "estimated_cost": "0.00",
                 "security_issues": 0,
             }
+
+        # ── Completeness check & focused retry ────────────────────
+        import time as _time
+        MAX_COMPLETION_RETRIES = 2
+        for completion_attempt in range(MAX_COMPLETION_RETRIES):
+            completeness = validate_workspace_completeness(slug, arch_result)
+            print(format_completeness_report(completeness))
+
+            if completeness["is_complete"]:
+                print("✅ Workspace is complete. Proceeding to validation.")
+                break
+
+            print(f"\n🔄 Completion Retry {completion_attempt + 1}/{MAX_COMPLETION_RETRIES}: "
+                  f"Running focused completion task for missing files...")
+
+            # Cooldown to avoid rate limits
+            print("⏳ Cooling down for 10 seconds before completion retry...")
+            _time.sleep(10)
+
+            try:
+                # Re-create the developer agent for the completion task
+                completion_dev_agent = developer_agent_cls.get_agent()
+                completion_task = TerraformGenerationTasks.complete_missing_files_task(
+                    completion_dev_agent, slug, arch_result, completeness
+                )
+                completion_crew = Crew(
+                    agents=[completion_dev_agent],
+                    tasks=[completion_task],
+                    process=Process.sequential,
+                    verbose=True,
+                )
+                completion_crew.kickoff()
+            except Exception as comp_err:
+                print(f"\n[!] Completion retry {completion_attempt + 1} failed: {comp_err}")
+        else:
+            # Exhausted completion retries - log but continue to validation anyway
+            final_check = validate_workspace_completeness(slug, arch_result)
+            if not final_check["is_complete"]:
+                print("\n⚠️  WARNING: Workspace is still incomplete after all completion retries.")
+                print(format_completeness_report(final_check))
+                print("Proceeding to validation anyway...")
 
         if is_test_local:
             inject_floci_overrides(slug)

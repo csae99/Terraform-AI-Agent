@@ -3,8 +3,8 @@ import litellm
 from dotenv import load_dotenv
 from crewai import LLM
 
-# Monkey-patch GeminiCompletion to solve the type mismatch for safety_settings between CrewAI and Google GenAI SDK.
-# GeminiCompletion validates safety_settings to be a dict, but Google GenAI SDK's GenerateContentConfig expects a list.
+# Monkey-patch GeminiCompletion and litellm.completion to solve safety_settings mismatch.
+# GeminiCompletion validates safety_settings to be a dict, but Gemini API via LiteLLM expects a list.
 try:
     from crewai.llms.providers.gemini.completion import GeminiCompletion
     
@@ -13,9 +13,6 @@ try:
     def _patched_prepare_generation_config(self, *args, **kwargs):
         original_settings = self.safety_settings
         if isinstance(original_settings, dict):
-            # Convert dictionary mapping {"CATEGORY": "THRESHOLD"}
-            # to list of dicts [{"category": "CATEGORY", "threshold": "THRESHOLD"}]
-            # which is what GenerateContentConfig expects.
             self.safety_settings = [
                 {"category": cat, "threshold": thresh}
                 for cat, thresh in original_settings.items()
@@ -32,18 +29,167 @@ except Exception as e:
     import logging
     logging.getLogger("terraform-dashboard").warning(f"Failed to monkey-patch GeminiCompletion: {e}")
 
+# Monkey-patch litellm.completion to convert safety_settings and handle automatic OpenRouter free fallback on rate limit/quota errors.
+_orig_litellm_completion = litellm.completion
+
+def _patched_litellm_completion(*args, **kwargs):
+    if "safety_settings" in kwargs and isinstance(kwargs["safety_settings"], dict):
+        kwargs["safety_settings"] = [
+            {"category": cat, "threshold": thresh}
+            for cat, thresh in kwargs["safety_settings"].items()
+        ]
+    try:
+        return _orig_litellm_completion(*args, **kwargs)
+    except Exception as e:
+        error_str = str(e).lower()
+        is_quota_error = any(kw in error_str for kw in ["quota", "rate", "limit", "429", "exhausted", "credits", "402", "502", "stealth", "venice"])
+        if is_quota_error:
+            import time
+            import logging
+            # 1. Retry the primary model with backoff first
+            max_primary_retries = 3
+            primary_retry_delay = 5
+            for attempt in range(max_primary_retries):
+                logging.getLogger("terraform-dashboard").warning(
+                    f"[LiteLLM Retry] Primary call rate-limited/quota error. Retrying original model {kwargs.get('model')} in {primary_retry_delay}s (Attempt {attempt+1}/{max_primary_retries})..."
+                )
+                time.sleep(primary_retry_delay)
+                try:
+                    return _orig_litellm_completion(*args, **kwargs)
+                except Exception as retry_err:
+                    retry_error_str = str(retry_err).lower()
+                    if not any(kw in retry_error_str for kw in ["quota", "rate", "limit", "429", "exhausted", "credits", "402", "502", "stealth", "venice"]):
+                        raise retry_err
+                    primary_retry_delay *= 2
+            
+            # 2. If primary model retries failed, proceed with fallback candidates
+            openrouter_key = os.getenv("OPENROUTER_API_KEY")
+            if openrouter_key:
+                fallback_kwargs = kwargs.copy()
+                fallback_kwargs["api_key"] = openrouter_key
+                fallback_kwargs.pop("safety_settings", None)
+                os.environ["OPENROUTER_API_KEY"] = openrouter_key
+                
+                # Multi-stage fallback candidate models for LiteLLM (prefixed with openrouter/)
+                candidate_models = [
+                    "openrouter/meta-llama/llama-3.3-70b-instruct:free",
+                    "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
+                    "openrouter/google/gemma-4-31b-it:free",
+                    "openrouter/deepseek/deepseek-v4-flash:free"
+                ]
+                
+                last_err = e
+                for model in candidate_models:
+                    if model in fallback_kwargs.get("model", ""):
+                        continue
+                    logging.getLogger("terraform-dashboard").warning(
+                        f"[LiteLLM Fallback] Primary call failed ({e}). Cooling down 3s then trying model: {model}..."
+                    )
+                    time.sleep(3)  # Prevent cascading 429s across fallback models
+                    fallback_kwargs["model"] = model
+                    try:
+                        return _orig_litellm_completion(*args, **fallback_kwargs)
+                    except Exception as fallback_err:
+                        logging.getLogger("terraform-dashboard").warning(
+                            f"[LiteLLM Fallback] Model {model} failed: {fallback_err}"
+                        )
+                        last_err = fallback_err
+                raise last_err
+        raise e
+
+litellm.completion = _patched_litellm_completion
+
+# Monkey-patch openai's sync completion to handle OpenRouter rate limits / transient errors.
+try:
+    import openai
+    _orig_openai_chat_create = openai.resources.chat.completions.Completions.create
+    
+    def _patched_openai_chat_create(self, *args, **kwargs):
+        try:
+            return _orig_openai_chat_create(self, *args, **kwargs)
+        except Exception as e:
+            error_str = str(e).lower()
+            is_transient_error = any(kw in error_str for kw in [
+                "quota", "rate", "limit", "429", "exhausted", "credits", "402", "502", "stealth", "venice"
+            ])
+            if is_transient_error:
+                import time
+                import logging
+                
+                # 1. Retry the primary model with backoff first
+                max_primary_retries = 3
+                primary_retry_delay = 5
+                for attempt in range(max_primary_retries):
+                    logging.getLogger("terraform-dashboard").warning(
+                        f"[OpenAI Retry] Primary call rate-limited/quota error. Retrying original model {kwargs.get('model')} in {primary_retry_delay}s (Attempt {attempt+1}/{max_primary_retries})...."
+                    )
+                    time.sleep(primary_retry_delay)
+                    try:
+                        return _orig_openai_chat_create(self, *args, **kwargs)
+                    except Exception as retry_err:
+                        retry_error_str = str(retry_err).lower()
+                        if not any(kw in retry_error_str for kw in ["quota", "rate", "limit", "429", "exhausted", "credits", "402", "502", "stealth", "venice"]):
+                            raise retry_err
+                        primary_retry_delay *= 2
+
+                # 2. If primary model retries failed, proceed with fallback candidates
+                openrouter_key = os.getenv("OPENROUTER_API_KEY")
+                if openrouter_key:
+                    fallback_kwargs = kwargs.copy()
+                    
+                    # Ensure base_url and api_key are pointing to OpenRouter
+                    self.base_url = "https://openrouter.ai/api/v1"
+                    self.api_key = openrouter_key
+                    if "api_key" in fallback_kwargs:
+                        fallback_kwargs["api_key"] = openrouter_key
+                    fallback_kwargs.pop("safety_settings", None)
+                    
+                    # Multi-stage fallback candidate models for OpenAI (non-prefixed or raw OpenRouter names)
+                    candidate_models = [
+                        "meta-llama/llama-3.3-70b-instruct:free",
+                        "qwen/qwen3-next-80b-a3b-instruct:free",
+                        "google/gemma-4-31b-it:free",
+                        "deepseek/deepseek-v4-flash:free"
+                    ]
+                    
+                    last_err = e
+                    for model in candidate_models:
+                        if model in fallback_kwargs.get("model", ""):
+                            continue
+                        logging.getLogger("terraform-dashboard").warning(
+                            f"[OpenAI Fallback] Primary call failed ({e}). Cooling down 3s then trying model: {model}..."
+                        )
+                        time.sleep(3)  # Prevent cascading 429s across fallback models
+                        fallback_kwargs["model"] = model
+                        try:
+                            return _orig_openai_chat_create(self, *args, **fallback_kwargs)
+                        except Exception as fallback_err:
+                            logging.getLogger("terraform-dashboard").warning(
+                                f"[OpenAI Fallback] Model {model} failed: {fallback_err}"
+                            )
+                            last_err = fallback_err
+                    raise last_err
+            raise e
+
+    openai.resources.chat.completions.Completions.create = _patched_openai_chat_create
+    import logging
+    logging.getLogger("terraform-dashboard").info("Successfully monkey-patched openai.Completions.create")
+except Exception as patch_err:
+    import logging
+    logging.getLogger("terraform-dashboard").warning(f"Failed to monkey-patch openai.Completions.create: {patch_err}")
+
 # Load environment variables
 load_dotenv()
 
 # Force LiteLLM to stay out of Vertex AI mode
-os.environ["LITELLM_LOGGING"] = "DEBUG"
+os.environ["LITELLM_LOG"] = "DEBUG"
 os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 
 # ─── Rate Limit / Retry Settings ───
 # LiteLLM will automatically wait & retry on 429 with exponential backoff
 litellm.set_verbose = True
-litellm.num_retries = 2                # Reduced from 5 to fail faster on free tier limits
+litellm.num_retries = 10               # Increased to wait out free tier rate limits
 litellm.request_timeout = 120          # 2 min timeout per request
 litellm.retry_after = 5                # Min 5s wait between retries
 
@@ -54,6 +200,10 @@ def get_llm(model_name=None, api_key=None):
     """
     if not model_name:
         model_name = os.getenv("DEFAULT_MODEL", "gemini/gemini-1.5-flash")
+    
+    # Map generic/unstable OpenRouter free router to a stable specific free model
+    if model_name in ["openrouter/free", "openrouter/openrouter/free", "free", "openrouter/"]:
+        model_name = "openrouter/meta-llama/llama-3.3-70b-instruct:free"
     
     # Handle common prefixes
     if "/" not in model_name:
@@ -85,6 +235,7 @@ def get_llm(model_name=None, api_key=None):
             "openai": os.getenv("OPENAI_API_KEY"),
             "anthropic": os.getenv("ANTHROPIC_API_KEY"),
             "nvidia": os.getenv("NVIDIA_API_KEY"),
+            "openrouter": os.getenv("OPENROUTER_API_KEY"),
         }
         api_key = key_map.get(provider)
 
@@ -100,6 +251,8 @@ def get_llm(model_name=None, api_key=None):
             extra_kwargs["extra_body"] = {
                 "chat_template_kwargs": {"thinking": False}
             }
+    elif provider == "openrouter":
+        os.environ["OPENROUTER_API_KEY"] = api_key
     elif provider in ["gemini", "google_ai"]:
 
         os.environ["GEMINI_API_KEY"] = api_key
@@ -119,13 +272,17 @@ def get_llm(model_name=None, api_key=None):
     if not api_key:
         print(f"Warning: No API key found for provider '{provider}'.")
 
-    return LLM(
-        model=model_name,
-        temperature=0.7,
-        api_key=api_key,
-        num_retries=5,
-        timeout=300,
+    llm_params = {
+        "model": model_name,
+        "temperature": 0.7,
+        "api_key": api_key,
+        "timeout": 300,
         **extra_kwargs
-    )
+    }
+    
+    if provider not in ["openai", "openrouter"]:
+        llm_params["num_retries"] = 5
+
+    return LLM(**llm_params)
 
 

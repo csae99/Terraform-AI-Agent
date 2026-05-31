@@ -163,8 +163,15 @@ async function openProject(slug) {
 
         const mermaidContainer = document.getElementById('mermaid-container');
         if (project.mermaid_diagram) {
-            mermaidContainer.innerHTML = project.mermaid_diagram;
+            const diagramId = 'mermaid-' + Date.now();
+            mermaidContainer.innerHTML = `<div class="mermaid" id="${diagramId}">${project.mermaid_diagram}</div>`;
             mermaidContainer.removeAttribute('data-processed');
+            try {
+                mermaid.run({ nodes: [document.getElementById(diagramId)] });
+            } catch (e) {
+                console.error("Mermaid render error in openProject:", e);
+                mermaidContainer.innerHTML = `<pre style="background:#111;padding:1rem;border-radius:4px;color:#ccc;font-size:0.8rem;overflow-x:auto">${project.mermaid_diagram}</pre>`;
+            }
         } else { mermaidContainer.innerHTML = "<p>No topology available.</p>"; }
 
         switchModalTab('code');
@@ -226,7 +233,15 @@ async function switchModalTab(tabId) {
         renderFileTabs(currentCodeFiles);
     } else if (tabId === 'visual' && currentProject?.mermaid_diagram) {
         const container = document.getElementById('mermaid-container');
-        mermaid.run({ nodes: [container] });
+        const diagramId = 'mermaid-tab-' + Date.now();
+        container.innerHTML = `<div class="mermaid" id="${diagramId}">${currentProject.mermaid_diagram}</div>`;
+        container.removeAttribute('data-processed');
+        try {
+            mermaid.run({ nodes: [document.getElementById(diagramId)] });
+        } catch (e) {
+            console.error("Mermaid run error:", e);
+            container.innerHTML = `<pre style="background:#111;padding:1rem;border-radius:4px;color:#ccc;font-size:0.8rem;overflow-x:auto">${currentProject.mermaid_diagram}</pre>`;
+        }
     } else if (tabId === 'evolution' && currentProject) {
         loadSnapshots(currentProject.slug);
     } else if (tabId === 'financial' && currentProject) {

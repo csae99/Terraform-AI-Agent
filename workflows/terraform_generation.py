@@ -82,3 +82,62 @@ class TerraformGenerationTasks:
             expected_output=f'A fully populated modular project in output/{project_slug}/ consisting of multiple .tf files.',
             agent=agent
         )
+
+    @staticmethod
+    def complete_missing_files_task(agent, project_slug, arch_result, completeness_report):
+        """Create a focused task that only generates the missing files.
+        
+        This is used when the initial generation was incomplete (e.g., due to
+        rate limits or context truncation). It tells the agent exactly what's
+        missing so it doesn't re-generate existing files.
+        """
+        missing_root = completeness_report.get("missing_root_files", [])
+        missing_modules = completeness_report.get("missing_modules", {})
+        existing_files = completeness_report.get("existing_files", [])
+        empty_files = completeness_report.get("empty_files", [])
+
+        # Build a clear listing of what's missing
+        missing_summary = ""
+        if missing_root:
+            missing_summary += f"\n### Missing Root Files:\n"
+            for f in missing_root:
+                missing_summary += f"- `{f}` — MUST be created at the project root\n"
+        
+        if missing_modules:
+            missing_summary += f"\n### Missing Module Files:\n"
+            for mod, files in missing_modules.items():
+                missing_summary += f"- Module `{mod}` (path: `modules/{mod}/`):\n"
+                for f in files:
+                    missing_summary += f"  - `{f}` — MUST be created\n"
+        
+        if empty_files:
+            missing_summary += f"\n### Empty Files (need content):\n"
+            for f in empty_files:
+                missing_summary += f"- `{f}` — exists but is EMPTY, rewrite with valid content\n"
+
+        existing_summary = ", ".join(existing_files[:20]) if existing_files else "none"
+
+        desc = (
+            f'⚠️ COMPLETION TASK: The previous generation was INCOMPLETE.\n'
+            f'Project: {project_slug}\n\n'
+            f'--- ARCHITECTURE DESIGN ---\n{arch_result}\n---------------------------\n\n'
+            f'## Files Already Created (DO NOT recreate these):\n'
+            f'{existing_summary}\n\n'
+            f'## Files That Are MISSING (you MUST create these NOW):\n'
+            f'{missing_summary}\n\n'
+            f'## RULES:\n'
+            f'1. You MUST use the `Write Terraform File` tool for EVERY file you create.\n'
+            f'2. DO NOT recreate files that already exist — only create the MISSING ones listed above.\n'
+            f'3. The root `main.tf` must call all modules with `source = "./modules/<name>"`.\n'
+            f'4. Each module must have at least `main.tf` with valid HCL resources.\n'
+            f'5. Root `variables.tf` must declare all input variables used by modules.\n'
+            f'6. Root `outputs.tf` must export key resource IDs/endpoints.\n'
+            f'7. NEVER use semicolons in HCL. Every argument on its own line.\n'
+            f'\nProject Slug: {project_slug}'
+        )
+
+        return Task(
+            description=desc,
+            expected_output=f'All missing files created in output/{project_slug}/ using the Write Terraform File tool.',
+            agent=agent
+        )

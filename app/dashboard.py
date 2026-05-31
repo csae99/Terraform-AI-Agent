@@ -120,7 +120,9 @@ async def run_agent_workflow(prompt: str, budget: float, apply: bool, credential
         if ai_config.get("model"):
             model = ai_config.get("model")
             provider = ai_config.get("provider")
-            if "/" not in model and provider:
+            if provider == "openrouter" and not model.startswith("openrouter/"):
+                model = f"openrouter/{model}"
+            elif "/" not in model and provider:
                 model = f"{provider}/{model}"
             cmd.extend(["--model", model])
         if ai_config.get("key"):
@@ -269,9 +271,9 @@ async def stream_logs(request: Request):
 async def test_run(background_tasks: BackgroundTasks):
     prompt = "Create a local file named hello.txt with content 'Hello World' using the Terraform local provider"
     ai_config = {
-        "provider": "gemini",
-        "model": "gemini-2.0-flash",
-        "key": "AIzaSyC283dI15JyTciEC6Ihljkw2WllRB_bhQM"
+        "provider": "openrouter",
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "key": os.getenv("OPENROUTER_API_KEY", "")
     }
     active_logs["active-run"] = ""
     background_tasks.add_task(run_agent_workflow, prompt, 5.0, False, {}, ai_config)
@@ -280,6 +282,7 @@ async def test_run(background_tasks: BackgroundTasks):
 @app.get("/api/test_logs")
 async def test_logs():
     return {"logs": active_logs.get("active-run", "")}
+
 
 # --- Auth API ---
 @app.post("/api/auth/register")
@@ -402,7 +405,26 @@ async def get_project_report(slug: str):
             content = f.read()
             return {"report": content, "content": content}
     msg = "No financial report generated for this project."
-    return {"report": msg, "content": msg}
+
+@app.get("/api/read_aks_logs")
+async def read_aks_logs():
+    import json
+    logs_path = os.path.join(_project_root, "akslogs.txt")
+    if not os.path.exists(logs_path):
+        return {"error": "akslogs.txt not found"}
+    with open(logs_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+    if content.startswith("data: "):
+        content = content[6:]
+    try:
+        data = json.loads(content)
+        logs = data.get("logs", "")
+        return {"logs_tail": logs[-250000:]}
+    except Exception as e:
+        return {"error": str(e), "prefix": content[:1000]}
+
+
+
 
 if __name__ == "__main__":
     import uvicorn
