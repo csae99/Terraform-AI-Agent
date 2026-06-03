@@ -17,9 +17,16 @@ graph TD
     Reviewer -->|Validation Results| Auditor[Security Auditor - Checkov/tfsec]
     Auditor -->|Critical Findings| Memory[(Pattern Memory)]
     Memory -->|Known Fix Advice| Developer
+    
+    Auditor -->|New/Unseen Errors| Reflection[Reflection Engine]
+    Reflection -->|Query Documentation| Search[Search Tool]
+    Search -->|Doc Snippets| Reflection
+    Reflection -->|Dynamic Fix Advice| Developer
+    
     Auditor -->|Clean Scan| FinOps[FinOps Specialist]
     FinOps -->|Cost Analysis| Deployer[Deployment Specialist]
     Deployer -->|Live Logs/Errors| Memory
+    Deployer -->|New Deploy Errors| Reflection
     Deployer -->|Deployed Resources| QATester[QA Behavior Validator]
     QATester -->|Smoke Tests Output| User
     
@@ -28,6 +35,8 @@ graph TD
     Reviewer
     Auditor
     Memory
+    Reflection
+    Search
     Deployer
     end
 ```

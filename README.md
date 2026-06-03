@@ -15,7 +15,7 @@ A powerful, interactive, and modular AI system designed to generate enterprise-g
 - **Universal LLM Support**: Powered by **LiteLLM**, allowing you to swap between 100+ providers (Gemini, Groq, Mistral, OpenAI) via a single `.env` setting or the Web UI.
 - **Web Dashboard**: Full-featured Flask dashboard with user authentication, project management, live agent log streaming, visual topology (Mermaid.js), and FinOps reports.
 - **Modular by Default**: Automatically generates "Root + Modules" structures (e.g., separate VPC, EKS, and IAM modules) following HashiCorp best practices.
-- **AI Self-Healing**: The system automatically identifies security vulnerabilities and live deployment errors, initiating autonomous "Fix Rounds" to resolve them — now enhanced with pattern-based fix guidance.
+- **AI Self-Healing**: The system automatically identifies security vulnerabilities and live deployment errors, initiating autonomous "Fix Rounds" to resolve them — now powered by **dynamic LLM reflection** and **autonomous web-search documentation lookup** to resolve API/provider changes dynamically.
 - **Unified Security Engine**: Dual-engine auditing using **Checkov** for deep analysis and **tfsec** for high-speed checks.
 - **Financial Intelligence**: Integrated **Infracost** to provide instant monthly cost projections and budget guardrails.
 - **Live Deployment**: The **Deployment Specialist** agent executes `terraform apply` and resolves cloud provider errors in real-time.
@@ -136,7 +136,8 @@ terraform-ai-agent/
 │
 ├── orchestrator/           # Central pipeline engine
 │   ├── pipeline.py         #   run_full_pipeline() — single entry-point
-│   └── retry_handler.py    #   Self-healing loop + RetryContext
+│   ├── retry_handler.py    #   Self-healing loop + RetryContext
+│   └── reflection.py       #   Dynamic LLM Reflection Engine with doc search
 │
 ├── agents/                 # CrewAI agent definitions (one per role)
 │   ├── terraform_architect.py
