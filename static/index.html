@@ -210,6 +210,7 @@
                     <button class="modal-tab" onclick="switchModalTab('evolution')">🕒 Evolution History</button>
                     <button class="modal-tab" onclick="switchModalTab('financial')">💰 FinOps Report</button>
                     <button class="modal-tab" onclick="switchModalTab('logs')">📋 Deployment Logs</button>
+                    <button class="modal-tab" onclick="switchModalTab('diagnostics')">🔬 Diagnostics & Telemetry</button>
                 </div>
 
                 <div id="modal-tab-code" class="modal-tab-content active">
@@ -239,6 +240,42 @@
 
                 <div id="modal-tab-logs" class="modal-tab-content" style="display: none;">
                      <div id="modal-tab-logs-content"></div>
+                </div>
+
+                <div id="modal-tab-diagnostics" class="modal-tab-content" style="display: none;">
+                     <div class="diagnostics-layout">
+                         <!-- Summaries Grid -->
+                         <div class="diagnostics-summary-grid">
+                             <div class="diagnostic-card">
+                                 <span class="diagnostic-label">Self-Healing Rounds</span>
+                                 <span class="diagnostic-value" id="diag-rounds">-</span>
+                             </div>
+                             <div class="diagnostic-card">
+                                 <span class="diagnostic-label">Execution Time</span>
+                                 <span class="diagnostic-value" id="diag-duration">-</span>
+                             </div>
+                             <div class="diagnostic-card">
+                                 <span class="diagnostic-label">Self-Healing Status</span>
+                                 <span class="status-badge" id="diag-status">Not Run</span>
+                             </div>
+                         </div>
+                         
+                         <!-- Patterns & Remediation -->
+                         <div class="remediation-section">
+                             <h3>🔧 Remediation History & Patterns Match</h3>
+                             <div id="diagnostics-remediation-history">
+                                 <p class="text-muted">No self-healing events occurred during this execution.</p>
+                             </div>
+                         </div>
+
+                         <!-- QA Verification Report -->
+                         <div class="qa-section">
+                             <h3>✅ Runtime Behavior QA Report</h3>
+                             <div id="diagnostics-qa-report" class="markdown-body">
+                                 <p class="text-muted">No QA validation report available. Run was not deployed.</p>
+                             </div>
+                         </div>
+                     </div>
                 </div>
 
         </div>

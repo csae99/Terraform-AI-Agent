@@ -29,6 +29,8 @@ class RetryContext:
         self.current_round = 1
         self.errors: list = []
         self.advice: str = ""
+        self.patterns_applied: list = []
+        self.reflection_advice: Optional[dict] = None
         self.best_finding_count: Optional[int] = None
         self.best_backup: Optional[str] = None
 
@@ -40,6 +42,21 @@ class RetryContext:
         """Store raw errors and enrich with known-fix advice."""
         self.errors.append(error_text)
         pm = _get_pattern_manager()
+        
+        # Track specific patterns matched
+        hits = pm.match(error_text)
+        for h in hits:
+            # Store subset of fields to prevent database bloat
+            pat_summary = {
+                "error_substring": h.get("error_substring"),
+                "description": h.get("description"),
+                "fix": h.get("fix"),
+                "category": h.get("category"),
+                "severity": h.get("severity")
+            }
+            if pat_summary not in self.patterns_applied:
+                self.patterns_applied.append(pat_summary)
+                
         advice = pm.format_advice(error_text)
         if advice:
             self.advice = advice

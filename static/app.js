@@ -83,6 +83,8 @@ async function fetchStats() {
             <div class="stat-card"><span class="stat-label">Live Deployments</span><span class="stat-value">${stats.active_deployments}</span></div>
             <div class="stat-card"><span class="stat-label">Monthly Cloud Spend</span><span class="stat-value">$${stats.total_monthly_cost}</span></div>
             <div class="stat-card"><span class="stat-label">Security Risks</span><span class="stat-value">${stats.total_security_issues}</span></div>
+            <div class="stat-card"><span class="stat-label">Self-Healed Runs</span><span class="stat-value" style="color: var(--accent-orange);">${stats.total_healed_runs || 0}</span></div>
+            <div class="stat-card"><span class="stat-label">Avg Runtime</span><span class="stat-value" style="color: var(--accent-blue);">${stats.avg_generation_time || 0}s</span></div>
         `;
     } catch (e) { console.error("Stats fetch error", e); }
 }
@@ -284,6 +286,98 @@ async function switchModalTab(tabId) {
         const res = await apiFetch(`/api/projects/${currentProject.slug}/logs/terraform_plan`);
         const data = await res.json();
         document.getElementById('modal-tab-logs-content').innerHTML = `<pre class="log-view">${data.content}</pre>`;
+    } else if (tabId === 'diagnostics' && currentProject) {
+        // Set rounds and duration
+        const rounds = currentProject.healing_rounds_taken || 1;
+        const duration = currentProject.run_duration || 0;
+        
+        document.getElementById('diag-rounds').innerText = rounds;
+        document.getElementById('diag-duration').innerText = duration > 0 ? `${duration}s` : 'N/A';
+        
+        // Healing Status Badge
+        const statusBadge = document.getElementById('diag-status');
+        if (currentProject.status === 'failed') {
+            statusBadge.innerText = '❌ Failed';
+            statusBadge.className = 'status-badge status-failed';
+        } else if (rounds > 1) {
+            statusBadge.innerText = '⚡ Self-Healed';
+            statusBadge.className = 'status-badge status-remediated';
+        } else {
+            statusBadge.innerText = '✅ Clean Run';
+            statusBadge.className = 'status-badge status-deployed';
+        }
+        
+        // Render Remediation/Matched Patterns
+        const remediationContainer = document.getElementById('diagnostics-remediation-history');
+        const patterns = currentProject.patterns_applied || [];
+        const errors = currentProject.errors_encountered || [];
+        
+        if (patterns.length === 0 && errors.length === 0) {
+            remediationContainer.innerHTML = '<p class="text-muted">No self-healing events occurred during this execution (Clean single-pass run).</p>';
+        } else {
+            let html = '<div class="remediation-timeline">';
+            
+            // Render errors encountered
+            if (errors.length > 0) {
+                html += '<h4>⚠️ Errors Encountered:</h4><ul class="error-log-list">';
+                errors.forEach((err, idx) => {
+                    const firstLine = err.split('\n')[0];
+                    html += `
+                        <li>
+                            <details class="error-details">
+                                <summary><strong>Round ${idx + 1}:</strong> <code>${firstLine}</code></summary>
+                                <pre class="raw-error-pre">${err}</pre>
+                            </details>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+            }
+            
+            // Render patterns matched
+            if (patterns.length > 0) {
+                html += '<h4>📚 Pattern Memory Fixes Applied:</h4><div class="matched-patterns-grid">';
+                patterns.forEach(pat => {
+                    html += `
+                        <div class="matched-pattern-card">
+                            <div class="pat-header">
+                                <span class="pat-badge badge-${(pat.severity || 'medium').toLowerCase()}">${pat.severity || 'MEDIUM'}</span>
+                                <span class="pat-category">Category: <strong>${pat.category || 'general'}</strong></span>
+                            </div>
+                            <div class="pat-substring">Matched signature: <code>"${pat.error_substring}"</code></div>
+                            <div class="pat-desc">${pat.description || ''}</div>
+                            <div class="pat-fix">🔧 <strong>Advice:</strong> ${pat.fix || ''}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            // Render dynamic reflection advice if triggered
+            if (currentProject.reflection_advice) {
+                const ref = currentProject.reflection_advice;
+                html += `
+                    <div class="reflection-advice-container" style="margin-top: 1.5rem; background: rgba(139, 92, 246, 0.05); border: 1px dashed rgba(139, 92, 246, 0.3); border-radius: var(--radius-md); padding: 1.25rem;">
+                        <h4 style="color: #a78bfa; margin-top: 0;"><i class="fas fa-brain"></i> Dynamic LLM Reflection Diagnosis</h4>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;"><strong>Analysis of failure:</strong> ${ref.cause || ''}</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;"><strong>Suggested Fix:</strong> ${ref.fix_advice || ''}</p>
+                        <p style="font-size: 0.85rem; font-weight: bold; margin-bottom: 0.25rem; color: #a78bfa;">Corrected Code Snippet:</p>
+                        <pre style="background: #09090b !important; padding: 0.75rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; overflow-x: auto; border: 1px solid rgba(139, 92, 246, 0.15);"><code style="color: #e9d5ff;">${(ref.corrected_snippet || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            remediationContainer.innerHTML = html;
+        }
+        
+        // Render QA Report
+        const qaContainer = document.getElementById('diagnostics-qa-report');
+        if (currentProject.qa_report) {
+            qaContainer.innerHTML = typeof marked !== 'undefined' ? marked.parse(currentProject.qa_report) : `<pre>${currentProject.qa_report}</pre>`;
+        } else {
+            qaContainer.innerHTML = '<p class="text-muted">No QA behavior verification report available. Run was not deployed or verification skipped.</p>';
+        }
     }
 }
 

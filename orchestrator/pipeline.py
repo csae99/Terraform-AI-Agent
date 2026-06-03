@@ -152,6 +152,8 @@ def run_full_pipeline(
     Returns:
         dict with keys: slug, status, estimated_cost, security_issues
     """
+    import time as _time_perf
+    start_time = _time_perf.time()
     is_test_local = test_local or os.environ.get("TEST_LOCAL") == "true" or "--test-local" in (cli_flags or [])
 
     if cli_flags is None:
@@ -212,6 +214,11 @@ def run_full_pipeline(
         flags=cli_flags,
         mermaid_diagram=mermaid_diagram,
         owner_id=owner_id,
+        healing_rounds_taken=1,
+        run_duration=0.0,
+        errors_encountered=[],
+        patterns_applied=[],
+        qa_report=""
     )
 
     # ── 2. Development & Audit Loop (self-healing) ───────────────
@@ -234,6 +241,14 @@ def run_full_pipeline(
             error_guidance = TerraformValidationTasks.build_error_context(latest_error)
             if retry.advice:
                 error_guidance += f"\nAdvice from pattern memory:\n{retry.advice}"
+            if hasattr(retry, "reflection_advice") and retry.reflection_advice:
+                ref = retry.reflection_advice
+                error_guidance += (
+                    f"\n🔬 Dynamic Reflection Debugging Analysis:\n"
+                    f"  - Cause of Error: {ref.get('cause')}\n"
+                    f"  - Fix Instructions: {ref.get('fix_advice')}\n"
+                    f"  - Correct HCL Template Snippet:\n{ref.get('corrected_snippet')}\n"
+                )
 
         dev_task = TerraformGenerationTasks.write_terraform_task(
             developer_agent, slug, arch_result, error_guidance=error_guidance
@@ -275,7 +290,15 @@ def run_full_pipeline(
             crew_result = str(crew_dev.kickoff())
         except Exception as e:
             print(f"\n[!] Developer Crew failed with error: {str(e)}")
-            ProjectTracker.save(slug, status="failed")
+            run_duration = _time_perf.time() - start_time
+            ProjectTracker.save(
+                slug,
+                status="failed",
+                healing_rounds_taken=retry.current_round,
+                run_duration=round(run_duration, 2),
+                errors_encountered=retry.errors + [f"Crew execution failed: {str(e)}"],
+                reflection_advice=getattr(retry, "reflection_advice", None)
+            )
             return {
                 "slug": slug,
                 "status": "failed",
@@ -335,6 +358,25 @@ def run_full_pipeline(
         if "Failed" in val_result:
             if should_retry(val_result):
                 print(f"\n[!] Terraform Validation Failed. Retrying...")
+                
+                # Dynamic LLM Reflection fallback trigger
+                pm = _get_pattern_manager()
+                has_pattern = False
+                if pm:
+                    hits = pm.match(val_result)
+                    if hits:
+                        has_pattern = True
+                
+                if not has_pattern:
+                    print("\n🔬 No static failure pattern matched. Triggering LLM Reflection...")
+                    from orchestrator.reflection import reflect_on_error
+                    ref_advice = reflect_on_error(val_result, slug)
+                    if ref_advice:
+                        retry.reflection_advice = ref_advice
+                        print(f"✅ Reflection Generated Advice: {ref_advice['fix_advice']}")
+                else:
+                    retry.reflection_advice = None
+                
                 retry.record_errors(f"Terraform validation failed: {val_result}")
                 retry.advance()
                 continue
@@ -409,6 +451,26 @@ def run_full_pipeline(
         if not error_summary:
             error_summary = f"Round {retry.current_round}: Verification failed for unknown reasons."
 
+        # Decay pattern confidence if we had a match for the error but it failed to heal
+        pm = _get_pattern_manager()
+        has_pattern = False
+        if pm:
+            hits = pm.match(error_summary)
+            if hits:
+                has_pattern = True
+                for p in hits:
+                    pm.decay_pattern(p["error_substring"])
+                    
+        if not has_pattern:
+            print("\n🔬 No static failure pattern matched. Triggering LLM Reflection...")
+            from orchestrator.reflection import reflect_on_error
+            ref_advice = reflect_on_error(error_summary, slug)
+            if ref_advice:
+                retry.reflection_advice = ref_advice
+                print(f"✅ Reflection Generated Advice: {ref_advice['fix_advice']}")
+        else:
+            retry.reflection_advice = None
+
         retry.record_errors(error_summary)
 
         if retry.current_round < retry.max_rounds:
@@ -467,6 +529,12 @@ def run_full_pipeline(
         retry.best_finding_count if retry.best_finding_count is not None else 0
     )
 
+    # ── Gather Telemetry ──────────────────────────────────────────
+    run_duration = _time_perf.time() - start_time
+    qa_report = ""
+    if do_apply and 'testing_task' in locals() and testing_task and hasattr(testing_task, "output") and testing_task.output:
+        qa_report = str(testing_task.output.raw)
+
     ProjectTracker.save(
         slug,
         prompt=prompt,
@@ -478,6 +546,12 @@ def run_full_pipeline(
         flags=cli_flags,
         mermaid_diagram=mermaid_diagram,
         owner_id=owner_id,
+        healing_rounds_taken=retry.current_round,
+        run_duration=round(run_duration, 2),
+        errors_encountered=retry.errors,
+        patterns_applied=retry.patterns_applied,
+        qa_report=qa_report,
+        reflection_advice=getattr(retry, "reflection_advice", None)
     )
 
     print("\n" + "=" * 50)

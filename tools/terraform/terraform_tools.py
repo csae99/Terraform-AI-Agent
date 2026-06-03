@@ -152,6 +152,35 @@ class TerraformTools:
         except Exception as e:
             return f"Restore failed: {str(e)}"
 
+    @staticmethod
+    def _search_terraform_documentation(query: str) -> str:
+        import requests
+        import urllib.parse
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        try:
+            # Append terraform prefix if not present to target terraform docs
+            search_query = query if "terraform" in query.lower() else f"terraform {query}"
+            url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(search_query)}"
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                return "Failed to fetch search results from DuckDuckGo."
+            
+            matches = re.findall(r'<a class="result__snippet"[^>]*>(.*?)</a>', r.text, re.DOTALL)
+            snippets = []
+            for m in matches[:5]:
+                clean = re.sub(r'<[^>]+>', '', m).strip()
+                snippets.append(clean)
+            
+            if not snippets:
+                return "No relevant documentation snippets found. Try modifying your search query."
+            
+            return "\n\n".join(f"- {s}" for s in snippets)
+        except Exception as e:
+            return f"Search error occurred: {str(e)}"
+
+
     # --- Tool Wrappers for CrewAI ---
 
     @tool("Write Terraform File")
@@ -173,3 +202,11 @@ class TerraformTools:
     def restore_workspace(project_slug: str, backup_path: str) -> str:
         """Restores a project workspace. Provide ONLY the project name (slug)."""
         return TerraformTools._restore_workspace(project_slug, backup_path)
+
+    @tool("Search Terraform Documentation")
+    def search_terraform_documentation(query: str) -> str:
+        """Searches the web for Terraform provider documentation, resource examples, and error resolutions.
+        Provide a specific query, e.g., 'azurerm_kubernetes_cluster default_node_pool auto_scaling_enabled'.
+        """
+        return TerraformTools._search_terraform_documentation(query)
+

@@ -17,7 +17,7 @@ class TerraformDeveloper(BaseAgent):
                       'main.tf, variables.tf, and outputs.tf. '
                       'You never stop early — if the architecture has 4 modules, you write at least 12 files '
                       'plus root files. Incomplete projects are failures.',
-            tools=[TerraformTools.write_terraform_file],
+            tools=[TerraformTools.write_terraform_file, TerraformTools.search_terraform_documentation],
             verbose=True,
             allow_delegation=False,
             max_iter=30,

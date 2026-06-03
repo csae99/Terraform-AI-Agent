@@ -196,11 +196,18 @@ async def get_stats(user=Depends(get_current_user)):
     total_monthly_cost = sum(float(p.get("estimated_cost") or 0) for p in projects)
     total_security_issues = sum(int(p.get("security_issues") or 0) for p in projects)
     
+    # Calculate telemetry stats
+    total_healed_runs = len([p for p in projects if int(p.get("healing_rounds_taken") or 0) > 1])
+    durations = [float(p.get("run_duration") or 0) for p in projects if float(p.get("run_duration") or 0) > 0]
+    avg_generation_time = round(sum(durations) / len(durations), 1) if durations else 0.0
+    
     return {
         "total_projects": total_projects,
         "active_deployments": active_deployments,
         "total_monthly_cost": round(total_monthly_cost, 2),
-        "total_security_issues": total_security_issues
+        "total_security_issues": total_security_issues,
+        "total_healed_runs": total_healed_runs,
+        "avg_generation_time": avg_generation_time
     }
 
 def get_active_logs(key: str) -> str:

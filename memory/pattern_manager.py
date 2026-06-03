@@ -85,21 +85,72 @@ class PatternManager:
     # ── Persistence (future) ─────────────────────────────────────────
 
     def add_pattern(self, error_substring: str, description: str, fix: str,
-                    category: str = "user_reported", severity: str = "MEDIUM") -> None:
-        """Add a new pattern to the in-memory store (and persist to disk)."""
-        pattern = {
-            "error_substring": error_substring,
-            "category": category,
-            "severity": severity,
-            "description": description,
-            "fix": fix,
-        }
-        self._patterns.append(pattern)
+                    category: str = "user_reported", severity: str = "MEDIUM",
+                    success_count: int = 1, failure_count: int = 0,
+                    confidence: float = 0.8, last_used: Optional[str] = None) -> None:
+        """Add a new pattern to the in-memory store (and persist to disk), or update if exists."""
+        from datetime import datetime
+        if not last_used:
+            last_used = datetime.utcnow().isoformat() + "Z"
+
+        # Check for deduplication
+        existing = next(
+            (p for p in self._patterns if p["error_substring"].lower() == error_substring.lower()),
+            None
+        )
+
+        if existing:
+            # Update existing pattern
+            existing["description"] = description
+            existing["fix"] = fix
+            existing["category"] = category
+            existing["severity"] = severity
+            # Don't overwrite stats, let other methods manage confidence/success counts
+            if "success_count" not in existing:
+                existing["success_count"] = success_count
+            if "failure_count" not in existing:
+                existing["failure_count"] = failure_count
+            if "confidence" not in existing:
+                existing["confidence"] = confidence
+            existing["last_used"] = last_used
+            print(f"[PatternManager] Updated existing pattern: {error_substring}")
+        else:
+            pattern = {
+                "error_substring": error_substring,
+                "category": category,
+                "severity": severity,
+                "description": description,
+                "fix": fix,
+                "success_count": success_count,
+                "failure_count": failure_count,
+                "confidence": confidence,
+                "last_used": last_used
+            }
+            self._patterns.append(pattern)
+            print(f"[PatternManager] Added new pattern: {error_substring}")
+            
         self._persist()
+
+    def decay_pattern(self, error_substring: str) -> None:
+        """Decay the confidence of a pattern because it failed to resolve the issue."""
+        from datetime import datetime
+        existing = next(
+            (p for p in self._patterns if p["error_substring"].lower() == error_substring.lower()),
+            None
+        )
+        if existing:
+            existing["failure_count"] = existing.get("failure_count", 0) + 1
+            current_conf = existing.get("confidence", 0.8)
+            # Decay confidence by 0.1 down to a minimum of 0.1
+            existing["confidence"] = round(max(0.1, current_conf - 0.1), 2)
+            existing["last_used"] = datetime.utcnow().isoformat() + "Z"
+            print(f"[PatternManager] Decayed pattern '{error_substring}' confidence to {existing['confidence']}")
+            self._persist()
 
     def learn_from_run(self, error_logs: str, fix_applied: str) -> None:
         """Call LLM to extract a reusable failure pattern and persist it."""
         import litellm
+        from datetime import datetime
         
         # Check if we have an API key configured for LiteLLM calls
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -153,15 +204,31 @@ Return the output strictly in the following JSON format:
             sev = parsed.get("severity", "MEDIUM")
             
             if sub and fix:
-                # Add to memory catalog
-                self.add_pattern(
-                    error_substring=sub,
-                    description=desc or f"Auto-learned pattern for error: {sub}",
-                    fix=fix,
-                    category=cat,
-                    severity=sev
+                # Check if it already exists to increment success/confidence
+                existing = next(
+                    (p for p in self._patterns if p["error_substring"].lower() == sub.lower()),
+                    None
                 )
-                print(f"[PatternManager] Successfully auto-learned failure pattern: {sub}")
+                if existing:
+                    existing["success_count"] = existing.get("success_count", 1) + 1
+                    current_conf = existing.get("confidence", 0.8)
+                    existing["confidence"] = round(min(1.0, current_conf + 0.05), 2)
+                    existing["last_used"] = datetime.utcnow().isoformat() + "Z"
+                    self._persist()
+                    print(f"[PatternManager] Successfully reinforced pattern '{sub}': success_count={existing['success_count']}, confidence={existing['confidence']}")
+                else:
+                    self.add_pattern(
+                        error_substring=sub,
+                        description=desc or f"Auto-learned pattern for error: {sub}",
+                        fix=fix,
+                        category=cat,
+                        severity=sev,
+                        success_count=1,
+                        failure_count=0,
+                        confidence=0.8,
+                        last_used=datetime.utcnow().isoformat() + "Z"
+                    )
+                    print(f"[PatternManager] Successfully auto-learned failure pattern: {sub}")
             else:
                 print(f"[PatternManager] Failed to auto-learn: JSON missing required fields.")
         except Exception as e:

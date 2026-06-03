@@ -32,6 +32,13 @@ scratch/
 *.log
 akslogs.json
 akslogs.txt
+active_run_logs.txt
+agent_logs.txt
+test_gemini_output.txt
+test_write_output.txt
+worker_logs.txt
+azure-aks-output-error.txt
+output_hallucination.txt
 
 # ── Tool binaries ─────────────────────────
 .infracost/

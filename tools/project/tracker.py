@@ -48,6 +48,15 @@ class ProjectModel(Base):
     mermaid_diagram = Column(Text, default="")
     drift_status = Column(String, default="unknown")
     flags = Column(JSON, default=list)
+    
+    # New Telemetry / Diagnostics Columns
+    healing_rounds_taken = Column(Integer, default=0)
+    run_duration = Column(Float, default=0.0)
+    errors_encountered = Column(JSON, default=list)
+    patterns_applied = Column(JSON, default=list)
+    reflection_advice = Column(JSON, nullable=True)
+    qa_report = Column(Text, default="")
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -57,6 +66,45 @@ class ProjectModel(Base):
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+def _add_missing_columns():
+    """Dynamically adds missing columns to projects table if they don't exist."""
+    from sqlalchemy import inspect, text
+    session = SessionLocal()
+    try:
+        db_engine = session.bind
+        inspector = inspect(db_engine)
+        columns = [c["name"] for c in inspector.get_columns("projects")]
+        new_cols = {
+            "healing_rounds_taken": "INTEGER DEFAULT 0",
+            "run_duration": "REAL DEFAULT 0.0",
+            "errors_encountered": "JSON DEFAULT '[]'",
+            "patterns_applied": "JSON DEFAULT '[]'",
+            "qa_report": "TEXT DEFAULT ''",
+            "reflection_advice": "JSON DEFAULT NULL"
+        }
+        for col_name, col_def in new_cols.items():
+            if col_name not in columns:
+                dialect_col_def = col_def
+                if "postgres" in str(db_engine.url):
+                    if "REAL" in col_def:
+                        dialect_col_def = "DOUBLE PRECISION DEFAULT 0.0"
+                    elif "JSON" in col_def:
+                        if "[]" in col_def:
+                            dialect_col_def = "JSON DEFAULT '[]'::json"
+                        else:
+                            dialect_col_def = "JSON DEFAULT NULL"
+                
+                alter_stmt = f"ALTER TABLE projects ADD COLUMN {col_name} {dialect_col_def}"
+                session.execute(text(alter_stmt))
+                print(f"[Tracker DB] Dynamically added missing column: {col_name}")
+        session.commit()
+    except Exception as e:
+        print(f"[Tracker DB] Warning: could not automatically add columns to database: {e}")
+    finally:
+        session.close()
+
+_add_missing_columns()
 
 
 class ProjectTracker:
@@ -70,7 +118,9 @@ class ProjectTracker:
     @staticmethod
     def save(slug, prompt=None, status=None, budget=None,
              estimated_cost=None, security_issues=None, provider=None, 
-             flags=None, mermaid_diagram=None, drift_status=None, owner_id=None):
+             flags=None, mermaid_diagram=None, drift_status=None, owner_id=None,
+             healing_rounds_taken=None, run_duration=None, errors_encountered=None,
+             patterns_applied=None, qa_report=None, reflection_advice=None):
         """Save or update project metadata in DB."""
         session = SessionLocal()
         try:
@@ -90,6 +140,12 @@ class ProjectTracker:
                 project.drift_status = drift_status or "unknown"
                 project.flags = flags if flags is not None else []
                 project.owner_id = owner_id
+                project.healing_rounds_taken = healing_rounds_taken if healing_rounds_taken is not None else 0
+                project.run_duration = run_duration if run_duration is not None else 0.0
+                project.errors_encountered = errors_encountered if errors_encountered is not None else []
+                project.patterns_applied = patterns_applied if patterns_applied is not None else []
+                project.qa_report = qa_report or ""
+                project.reflection_advice = reflection_advice
             else:
                 if prompt is not None: project.prompt = prompt
                 if status is not None: project.status = status
@@ -101,6 +157,12 @@ class ProjectTracker:
                 if drift_status is not None: project.drift_status = drift_status
                 if flags is not None: project.flags = flags
                 if owner_id is not None: project.owner_id = owner_id
+                if healing_rounds_taken is not None: project.healing_rounds_taken = healing_rounds_taken
+                if run_duration is not None: project.run_duration = run_duration
+                if errors_encountered is not None: project.errors_encountered = errors_encountered
+                if patterns_applied is not None: project.patterns_applied = patterns_applied
+                if qa_report is not None: project.qa_report = qa_report
+                if reflection_advice is not None: project.reflection_advice = reflection_advice
             
             session.commit()
             return ProjectTracker.load(slug)
@@ -139,6 +201,12 @@ class ProjectTracker:
                     "mermaid_diagram": project.mermaid_diagram,
                     "drift_status": project.drift_status,
                     "flags": project.flags,
+                    "healing_rounds_taken": project.healing_rounds_taken,
+                    "run_duration": project.run_duration,
+                    "errors_encountered": project.errors_encountered,
+                    "patterns_applied": project.patterns_applied,
+                    "reflection_advice": project.reflection_advice,
+                    "qa_report": project.qa_report,
                     "created_at": project.created_at.isoformat(),
                     "updated_at": project.updated_at.isoformat()
                 }
@@ -166,6 +234,8 @@ class ProjectTracker:
                     "security_issues": p.security_issues,
                     "provider": p.provider,
                     "drift_status": p.drift_status,
+                    "healing_rounds_taken": p.healing_rounds_taken,
+                    "run_duration": p.run_duration,
                     "updated_at": p.updated_at.isoformat(),
                     "owner_id": p.owner_id
                 } for p in projects

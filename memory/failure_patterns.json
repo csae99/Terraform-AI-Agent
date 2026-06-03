@@ -5,168 +5,275 @@
       "category": "naming_conflict",
       "severity": "HIGH",
       "description": "S3 bucket names must be globally unique across all AWS accounts.",
-      "fix": "Append a random suffix to the bucket name using the `random_string` resource. Example: resource \"random_string\" \"suffix\" { length = 8; special = false; upper = false } then use \"${var.bucket_name}-${random_string.suffix.result}\"."
+      "fix": "Append a random suffix to the bucket name using the `random_string` resource. Example: resource \"random_string\" \"suffix\" { length = 8; special = false; upper = false } then use \"${var.bucket_name}-${random_string.suffix.result}\".",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "BucketAlreadyOwnedByYou",
       "category": "naming_conflict",
       "severity": "MEDIUM",
       "description": "The S3 bucket already exists in your account. Terraform cannot import it automatically.",
-      "fix": "Either import the existing bucket with `terraform import aws_s3_bucket.<name> <bucket-name>` or choose a different bucket name."
+      "fix": "Either import the existing bucket with `terraform import aws_s3_bucket.<name> <bucket-name>` or choose a different bucket name.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "InvalidParameterValue",
       "category": "parameter_error",
       "severity": "HIGH",
       "description": "An AWS API parameter has an invalid value.",
-      "fix": "Check AWS documentation for valid parameter values. Common causes: Fargate requires specific CPU/Memory pairings (256/512/1024/2048/4096 CPU with matching memory), invalid AMI IDs for the region, or unsupported instance types."
+      "fix": "Check AWS documentation for valid parameter values. Common causes: Fargate requires specific CPU/Memory pairings (256/512/1024/2048/4096 CPU with matching memory), invalid AMI IDs for the region, or unsupported instance types.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "AccessDenied",
       "category": "iam_permissions",
       "severity": "CRITICAL",
       "description": "The IAM principal lacks the required permissions for this operation.",
-      "fix": "Ensure the IAM role/user has the required policies attached. For EKS: AmazonEKSClusterPolicy, AmazonEKSServicePolicy. For S3: s3:CreateBucket, s3:PutObject. Check the `aws_iam_role_policy_attachment` resources."
+      "fix": "Ensure the IAM role/user has the required policies attached. For EKS: AmazonEKSClusterPolicy, AmazonEKSServicePolicy. For S3: s3:CreateBucket, s3:PutObject. Check the `aws_iam_role_policy_attachment` resources.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "UnauthorizedAccess",
       "category": "iam_permissions",
       "severity": "CRITICAL",
       "description": "The AWS credentials do not have authorization for this action.",
-      "fix": "Verify AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables are set correctly. Ensure the IAM user/role has the necessary permissions."
+      "fix": "Verify AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables are set correctly. Ensure the IAM user/role has the necessary permissions.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "UnsupportedAvailabilityZoneException",
       "category": "region_error",
       "severity": "HIGH",
       "description": "The requested availability zone is not supported for the resource type.",
-      "fix": "Use a data source to dynamically select AZs: data \"aws_availability_zones\" \"available\" { state = \"available\" }. Then reference them as data.aws_availability_zones.available.names[0]."
+      "fix": "Use a data source to dynamically select AZs: data \"aws_availability_zones\" \"available\" { state = \"available\" }. Then reference them as data.aws_availability_zones.available.names[0].",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "ResourceNotFoundException",
       "category": "dependency_error",
       "severity": "HIGH",
       "description": "A referenced resource does not exist. This usually indicates a missing dependency or incorrect resource reference.",
-      "fix": "Add explicit `depends_on` blocks to ensure resources are created in the correct order. Verify all resource references use the correct attribute syntax (e.g., aws_vpc.main.id, not a hardcoded ID)."
+      "fix": "Add explicit `depends_on` blocks to ensure resources are created in the correct order. Verify all resource references use the correct attribute syntax (e.g., aws_vpc.main.id, not a hardcoded ID).",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "InvalidSubnetID.NotFound",
       "category": "dependency_error",
       "severity": "HIGH",
       "description": "The specified subnet ID does not exist or is in a different VPC.",
-      "fix": "Ensure subnet references use Terraform resource attributes (e.g., aws_subnet.public.id) and that the subnet is in the same VPC as the resource. Add depends_on if needed."
+      "fix": "Ensure subnet references use Terraform resource attributes (e.g., aws_subnet.public.id) and that the subnet is in the same VPC as the resource. Add depends_on if needed.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "InvalidGroup.NotFound",
       "category": "dependency_error",
       "severity": "HIGH",
       "description": "The specified security group does not exist.",
-      "fix": "Ensure security group references use Terraform resource attributes (e.g., aws_security_group.main.id). Verify the security group is in the correct VPC."
+      "fix": "Ensure security group references use Terraform resource attributes (e.g., aws_security_group.main.id). Verify the security group is in the correct VPC.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "DependencyViolation",
       "category": "lifecycle_error",
       "severity": "HIGH",
       "description": "Cannot delete a resource because other resources depend on it.",
-      "fix": "Add lifecycle { create_before_destroy = true } to the resource, or ensure dependent resources are destroyed first. For VPCs, delete all ENIs, security groups, and subnets first."
+      "fix": "Add lifecycle { create_before_destroy = true } to the resource, or ensure dependent resources are destroyed first. For VPCs, delete all ENIs, security groups, and subnets first.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "EntityAlreadyExists",
       "category": "naming_conflict",
       "severity": "MEDIUM",
       "description": "An IAM entity (role, policy, user) with this name already exists.",
-      "fix": "Use a unique name by appending a project-specific prefix or random suffix. Consider using `name_prefix` instead of `name` for IAM roles."
+      "fix": "Use a unique name by appending a project-specific prefix or random suffix. Consider using `name_prefix` instead of `name` for IAM roles.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "LimitExceededException",
       "category": "quota_error",
       "severity": "HIGH",
       "description": "An AWS service quota/limit has been exceeded.",
-      "fix": "Check current service quotas with AWS Service Quotas. Common limits: VPCs per region (5), Elastic IPs (5), EKS clusters per region (100). Request a quota increase via the AWS console."
+      "fix": "Check current service quotas with AWS Service Quotas. Common limits: VPCs per region (5), Elastic IPs (5), EKS clusters per region (100). Request a quota increase via the AWS console.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "Error: Reference to undeclared resource",
       "category": "terraform_syntax",
       "severity": "HIGH",
       "description": "Terraform code references a resource that is not defined in the configuration.",
-      "fix": "Ensure the referenced resource is defined in the same module scope. If referencing a module output, use module.<name>.<output>. Check for typos in resource names."
+      "fix": "Ensure the referenced resource is defined in the same module scope. If referencing a module output, use module.<name>.<output>. Check for typos in resource names.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "Error: Unsupported block type",
       "category": "terraform_syntax",
       "severity": "HIGH",
       "description": "An invalid block type is used in the Terraform configuration.",
-      "fix": "Check the Terraform provider documentation for the correct block syntax. Common mistakes: using 'dynamic' blocks incorrectly, misspelling block names, or nesting blocks at the wrong level."
+      "fix": "Check the Terraform provider documentation for the correct block syntax. Common mistakes: using 'dynamic' blocks incorrectly, misspelling block names, or nesting blocks at the wrong level.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "Error: Missing required argument",
       "category": "terraform_syntax",
       "severity": "HIGH",
       "description": "A required argument is missing from a resource or data source.",
-      "fix": "Check the Terraform provider documentation for required arguments. Add the missing argument to the resource block."
+      "fix": "Check the Terraform provider documentation for required arguments. Add the missing argument to the resource block.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "Error: Unsupported argument",
       "category": "terraform_syntax",
       "severity": "MEDIUM",
       "description": "An argument is not recognized by the provider for this resource type.",
-      "fix": "Check the provider documentation for valid arguments. The argument may have been renamed or removed in a newer provider version. Verify the provider version constraint."
+      "fix": "Check the provider documentation for valid arguments. The argument may have been renamed or removed in a newer provider version. Verify the provider version constraint.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "Error: Invalid provider configuration",
       "category": "provider_error",
       "severity": "CRITICAL",
       "description": "The provider configuration is invalid or incomplete.",
-      "fix": "Ensure the provider block has all required fields (region for AWS, project for GCP). Check that the provider version constraint is compatible with the resources used."
+      "fix": "Ensure the provider block has all required fields (region for AWS, project for GCP). Check that the provider version constraint is compatible with the resources used.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "No valid credential sources found",
       "category": "credentials_error",
       "severity": "CRITICAL",
       "description": "Terraform cannot find valid cloud credentials.",
-      "fix": "Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables, or configure the AWS CLI with `aws configure`. For GCP, set GOOGLE_APPLICATION_CREDENTIALS."
+      "fix": "Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables, or configure the AWS CLI with `aws configure`. For GCP, set GOOGLE_APPLICATION_CREDENTIALS.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "Error: Cycle",
       "category": "terraform_syntax",
       "severity": "HIGH",
       "description": "Terraform detected a circular dependency between resources.",
-      "fix": "Break the cycle by removing unnecessary depends_on, using data sources instead of direct references, or restructuring resources to eliminate mutual dependencies."
+      "fix": "Break the cycle by removing unnecessary depends_on, using data sources instead of direct references, or restructuring resources to eliminate mutual dependencies.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "timeout while waiting",
       "category": "timeout_error",
       "severity": "MEDIUM",
       "description": "A resource creation or modification timed out.",
-      "fix": "Increase the timeout using a `timeouts` block inside the resource. Example: timeouts { create = \"30m\" }. Check if the resource is stuck due to a misconfiguration."
+      "fix": "Increase the timeout using a `timeouts` block inside the resource. Example: timeouts { create = \"30m\" }. Check if the resource is stuck due to a misconfiguration.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "The \";\" character is not valid",
       "category": "hcl_formatting",
       "severity": "CRITICAL",
       "description": "LLM wrote single-line HCL using semicolons to separate arguments. Terraform HCL does not support semicolons.",
-      "fix": "Replace all semicolons (;) with newlines. Each argument must be on its own line. Each closing brace } must be on its own line. Example: instead of 'vpc_id = x; cidr = y', use two separate lines."
+      "fix": "Replace all semicolons (;) with newlines. Each argument must be on its own line. Each closing brace } must be on its own line. Example: instead of 'vpc_id = x; cidr = y', use two separate lines.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "A single-line block definition must end with a closing brace",
       "category": "hcl_formatting",
       "severity": "CRITICAL",
       "description": "LLM compressed a multi-argument block onto a single line. Terraform requires multi-line formatting for blocks with multiple arguments.",
-      "fix": "Split the block across multiple lines. Each argument inside a block (resource, data, module) must be on its own line with proper indentation."
+      "fix": "Split the block across multiple lines. Each argument inside a block (resource, data, module) must be on its own line with proper indentation.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "Missing newline after argument",
       "category": "hcl_formatting",
       "severity": "CRITICAL",
       "description": "An argument definition and a closing brace are on the same line. HCL requires a newline between the last argument and the closing brace.",
-      "fix": "Ensure every closing brace } is on its own dedicated line, never on the same line as an argument value."
+      "fix": "Ensure every closing brace } is on its own dedicated line, never on the same line as an argument value.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
     },
     {
       "error_substring": "At least two subnets in different Availability Zones",
       "category": "eks_configuration",
       "severity": "CRITICAL",
       "description": "EKS cluster creation requires at least 2 subnets across 2 different Availability Zones.",
-      "fix": "Create at least 2 subnets in different AZs. Use data.aws_availability_zones.available.names[0] and [1]. Pass both subnet IDs to the EKS cluster vpc_config.subnet_ids."
+      "fix": "Create at least 2 subnets in different AZs. Use data.aws_availability_zones.available.names[0] and [1]. Pass both subnet IDs to the EKS cluster vpc_config.subnet_ids.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-05-31T18:53:27Z"
+    },
+    {
+      "error_substring": "MockError123",
+      "category": "mock",
+      "severity": "LOW",
+      "description": "This is a test validation error pattern.",
+      "fix": "Do not do anything, it is a mock.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 0.8,
+      "last_used": "2026-05-31T15:44:02.859188Z"
     }
   ]
 }
