@@ -97,14 +97,16 @@ Ensures scalability under heavy loads by offloading blocking agent work to a job
 
 ## 🚀 Advanced Features
 
-### 🛡️ Automated Self-Healing with Pattern Intelligence & Self-Learning
-The agent doesn't just "fail" on errors — it learns from them:
-1. The **Security Auditor** runs a deep scan using **Checkov** and **tfsec**.
-2. If critical vulnerabilities are found, the system **automatically snapshots** the best-known version.
-3. The **Pattern Manager** is consulted for known fixes matching the error signatures.
-4. The Developer agent receives **targeted fix guidance** (not just raw errors) for the next retry.
-5. If a fix makes things worse, the orchestrator can **revert** to the best-known state.
-6. **Self-Learning Loop**: If the run succeeded in round 2 or 3, `learn_from_run` calls Gemini to identify the root cause of early-round errors, summarizes the fix, and automatically appends a new Failure Pattern to `failure_patterns.json`.
+### 🛡️ Automated Self-Healing, Dynamic LLM Reflection, and Documentation Search
+The agent doesn't just "fail" on errors — it heals and learns from them dynamically:
+1. **Auditing & Error Capture**: The system runs static code scans (Checkov/tfsec) and compilation audits (`terraform validate`).
+2. **Failure Pattern Lookup**: The `Pattern Manager` is consulted to check if a matching error signature exists in the memory catalog (`failure_patterns.json`) to fetch pre-learned advice.
+3. **Dynamic LLM Reflection Fallback (Phase 11)**: If the error is brand new/unseen, the system triggers the **Reflection Engine** (`orchestrator/reflection.py`). It parses the error log to locate the affected source files, extracts the failing code context, and queries the LLM to dynamically generate precise, explanation-backed fix advice.
+4. **Autonomous Documentation Search Tool**: To eliminate hallucinations about newer provider features (e.g. `azurerm` v4+ upgrades), both the **Senior Developer Agent** and the **Reflection Engine** are equipped with the **Search Terraform Documentation** tool. When an error is encountered, the Reflection Engine automatically queries search engines to retrieve live provider documentation and injects the results into the reflection prompt, guaranteeing up-to-date syntax recommendations.
+5. **Enriched Code Re-generation**: The Developer agent receives targeted fix guidance (containing dynamic reflection advice, error cause, and the corrected HCL template) to guide it during code updates in the next round.
+6. **State Crash-Recovery**: If a retry introduces worse errors, the orchestrator reverts the workspace to the last best-known snapshot using the `Restore Workspace` tool.
+7. **Self-Learning Loop**: On success, the self-learning coordinator uses the LLM to generalize the root cause and dynamically appends the new signature/resolution as a permanent entry in `failure_patterns.json`.
+
 
 ### ☁️ Local Cloud Emulation (Floci & Floci-AZ)
 Supports risk-free testing by redirecting Terraform AWS/Azure providers to local docker emulators:
@@ -166,6 +168,7 @@ python app/dashboard.py
 | `Deployment Tools` | Terraform CLI | Execution of Plan/Apply/Destroy with live log capturing. |
 | `Backup/Restore` | Python/shutil | Versioning and crash-recovery for generated code. |
 | `Pattern Manager` | Python/JSON/LLM | Failure pattern matching, fix guidance, and self-learning loop. |
+| `Search Terraform Documentation` | Python/Requests | Online documentation lookup and error resolution search. |
 | `HTTP Endpoint Verification` | Python/requests | QA smoke testing of provisioned API/web URLs. |
 | `AWS S3 Bucket Verification` | Python/boto3 | QA read/write/delete verification on deployed S3 buckets. |
 | `AWS Resource Exists Verification` | Python/boto3 | QA validation of DynamoDB, SQS, EC2, Lambda, or RDS active states. |
