@@ -33,11 +33,81 @@ except Exception as e:
 _orig_litellm_completion = litellm.completion
 
 def _patched_litellm_completion(*args, **kwargs):
+    model_name = kwargs.get("model")
+    if model_name and isinstance(model_name, str):
+        provider = None
+        if "/" in model_name:
+            provider = model_name.split("/")[0].lower()
+            
+        if provider == "nvidia":
+            model_part = model_name.split("/", 1)[1]
+            kwargs["model"] = f"openai/{model_part}"
+            kwargs["base_url"] = "https://integrate.api.nvidia.com/v1"
+            if "api_key" not in kwargs or not kwargs["api_key"]:
+                nvidia_key = os.getenv("NVIDIA_API_KEY")
+                if nvidia_key:
+                    kwargs["api_key"] = nvidia_key
+                    os.environ["OPENAI_API_KEY"] = nvidia_key
+            if "deepseek" in model_part.lower():
+                if "extra_body" not in kwargs:
+                    kwargs["extra_body"] = {}
+                if "chat_template_kwargs" not in kwargs["extra_body"]:
+                    kwargs["extra_body"]["chat_template_kwargs"] = {}
+                kwargs["extra_body"]["chat_template_kwargs"]["thinking"] = False
+
+        elif provider == "openrouter":
+            if "api_key" not in kwargs or not kwargs["api_key"]:
+                openrouter_key = os.getenv("OPENROUTER_API_KEY")
+                if openrouter_key:
+                    kwargs["api_key"] = openrouter_key
+                    os.environ["OPENROUTER_API_KEY"] = openrouter_key
+
+        elif provider in ["gemini", "google_ai"]:
+            if "api_key" not in kwargs or not kwargs["api_key"]:
+                gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+                if gemini_key:
+                    kwargs["api_key"] = gemini_key
+                    os.environ["GEMINI_API_KEY"] = gemini_key
+                    os.environ["GOOGLE_API_KEY"] = gemini_key
+            model_part = model_name.split("/")[-1]
+            kwargs["model"] = f"gemini/{model_part}"
+            if "safety_settings" not in kwargs:
+                kwargs["safety_settings"] = {
+                    "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+                    "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+                    "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+                    "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"
+                }
+
     if "safety_settings" in kwargs and isinstance(kwargs["safety_settings"], dict):
         kwargs["safety_settings"] = [
             {"category": cat, "threshold": thresh}
             for cat, thresh in kwargs["safety_settings"].items()
         ]
+
+    # Clean up prompt caching parameters for Mistral provider/models to avoid API rejection
+    is_mistral = False
+    if model_name and isinstance(model_name, str):
+        is_mistral = (
+            "mistral" in model_name.lower()
+            or "codestral" in model_name.lower()
+            or "pixtral" in model_name.lower()
+        )
+    
+    if is_mistral:
+        messages = kwargs.get("messages")
+        if messages and isinstance(messages, list):
+            cleaned_messages = []
+            for msg in messages:
+                if isinstance(msg, dict):
+                    msg_copy = msg.copy()
+                    msg_copy.pop("cache_breakpoint", None)
+                    msg_copy.pop("cache_control", None)
+                    cleaned_messages.append(msg_copy)
+                else:
+                    cleaned_messages.append(msg)
+            kwargs["messages"] = cleaned_messages
+
     try:
         return _orig_litellm_completion(*args, **kwargs)
     except Exception as e:
@@ -213,6 +283,8 @@ def get_llm(model_name=None, api_key=None):
             model_name = f"anthropic/{model_name}"
         elif model_name.startswith("gemini"):
             model_name = f"gemini/{model_name}"
+        elif model_name.startswith("mistral") or model_name.startswith("codestral") or model_name.startswith("pixtral"):
+            model_name = f"mistral/{model_name}"
     
     # Provider detection & normalization
     extra_kwargs = {}
@@ -222,6 +294,8 @@ def get_llm(model_name=None, api_key=None):
         provider = "openai"
     elif model_name.startswith("claude"):
         provider = "anthropic"
+    elif model_name.startswith("mistral") or model_name.startswith("codestral") or model_name.startswith("pixtral"):
+        provider = "mistral"
     else:
         provider = "gemini"
 
@@ -253,6 +327,8 @@ def get_llm(model_name=None, api_key=None):
             }
     elif provider == "openrouter":
         os.environ["OPENROUTER_API_KEY"] = api_key
+    elif provider == "mistral":
+        os.environ["MISTRAL_API_KEY"] = api_key
     elif provider in ["gemini", "google_ai"]:
 
         os.environ["GEMINI_API_KEY"] = api_key

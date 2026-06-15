@@ -202,6 +202,7 @@ def run_full_pipeline(
         arch_result = re.sub(re.escape(base_slug), slug, arch_result, flags=re.IGNORECASE)
     mermaid_diagram = extract_mermaid(arch_result)
     output_base = os.path.join("output", slug)
+    os.makedirs(output_base, exist_ok=True)
     print(f"\nBuilding Project Workspace: {output_base}/")
 
     # ── Track project from the start ─────────────────────────────

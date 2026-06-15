@@ -28,12 +28,44 @@ def reflect_on_error(error_text: str, project_slug: str) -> Optional[Dict[str, s
     """
     import litellm
 
-    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        logger.warning("[Reflection] Skipped: No API key configured.")
-        return None
-
     model = os.getenv("DEFAULT_MODEL", "gemini/gemini-1.5-flash")
+    provider = "gemini"
+    if model and "/" in model:
+        provider = model.split("/")[0].lower()
+    elif model and model.startswith("gpt"):
+        provider = "openai"
+    elif model and model.startswith("claude"):
+        provider = "anthropic"
+
+    # Map provider to env vars
+    key_map = {
+        "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+        "google_ai": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+        "nvidia": ["NVIDIA_API_KEY"],
+        "openrouter": ["OPENROUTER_API_KEY"],
+        "openai": ["OPENAI_API_KEY"],
+        "groq": ["GROQ_API_KEY"],
+        "mistral": ["MISTRAL_API_KEY"],
+        "anthropic": ["ANTHROPIC_API_KEY"],
+    }
+    
+    candidate_envs = key_map.get(provider, ["GEMINI_API_KEY", "GOOGLE_API_KEY"])
+    api_key = None
+    for env_name in candidate_envs:
+        api_key = os.getenv(env_name)
+        if api_key:
+            break
+            
+    if not api_key:
+        # Fallback to any present API key
+        for k in ["GEMINI_API_KEY", "GOOGLE_API_KEY", "NVIDIA_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"]:
+            api_key = os.getenv(k)
+            if api_key:
+                break
+                
+    if not api_key:
+        logger.warning(f"[Reflection] Skipped: No API key configured for provider '{provider}'.")
+        return None
     project_dir = os.path.join("output", project_slug)
     if not os.path.isdir(project_dir):
         logger.warning(f"[Reflection] Skipped: Project workspace {project_dir} not found.")

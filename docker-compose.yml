@@ -39,7 +39,7 @@ services:
       - agent-network
 
   agent:
-    image: shubham554/terraform-ai-agent:v2
+    image: shubham554/terraform-ai-agent:v3
     build: .
     container_name: terraform-dashboard
     restart: always
@@ -65,7 +65,7 @@ services:
       - agent-network
 
   worker:
-    image: shubham554/terraform-ai-agent:v2
+    image: shubham554/terraform-ai-agent:v3
     build: .
     container_name: terraform-celery-worker
     restart: always
