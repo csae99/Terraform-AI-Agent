@@ -265,6 +265,17 @@
       "last_used": "2026-05-31T18:53:27Z"
     },
     {
+      "error_substring": "enable_node_public_ip",
+      "category": "terraform_syntax",
+      "severity": "HIGH",
+      "description": "In azurerm provider version 4.0+, the 'enable_node_public_ip' argument has been renamed to 'node_public_ip_enabled'.",
+      "fix": "Rename 'enable_node_public_ip = true' to 'node_public_ip_enabled = true'.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-06-15T17:00:00Z"
+    },
+    {
       "error_substring": "MockError123",
       "category": "mock",
       "severity": "LOW",

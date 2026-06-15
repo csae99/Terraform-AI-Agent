@@ -144,7 +144,7 @@ CODE FILES IN CONTEXT:
 
 Your task is to:
 1. Explain the exact cause of the error (be specific about which argument, resource, or block is wrong).
-2. Write a clear, developer-facing fix advice (e.g. "Move the enable_auto_scaling argument inside the default_node_pool nested block").
+2. Write a clear, developer-facing fix advice (e.g. "Ensure the subnet CIDR block is defined as a variable instead of being hardcoded in the subnets block").
 3. Provide the exact corrected code snippet for the failing resource/block.
 
 Return the output strictly in the following JSON format:

@@ -17,8 +17,9 @@ class PatternManager:
     """Manages a knowledge base of known Terraform failure patterns and fixes."""
 
     def __init__(self, patterns_file: str = _PATTERNS_FILE):
+        self.patterns_file = patterns_file
         self._patterns: List[Dict] = []
-        self._load(patterns_file)
+        self._load(self.patterns_file)
 
     def _load(self, path: str) -> None:
         """Load patterns from the JSON catalog."""
@@ -43,6 +44,8 @@ class PatternManager:
         Returns:
             A list of matching pattern dicts, sorted by severity (CRITICAL first).
         """
+        # Reload dynamically to pick up live updates
+        self._load(self.patterns_file)
         if not error_text:
             return []
 
