@@ -183,3 +183,11 @@ To resolve the transient `502 - Invalid URL` error returned by OpenRouter's gene
   - Updated the fallback model configuration in `llm/config.py` to target `openrouter/meta-llama/llama-3.3-70b-instruct:free`.
   - Updated the test endpoint (`/api/test_run`) in `app/dashboard.py` to run using `meta-llama/llama-3.3-70b-instruct:free`.
 
+### 4. Self-Learning Loop Hallucination & Failure Pattern Correction
+- **File modified:** [failure_patterns.json](file:///c:/Users/User/Music/Terraform-AI-Agent/memory/failure_patterns.json)
+  - Replaced the incorrectly generated `enable_node_public_ip` entry with the correct pattern for `enable_auto_scaling`.
+  - Defined the proper error substring (`enable_auto_scaling`), description, and fix strategy (`Rename 'enable_auto_scaling = true' to 'auto_scaling_enabled = true'`) for AzureRM v4 compatibility.
+- **File modified:** [pattern_manager.py](file:///c:/Users/User/Music/Terraform-AI-Agent/memory/pattern_manager.py)
+  - Added strict `CRITICAL` anti-hallucination instructions to the self-learning extraction prompt to ensure that extracted error substrings and fix advice are based strictly on parameters present in the raw error logs and applied fixes, preventing parameter confusion (e.g., confusing `enable_auto_scaling` with `enable_node_public_ip`) in future automated learning cycles.
+
+

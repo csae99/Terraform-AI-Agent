@@ -168,6 +168,8 @@ You are an expert DevOps engineer and AI teacher.
 We had a Terraform execution failure that we successfully fixed in a self-healing loop.
 Please analyze the error log and the fix that was applied to create a new, reusable "Failure Pattern" that can be used to prevent this issue in the future.
 
+CRITICAL: Do NOT hallucinate parameters or arguments. The "error_substring", "description", and "fix" MUST reference the EXACT parameters, arguments, or error messages present in the ERROR LOG and the FIX APPLIED. Do not invent or substitute other parameters (for example, do not confuse "enable_auto_scaling" with "enable_node_public_ip").
+
 ERROR LOG:
 \"\"\"{error_logs}\"\"\"
 
@@ -175,10 +177,10 @@ FIX APPLIED:
 \"\"\"{fix_applied}\"\"\"
 
 Your task is to extract:
-1. Error Substring: A unique, exact, case-insensitive substring from the error log that reliably identifies this specific error. Keep it concise (e.g. "BucketAlreadyExists" or "Unsupported attribute"). Do NOT include dynamic/unique identifiers like bucket names, IP addresses, or resource IDs.
+1. Error Substring: A unique, exact, case-insensitive substring from the error log that reliably identifies this specific error. Keep it concise (e.g. "enable_auto_scaling" or "BucketAlreadyExists"). Do NOT include dynamic/unique identifiers like bucket names, IP addresses, or resource IDs.
 2. Description: A short, clear description of the problem.
-3. Fix Advice: General, actionable developer advice on how to fix this issue (e.g., "Append a random suffix to the bucket name to ensure uniqueness").
-4. Category: A category label (e.g. "aws_s3", "syntax_error", "iam_permissions", "network_configs").
+3. Fix Advice: General, actionable developer advice on how to fix this issue (e.g., "Rename enable_auto_scaling to auto_scaling_enabled").
+4. Category: A category label (e.g. "aws_s3", "terraform_syntax", "iam_permissions", "network_configs").
 5. Severity: One of: "CRITICAL", "HIGH", "MEDIUM", "LOW".
 
 Return the output strictly in the following JSON format:
