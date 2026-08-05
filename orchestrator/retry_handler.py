@@ -33,6 +33,12 @@ class RetryContext:
         self.reflection_advice: Optional[dict] = None
         self.best_finding_count: Optional[int] = None
         self.best_backup: Optional[str] = None
+        self.decision_trace: list = []
+
+    def record_decision(self, decision: str) -> None:
+        """Log a high-level self-healing or validation decision to the trace."""
+        self.decision_trace.append(decision)
+        print(f"[Decision Trace] Logged: '{decision}'")
 
     @property
     def has_retries_left(self) -> bool:
@@ -57,10 +63,21 @@ class RetryContext:
             if pat_summary not in self.patterns_applied:
                 self.patterns_applied.append(pat_summary)
                 
-        advice = pm.format_advice(error_text)
-        if advice:
-            self.advice = advice
-            print(f"\n📚 Pattern Manager matched known fixes:\n{advice}")
+        # Format matching advice, giving priority to trusted advice over candidate advice
+        trusted_hits = pm.match_trusted(error_text)
+        candidate_hits = pm.match_candidates(error_text)
+        display_hits = trusted_hits if trusted_hits else candidate_hits
+        
+        if display_hits:
+            lines = ["📚 **Known Failure Pattern(s) Detected:**\n"]
+            for p in display_hits:
+                status_label = f"TRUSTED:{p.get('severity')}" if p.get('status') == 'trusted' else f"CANDIDATE:{p.get('severity')}"
+                lines.append(
+                    f"  ⚠️  [{status_label}] {p['description']}\n"
+                    f"  🔧  FIX: {p['fix']}\n"
+                )
+            self.advice = "\n".join(lines)
+            print(f"\n📚 Pattern Manager matched known fixes:\n{self.advice}")
         else:
             self.advice = ""
 

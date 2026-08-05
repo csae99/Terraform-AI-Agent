@@ -31,6 +31,13 @@ class PatternManager:
             data = json.load(f)
 
         self._patterns = data.get("patterns", [])
+        # Ensure status field exists on all loaded patterns
+        for p in self._patterns:
+            if "status" not in p:
+                if p.get("success_count", 0) >= 1 or p.get("confidence", 0.0) >= 1.0:
+                    p["status"] = "trusted"
+                else:
+                    p["status"] = "candidate"
         print(f"[PatternManager] Loaded {len(self._patterns)} failure patterns.")
 
     # ── Lookup ───────────────────────────────────────────────────────
@@ -63,6 +70,16 @@ class PatternManager:
         hits = self.match(error_text)
         return hits[0] if hits else None
 
+    def match_trusted(self, error_text: str) -> List[Dict]:
+        """Return only trusted patterns matching the error text."""
+        matches = self.match(error_text)
+        return [m for m in matches if m.get("status") == "trusted"]
+
+    def match_candidates(self, error_text: str) -> List[Dict]:
+        """Return only candidate patterns matching the error text."""
+        matches = self.match(error_text)
+        return [m for m in matches if m.get("status") == "candidate"]
+
     # ── Formatting ───────────────────────────────────────────────────
 
     def format_advice(self, error_text: str) -> str:
@@ -90,7 +107,8 @@ class PatternManager:
     def add_pattern(self, error_substring: str, description: str, fix: str,
                     category: str = "user_reported", severity: str = "MEDIUM",
                     success_count: int = 1, failure_count: int = 0,
-                    confidence: float = 0.8, last_used: Optional[str] = None) -> None:
+                    confidence: float = 0.8, last_used: Optional[str] = None,
+                    status: str = "candidate") -> None:
         """Add a new pattern to the in-memory store (and persist to disk), or update if exists."""
         from datetime import datetime
         if not last_used:
@@ -115,8 +133,15 @@ class PatternManager:
                 existing["failure_count"] = failure_count
             if "confidence" not in existing:
                 existing["confidence"] = confidence
+            if "status" not in existing:
+                existing["status"] = status
+                
+            # Promotion logic
+            if existing.get("success_count", 0) >= 3:
+                existing["status"] = "trusted"
+                
             existing["last_used"] = last_used
-            print(f"[PatternManager] Updated existing pattern: {error_substring}")
+            print(f"[PatternManager] Updated existing pattern: {error_substring} (status: {existing['status']})")
         else:
             pattern = {
                 "error_substring": error_substring,
@@ -127,10 +152,11 @@ class PatternManager:
                 "success_count": success_count,
                 "failure_count": failure_count,
                 "confidence": confidence,
+                "status": status,
                 "last_used": last_used
             }
             self._patterns.append(pattern)
-            print(f"[PatternManager] Added new pattern: {error_substring}")
+            print(f"[PatternManager] Added new pattern: {error_substring} (status: {status})")
             
         self._persist()
 
@@ -147,7 +173,12 @@ class PatternManager:
             # Decay confidence by 0.1 down to a minimum of 0.1
             existing["confidence"] = round(max(0.1, current_conf - 0.1), 2)
             existing["last_used"] = datetime.utcnow().isoformat() + "Z"
-            print(f"[PatternManager] Decayed pattern '{error_substring}' confidence to {existing['confidence']}")
+            
+            # Demote status to candidate if confidence is low (<= 0.3)
+            if existing["confidence"] <= 0.3:
+                existing["status"] = "candidate"
+                
+            print(f"[PatternManager] Decayed pattern '{error_substring}' confidence to {existing['confidence']} (status: {existing.get('status')})")
             self._persist()
 
     def learn_from_run(self, error_logs: str, fix_applied: str) -> None:
@@ -219,8 +250,13 @@ Return the output strictly in the following JSON format:
                     current_conf = existing.get("confidence", 0.8)
                     existing["confidence"] = round(min(1.0, current_conf + 0.05), 2)
                     existing["last_used"] = datetime.utcnow().isoformat() + "Z"
+                    
+                    # Promotion logic
+                    if existing["success_count"] >= 3:
+                        existing["status"] = "trusted"
+                        
                     self._persist()
-                    print(f"[PatternManager] Successfully reinforced pattern '{sub}': success_count={existing['success_count']}, confidence={existing['confidence']}")
+                    print(f"[PatternManager] Successfully reinforced pattern '{sub}': success_count={existing['success_count']}, confidence={existing['confidence']} (status: {existing.get('status')})")
                 else:
                     self.add_pattern(
                         error_substring=sub,

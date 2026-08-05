@@ -55,36 +55,100 @@ class ProjectModel(Base):
     errors_encountered = Column(JSON, default=list)
     patterns_applied = Column(JSON, default=list)
     reflection_advice = Column(JSON, nullable=True)
+    decision_trace = Column(JSON, default=list)
     qa_report = Column(Text, default="")
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Ownership
+    # Ownership and Scoping
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    
     owner = relationship("UserModel", back_populates="projects")
+    organization = relationship("OrganizationModel", back_populates="projects")
+
+
+class OrganizationModel(Base):
+    __tablename__ = "organizations"
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String, index=True)
+    slug = Column(String, unique=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    members = relationship("OrgMemberModel", back_populates="organization", cascade="all, delete-orphan")
+    projects = relationship("ProjectModel", back_populates="organization")
+
+
+class OrgMemberModel(Base):
+    __tablename__ = "org_members"
+    
+    id = Column(Integer, primary_key=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    role = Column(String, default="member")  # owner, admin, member, viewer
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    organization = relationship("OrganizationModel", back_populates="members")
+    user = relationship("UserModel")
+
+
+class RunModel(Base):
+    __tablename__ = "runs"
+    
+    id = Column(Integer, primary_key=True)
+    project_id = Column(String, ForeignKey("projects.slug"), nullable=True)
+    status = Column(String, default="pending")
+    cost_estimate = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class JobModel(Base):
+    __tablename__ = "jobs"
+    
+    id = Column(Integer, primary_key=True)
+    run_id = Column(Integer, ForeignKey("runs.id"), nullable=True)
+    celery_task_id = Column(String, unique=True, index=True)
+    logs = Column(Text, default="")
+
+
+class BillingUsageModel(Base):
+    __tablename__ = "billing_usage"
+    
+    id = Column(Integer, primary_key=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    tokens_used = Column(Integer, default=0)
+    infra_cost = Column(Float, default=0.0)
+    run_time_seconds = Column(Float, default=0.0)
+
 
 # Create tables
 Base.metadata.create_all(bind=engine)
 
 def _add_missing_columns():
-    """Dynamically adds missing columns to projects table if they don't exist."""
+    """Dynamically adds missing columns to tables if they don't exist."""
     from sqlalchemy import inspect, text
     session = SessionLocal()
     try:
         db_engine = session.bind
         inspector = inspect(db_engine)
-        columns = [c["name"] for c in inspector.get_columns("projects")]
-        new_cols = {
+        
+        # 1. Check projects table
+        proj_cols = [c["name"] for c in inspector.get_columns("projects")]
+        proj_new_cols = {
             "healing_rounds_taken": "INTEGER DEFAULT 0",
             "run_duration": "REAL DEFAULT 0.0",
             "errors_encountered": "JSON DEFAULT '[]'",
             "patterns_applied": "JSON DEFAULT '[]'",
             "qa_report": "TEXT DEFAULT ''",
-            "reflection_advice": "JSON DEFAULT NULL"
+            "reflection_advice": "JSON DEFAULT NULL",
+            "decision_trace": "JSON DEFAULT '[]'",
+            "org_id": "INTEGER DEFAULT NULL"
         }
-        for col_name, col_def in new_cols.items():
-            if col_name not in columns:
+        for col_name, col_def in proj_new_cols.items():
+            if col_name not in proj_cols:
                 dialect_col_def = col_def
                 if "postgres" in str(db_engine.url):
                     if "REAL" in col_def:
@@ -97,7 +161,20 @@ def _add_missing_columns():
                 
                 alter_stmt = f"ALTER TABLE projects ADD COLUMN {col_name} {dialect_col_def}"
                 session.execute(text(alter_stmt))
-                print(f"[Tracker DB] Dynamically added missing column: {col_name}")
+                print(f"[Tracker DB] Dynamically added missing column to projects: {col_name}")
+
+        # 2. Check organizations table
+        org_cols = [c["name"] for c in inspector.get_columns("organizations")]
+        org_new_cols = {
+            "slug": "VARCHAR DEFAULT ''",
+            "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        }
+        for col_name, col_def in org_new_cols.items():
+            if col_name not in org_cols:
+                alter_stmt = f"ALTER TABLE organizations ADD COLUMN {col_name} {col_def}"
+                session.execute(text(alter_stmt))
+                print(f"[Tracker DB] Dynamically added missing column to organizations: {col_name}")
+
         session.commit()
     except Exception as e:
         print(f"[Tracker DB] Warning: could not automatically add columns to database: {e}")
@@ -119,8 +196,9 @@ class ProjectTracker:
     def save(slug, prompt=None, status=None, budget=None,
              estimated_cost=None, security_issues=None, provider=None, 
              flags=None, mermaid_diagram=None, drift_status=None, owner_id=None,
-             healing_rounds_taken=None, run_duration=None, errors_encountered=None,
-             patterns_applied=None, qa_report=None, reflection_advice=None):
+             org_id=None, healing_rounds_taken=None, run_duration=None,
+             errors_encountered=None, patterns_applied=None, qa_report=None,
+             reflection_advice=None, decision_trace=None):
         """Save or update project metadata in DB."""
         session = SessionLocal()
         try:
@@ -140,12 +218,14 @@ class ProjectTracker:
                 project.drift_status = drift_status or "unknown"
                 project.flags = flags if flags is not None else []
                 project.owner_id = owner_id
+                project.org_id = org_id
                 project.healing_rounds_taken = healing_rounds_taken if healing_rounds_taken is not None else 0
                 project.run_duration = run_duration if run_duration is not None else 0.0
                 project.errors_encountered = errors_encountered if errors_encountered is not None else []
                 project.patterns_applied = patterns_applied if patterns_applied is not None else []
                 project.qa_report = qa_report or ""
                 project.reflection_advice = reflection_advice
+                project.decision_trace = decision_trace if decision_trace is not None else []
             else:
                 if prompt is not None: project.prompt = prompt
                 if status is not None: project.status = status
@@ -157,12 +237,14 @@ class ProjectTracker:
                 if drift_status is not None: project.drift_status = drift_status
                 if flags is not None: project.flags = flags
                 if owner_id is not None: project.owner_id = owner_id
+                if org_id is not None: project.org_id = org_id
                 if healing_rounds_taken is not None: project.healing_rounds_taken = healing_rounds_taken
                 if run_duration is not None: project.run_duration = run_duration
                 if errors_encountered is not None: project.errors_encountered = errors_encountered
                 if patterns_applied is not None: project.patterns_applied = patterns_applied
                 if qa_report is not None: project.qa_report = qa_report
                 if reflection_advice is not None: project.reflection_advice = reflection_advice
+                if decision_trace is not None: project.decision_trace = decision_trace
             
             session.commit()
             return ProjectTracker.load(slug)
@@ -206,23 +288,32 @@ class ProjectTracker:
                     "errors_encountered": project.errors_encountered,
                     "patterns_applied": project.patterns_applied,
                     "reflection_advice": project.reflection_advice,
+                    "decision_trace": project.decision_trace or [],
                     "qa_report": project.qa_report,
-                    "created_at": project.created_at.isoformat(),
-                    "updated_at": project.updated_at.isoformat()
+                    "owner_id": project.owner_id,
+                    "org_id": project.org_id,
+                    "created_at": project.created_at.isoformat() if project.created_at else "",
+                    "updated_at": project.updated_at.isoformat() if project.updated_at else ""
                 }
             return None
         finally:
             session.close()
 
     @staticmethod
-    def load_all(owner_id=None):
-        """Load all projects from DB. Optionally filter by owner."""
+    def load_all(owner_id=None, org_id=None):
+        """Load projects from DB based on Personal vs Organization scope."""
         session = SessionLocal()
         try:
             query = session.query(ProjectModel)
-            if owner_id:
-                # Show projects owned by user OR unassigned projects (legacy/CLI)
-                query = query.filter((ProjectModel.owner_id == owner_id) | (ProjectModel.owner_id == None))
+            if org_id is not None:
+                # Load organization-scoped projects
+                query = query.filter(ProjectModel.org_id == org_id)
+            elif owner_id is not None:
+                # Load personal projects (owned by user and not assigned to an org) OR legacy unassigned projects
+                query = query.filter(
+                    (ProjectModel.org_id == None) & 
+                    ((ProjectModel.owner_id == owner_id) | (ProjectModel.owner_id == None))
+                )
             projects = query.order_by(ProjectModel.updated_at.desc()).all()
             return [
                 {
@@ -236,8 +327,9 @@ class ProjectTracker:
                     "drift_status": p.drift_status,
                     "healing_rounds_taken": p.healing_rounds_taken,
                     "run_duration": p.run_duration,
-                    "updated_at": p.updated_at.isoformat(),
-                    "owner_id": p.owner_id
+                    "updated_at": p.updated_at.isoformat() if p.updated_at else "",
+                    "owner_id": p.owner_id,
+                    "org_id": p.org_id
                 } for p in projects
             ]
         finally:
@@ -326,3 +418,141 @@ class UserTracker:
             return user
         finally:
             session.close()
+
+
+class OrgTracker:
+    @staticmethod
+    def create_organization(name, owner_id):
+        session = SessionLocal()
+        try:
+            slug = re.sub(r'[^a-z0-9\-]', '', name.lower().replace(' ', '-'))
+            if not slug:
+                slug = "org-" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+            
+            existing = session.query(OrganizationModel).filter(OrganizationModel.slug == slug).first()
+            if existing:
+                return None
+                
+            org = OrganizationModel(name=name, slug=slug, owner_id=owner_id)
+            session.add(org)
+            session.commit()
+            session.refresh(org)
+            
+            # Automatically add owner as 'owner' role in org_members
+            member = OrgMemberModel(org_id=org.id, user_id=owner_id, role="owner")
+            session.add(member)
+            session.commit()
+            
+            return {
+                "id": org.id,
+                "name": org.name,
+                "slug": org.slug,
+                "owner_id": org.owner_id,
+                "role": "owner"
+            }
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_user_organizations(user_id):
+        session = SessionLocal()
+        try:
+            memberships = session.query(OrgMemberModel).filter(OrgMemberModel.user_id == user_id).all()
+            results = []
+            for m in memberships:
+                org = session.query(OrganizationModel).filter(OrganizationModel.id == m.org_id).first()
+                if org:
+                    results.append({
+                        "id": org.id,
+                        "name": org.name,
+                        "slug": org.slug,
+                        "owner_id": org.owner_id,
+                        "role": m.role,
+                        "created_at": org.created_at.isoformat() if org.created_at else ""
+                    })
+            return results
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_org_by_id(org_id):
+        session = SessionLocal()
+        try:
+            org = session.query(OrganizationModel).filter(OrganizationModel.id == org_id).first()
+            if org:
+                return {
+                    "id": org.id,
+                    "name": org.name,
+                    "slug": org.slug,
+                    "owner_id": org.owner_id
+                }
+            return None
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_user_role(org_id, user_id):
+        session = SessionLocal()
+        try:
+            member = session.query(OrgMemberModel).filter(
+                OrgMemberModel.org_id == org_id,
+                OrgMemberModel.user_id == user_id
+            ).first()
+            return member.role if member else None
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_members(org_id):
+        session = SessionLocal()
+        try:
+            members = session.query(OrgMemberModel).filter(OrgMemberModel.org_id == org_id).all()
+            res = []
+            for m in members:
+                user = session.query(UserModel).filter(UserModel.id == m.user_id).first()
+                if user:
+                    res.append({
+                        "user_id": user.id,
+                        "username": user.username,
+                        "email": user.email,
+                        "role": m.role,
+                        "joined_at": m.created_at.isoformat() if m.created_at else ""
+                    })
+            return res
+        finally:
+            session.close()
+
+    @staticmethod
+    def add_member(org_id, user_id, role="member"):
+        session = SessionLocal()
+        try:
+            existing = session.query(OrgMemberModel).filter(
+                OrgMemberModel.org_id == org_id,
+                OrgMemberModel.user_id == user_id
+            ).first()
+            if existing:
+                existing.role = role
+            else:
+                member = OrgMemberModel(org_id=org_id, user_id=user_id, role=role)
+                session.add(member)
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    @staticmethod
+    def remove_member(org_id, user_id):
+        session = SessionLocal()
+        try:
+            member = session.query(OrgMemberModel).filter(
+                OrgMemberModel.org_id == org_id,
+                OrgMemberModel.user_id == user_id
+            ).first()
+            if member:
+                session.delete(member)
+                session.commit()
+                return True
+            return False
+        finally:
+            session.close()
+

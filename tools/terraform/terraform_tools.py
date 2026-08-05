@@ -180,6 +180,116 @@ class TerraformTools:
         except Exception as e:
             return f"Search error occurred: {str(e)}"
 
+    @staticmethod
+    def extract_and_write_files_from_text(text: str, project_slug: str = "workspace") -> list:
+        """Parses markdown code blocks from a text response and writes them to the workspace.
+        This serves as a robust fallback when an LLM fails to use the tool but outputs the code.
+        """
+        import re
+        import json
+        slug = TerraformTools._sanitize_slug(project_slug)
+        
+        log_chunks = []
+        
+        # Manual string-based unescaper to find and decode all "logs" field values
+        idx = 0
+        while True:
+            idx = text.find('"logs": "', idx)
+            if idx == -1:
+                break
+            idx += 9  # Move past '"logs": "'
+            
+            start_str = idx
+            while True:
+                end_quote = text.find('"', idx)
+                if end_quote == -1:
+                    break
+                # Count backslashes preceding this quote to see if it's escaped
+                bs_count = 0
+                temp_idx = end_quote - 1
+                while temp_idx >= start_str and text[temp_idx] == '\\':
+                    bs_count += 1
+                    temp_idx -= 1
+                if bs_count % 2 == 0:
+                    # Closing quote found
+                    chunk = text[start_str:end_quote]
+                    try:
+                        decoded = json.loads('"' + chunk + '"')
+                        log_chunks.append(decoded)
+                    except Exception:
+                        # Fallback manual replacement
+                        decoded = chunk.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace('\\\\', '\\')
+                        log_chunks.append(decoded)
+                    idx = end_quote + 1
+                    break
+                else:
+                    idx = end_quote + 1
+        
+        if log_chunks:
+            text = "\n".join(log_chunks)
+        
+        # Clean terminal box borders (like │ and ╭) from the text, which break the regex
+        cleaned_lines = []
+        for line in text.splitlines():
+            line_str = line.strip()
+            if line_str.startswith(("╭", "╰", "├", "╘", "╓", "╙", "╒", "┌", "└", "─", "╪", "═")):
+                continue
+            if line_str.startswith("│"):
+                content = line_str[1:]
+                if content.startswith("  "):
+                    content = content[2:]
+                elif content.startswith(" "):
+                    content = content[1:]
+                if content.endswith("│"):
+                    content = content[:-1].rstrip()
+                cleaned_lines.append(content)
+            else:
+                cleaned_lines.append(line)
+        text = "\n".join(cleaned_lines)
+        
+        # Find all code blocks starting with ```hcl, ```terraform, ```tf, etc.
+        # Use (?:\n|$) for the closing backticks so it doesn't accidentally match the opening ```hcl of the next block
+        code_blocks = list(re.finditer(r'```([a-zA-Z0-9]+)?\n(.*?)\n```(?:\n|$)', text, re.DOTALL))
+        written = []
+        for match in code_blocks:
+            lang = (match.group(1) or "").lower()
+            content = match.group(2).strip()
+            
+            # Skip blocks that are explicitly not Terraform/HCL (e.g. mermaid, json, yaml, md)
+            if lang in ["mermaid", "json", "markdown", "md", "yaml", "yml", "bash", "sh", "txt"]:
+                continue
+                
+            # Skip empty blocks or obviously non-code blocks
+            if not content or len(content) < 10:
+                continue
+
+            filename = None
+            # Look backwards from the start of the code block for a markdown filename (e.g., `main.tf`)
+            start_pos = match.start()
+            prev_text = text[max(0, start_pos-200):start_pos]
+            preceding_matches = re.findall(r'([a-zA-Z0-9_-]+\.(?:tf|tfvars|md|json))', prev_text)
+            
+            if preceding_matches:
+                filename = preceding_matches[-1]
+            else:
+                # Try to find a filename comment like `# main.tf` or `// variables.tf` inside the code
+                filename_match = re.search(r'^[/#\s]+([a-zA-Z0-9_-]+\.(?:tf|tfvars|md|json))(?:\s|$)', content, re.MULTILINE)
+                if filename_match:
+                    filename = filename_match.group(1)
+                else:
+                    filename = f"extracted_{start_pos}.tf"
+                    
+            # Exclude non-project files like the financial report or mermaid diagrams
+            if filename.lower() in ["financial_report.md", "mermaid.js", "mermaid.md"]:
+                continue
+            
+            # Write using the standard method to ensure HCL sanitization and directories are created
+            res = TerraformTools._write_terraform_file(filename, content, slug)
+            if "Successfully wrote" in res:
+                written.append(filename)
+                
+        return written
+
 
     # --- Tool Wrappers for CrewAI ---
 

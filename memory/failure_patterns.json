@@ -9,7 +9,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "BucketAlreadyOwnedByYou",
@@ -20,7 +21,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "InvalidParameterValue",
@@ -31,7 +33,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "AccessDenied",
@@ -42,7 +45,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "UnauthorizedAccess",
@@ -53,7 +57,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "UnsupportedAvailabilityZoneException",
@@ -64,7 +69,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "ResourceNotFoundException",
@@ -75,7 +81,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "InvalidSubnetID.NotFound",
@@ -86,7 +93,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "InvalidGroup.NotFound",
@@ -97,7 +105,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "DependencyViolation",
@@ -108,7 +117,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "EntityAlreadyExists",
@@ -119,7 +129,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "LimitExceededException",
@@ -130,7 +141,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "Error: Reference to undeclared resource",
@@ -141,7 +153,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "Error: Unsupported block type",
@@ -152,7 +165,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "Error: Missing required argument",
@@ -163,7 +177,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "Error: Unsupported argument",
@@ -174,7 +189,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "Error: Invalid provider configuration",
@@ -185,7 +201,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "No valid credential sources found",
@@ -196,7 +213,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "Error: Cycle",
@@ -207,7 +225,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "timeout while waiting",
@@ -218,7 +237,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "The \";\" character is not valid",
@@ -229,7 +249,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "A single-line block definition must end with a closing brace",
@@ -240,7 +261,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "Missing newline after argument",
@@ -251,7 +273,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "At least two subnets in different Availability Zones",
@@ -262,7 +285,8 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z"
+      "last_used": "2026-05-31T18:53:27Z",
+      "status": "trusted"
     },
     {
       "error_substring": "MockError123",
@@ -273,7 +297,20 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 0.8,
-      "last_used": "2026-05-31T15:44:02.859188Z"
+      "last_used": "2026-06-18T17:44:16.013984Z",
+      "status": "trusted"
+    },
+    {
+      "error_substring": "disable_bgp_route_propagation",
+      "category": "azurerm_v4_compatibility",
+      "severity": "HIGH",
+      "description": "The argument 'disable_bgp_route_propagation' was deprecated/removed in azurerm provider v4+.",
+      "fix": "Remove 'disable_bgp_route_propagation = false' from 'azurerm_route_table' or replace it with 'bgp_route_propagation_enabled = true' if BGP route propagation is required.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "last_used": "2026-08-02T06:20:00Z",
+      "status": "trusted"
     }
   ]
 }

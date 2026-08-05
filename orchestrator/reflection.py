@@ -122,7 +122,8 @@ def reflect_on_error(error_text: str, project_slug: str) -> Optional[Dict[str, s
         logger.info(f"[Reflection] Performing documentation search for: '{search_query}'")
         try:
             from tools.terraform.terraform_tools import TerraformTools
-            search_results = TerraformTools._search_terraform_documentation(search_query)
+            raw_search_results = TerraformTools._search_terraform_documentation(search_query)
+            search_results = _rank_and_filter_snippets(raw_search_results, search_query)
         except Exception as e:
             logger.warning(f"[Reflection] Search failed: {e}")
 
@@ -146,12 +147,14 @@ Your task is to:
 1. Explain the exact cause of the error (be specific about which argument, resource, or block is wrong).
 2. Write a clear, developer-facing fix advice (e.g. "Ensure the subnet CIDR block is defined as a variable instead of being hardcoded in the subnets block").
 3. Provide the exact corrected code snippet for the failing resource/block.
+4. Estimate your confidence in this solution as a float between 0.0 (completely unsure) and 1.0 (absolutely certain).
 
 Return the output strictly in the following JSON format:
 {{
   "cause": "...",
   "fix_advice": "...",
-  "corrected_snippet": "..."
+  "corrected_snippet": "...",
+  "confidence": 0.85
 }}
 """
     try:
@@ -166,11 +169,27 @@ Return the output strictly in the following JSON format:
         
         # Verify keys
         if "cause" in parsed and "fix_advice" in parsed and "corrected_snippet" in parsed:
-            logger.info(f"[Reflection] Successfully generated advice for slug '{project_slug}'.")
+            confidence = parsed.get("confidence", 1.0)
+            try:
+                confidence = float(confidence)
+            except (ValueError, TypeError):
+                confidence = 1.0
+                
+            logger.info(f"[Reflection] Generated advice for slug '{project_slug}' with confidence {confidence}.")
+            if confidence < 0.6:
+                logger.warning(f"[Reflection] Discarded: confidence {confidence} is below threshold (0.6).")
+                return None
+                
+            snippet = parsed["corrected_snippet"]
+            if not validate_hcl_syntax(snippet):
+                logger.warning(f"[Reflection] Discarded: HCL bracket syntax validation failed on suggested snippet.")
+                return None
+                
             return {
                 "cause": parsed["cause"],
                 "fix_advice": parsed["fix_advice"],
-                "corrected_snippet": parsed["corrected_snippet"]
+                "corrected_snippet": snippet,
+                "confidence": confidence
             }
         else:
             logger.warning("[Reflection] Error: JSON returned was missing required keys.")
@@ -210,3 +229,60 @@ def _find_referenced_files(error_text: str, project_dir: str) -> List[str]:
                             found_files.append(match_path)
 
     return found_files
+
+
+def _rank_and_filter_snippets(search_results: str, query: str) -> str:
+    """Ranks documentation search snippets by keyword relevance and returns the top 2-3."""
+    if not search_results or "No relevant documentation" in search_results:
+        return ""
+        
+    # Split into individual snippets
+    raw_snippets = [s.strip() for s in search_results.split("\n\n") if s.strip()]
+    
+    # Tokenize query, filter out common stop words
+    stop_words = {"terraform", "error", "failed", "in", "the", "is", "a", "on", "line", "not", "expected", "unsupported", "argument", "invalid"}
+    query_tokens = [t.lower() for t in re.findall(r'\b\w+\b', query) if t.lower() not in stop_words]
+    
+    if not query_tokens:
+        # Fall back to using the full query words if all are stop words
+        query_tokens = [t.lower() for t in re.findall(r'\b\w+\b', query)]
+        
+    scored_snippets = []
+    for snippet in raw_snippets:
+        # Strip leading "- " if present
+        clean_snippet = snippet
+        if clean_snippet.startswith("- "):
+            clean_snippet = clean_snippet[2:]
+            
+        snippet_lower = clean_snippet.lower()
+        score = 0
+        for token in query_tokens:
+            if token in snippet_lower:
+                score += 1
+                
+        scored_snippets.append((score, clean_snippet))
+        
+    # Sort descending by score
+    scored_snippets.sort(key=lambda x: x[0], reverse=True)
+    
+    # Take top 3 snippets
+    top_snippets = [item[1] for item in scored_snippets[:3]]
+    
+    return "\n\n".join(f"- {s}" for s in top_snippets)
+
+
+def validate_hcl_syntax(snippet: str) -> bool:
+    """Sanity check to verify basic HCL syntax (balanced braces/brackets)."""
+    stack = []
+    brackets = {'{': '}', '[': ']', '(': ')'}
+    for char in snippet:
+        if char in brackets:
+            stack.append(char)
+        elif char in brackets.values():
+            if not stack:
+                return False
+            # Find matching open bracket
+            matching_open = next(k for k, v in brackets.items() if v == char)
+            if stack.pop() != matching_open:
+                return False
+    return len(stack) == 0

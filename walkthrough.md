@@ -190,4 +190,14 @@ To resolve the transient `502 - Invalid URL` error returned by OpenRouter's gene
 - **File modified:** [pattern_manager.py](file:///c:/Users/User/Music/Terraform-AI-Agent/memory/pattern_manager.py)
   - Added strict `CRITICAL` anti-hallucination instructions to the self-learning extraction prompt to ensure that extracted error substrings and fix advice are based strictly on parameters present in the raw error logs and applied fixes, preventing parameter confusion (e.g., confusing `enable_auto_scaling` with `enable_node_public_ip`) in future automated learning cycles.
 
+### 5. OpenAI/Groq API Key Cross-Routing Alignment (gpt-oss-120b)
+- **File modified:** [config.py](file:///c:/Users/User/Music/Terraform-AI-Agent/llm/config.py)
+  - Patched `get_llm()`, `_patched_litellm_completion()`, and `_patched_openai_chat_create()` to automatically intercept `openai/gpt-oss-120b` (or any model containing `gpt-oss-120b`) requests.
+  - If a Groq API key is used (starting with `gsk_` or configured as `GROQ_API_KEY`), the model routing automatically prepends the `groq/` provider identifier and switches the base request endpoint to Groq's OpenAI-compatible API gateway (`https://api.groq.com/openai/v1`).
+  - If an OpenRouter API key is used instead, it automatically routes the request to OpenRouter's gateway (`https://openrouter.ai/api/v1`).
+  - This prevents `openai.AuthenticationError (401 - invalid_api_key)` errors caused by sending Groq key-authenticated requests directly to official OpenAI API servers.
+  - Added stripping of prompt caching parameters (`cache_breakpoint` and `cache_control`) from request message dictionaries when routing to Groq or Mistral. This resolves the `BadRequestError` exception thrown by the Groq API due to unsupported caching properties inside the system messages.
+
+
+
 

@@ -14,10 +14,11 @@ A powerful, interactive, and modular AI system designed to generate enterprise-g
 - **Failure Pattern Memory & Self-Learning**: When Terraform errors are successfully resolved via retries, the system triggers an LLM self-learning loop to automatically extract the root cause and update `failure_patterns.json` dynamically, continuously expanding its own knowledge bank.
 - **Universal LLM Support**: Powered by **LiteLLM**, allowing you to swap between 100+ providers (Gemini, Groq, Mistral, OpenAI) via a single `.env` setting or the Web UI.
 - **Web Dashboard**: Full-featured Flask dashboard with user authentication, project management, live agent log streaming, visual topology (Mermaid.js), and FinOps reports.
-- **Modular by Default**: Automatically generates "Root + Modules" structures (e.g., separate VPC, EKS, and IAM modules) following HashiCorp best practices.
-- **AI Self-Healing**: The system automatically identifies security vulnerabilities and live deployment errors, initiating autonomous "Fix Rounds" to resolve them — now powered by **dynamic LLM reflection** and **autonomous web-search documentation lookup** to resolve API/provider changes dynamically.
+- **Modular by Default**: Automatically generates organized "Root + Submodules" structures under the `modules/` directory (e.g. `modules/networking/`, `modules/aks/`) for any multi-resource projects, guaranteeing high-quality, reusable Terraform code.
+- **AI Self-Healing & Web-Search**: The system automatically identifies security vulnerabilities and live deployment errors, initiating autonomous "Fix Rounds" to resolve them — powered by **dynamic LLM reflection** and **autonomous web-search documentation lookup** to resolve API/provider changes dynamically.
+- **Hallucination & Code Block Filtering**: Safe HCL code extraction ignores non-HCL syntax blocks (like Mermaid, JSON, Bash) and automatically purges text placeholders while safely preserving valid, small `.tf` files (such as inputs/outputs/versions).
 - **Unified Security Engine**: Dual-engine auditing using **Checkov** for deep analysis and **tfsec** for high-speed checks.
-- **Financial Intelligence**: Integrated **Infracost** to provide instant monthly cost projections and budget guardrails.
+- **Financial Intelligence & Fallback Reporting**: Integrated **Infracost** monthly cost projections. If the chosen LLM fails to run the FinOps agent, the orchestrator automatically runs `CostEstimator` as a fallback, ensuring the user always gets a detailed cost breakdown and compliance report.
 - **Live Deployment**: The **Deployment Specialist** agent executes `terraform apply` and resolves cloud provider errors in real-time.
 
 ---
@@ -180,4 +181,4 @@ terraform-ai-agent/
 
 ---
 
-*Last Updated: 2026-05-24*
+*Last Updated: 2026-07-03*

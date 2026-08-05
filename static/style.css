@@ -963,3 +963,104 @@ pre {
     font-style: italic;
 }
 
+/* --- Decision Trace Styles --- */
+.trace-section {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 2rem;
+    margin-top: 1.5rem;
+}
+
+.trace-section h3 {
+    margin-bottom: 1.25rem;
+    font-size: 1.2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.decision-trace-flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 1.25rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+}
+
+.trace-step-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.trace-step-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.trace-step-badge.badge-started {
+    background: rgba(59, 130, 246, 0.15);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.trace-step-badge.badge-failed {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.trace-step-badge.badge-success {
+    background: rgba(16, 185, 129, 0.15);
+    color: #a7f3d0;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.trace-step-badge.badge-reflection {
+    background: rgba(139, 92, 246, 0.15);
+    color: #ddd6fe;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.trace-step-badge.badge-search {
+    background: rgba(168, 85, 247, 0.15);
+    color: #e9d5ff;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.trace-step-badge.badge-pattern {
+    background: rgba(249, 115, 22, 0.15);
+    color: #ffedd5;
+    border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.trace-step-badge.badge-apply {
+    background: rgba(236, 72, 153, 0.15);
+    color: #fbcfe8;
+    border: 1px solid rgba(236, 72, 153, 0.3);
+}
+
+.trace-step-badge.badge-default {
+    background: rgba(148, 163, 184, 0.15);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.trace-arrow {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+}
+

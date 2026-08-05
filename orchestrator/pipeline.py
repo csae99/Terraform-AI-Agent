@@ -140,6 +140,7 @@ def run_full_pipeline(
     model_name: str = None,
     model_key: str = None,
     owner_id: str = None,
+    org_id: int = None,
     new_project: bool = False,
     cli_flags: list = None,
     test_local: bool = False,
@@ -155,6 +156,11 @@ def run_full_pipeline(
     import time as _time_perf
     start_time = _time_perf.time()
     is_test_local = test_local or os.environ.get("TEST_LOCAL") == "true" or "--test-local" in (cli_flags or [])
+    if not org_id and os.environ.get("org_id"):
+        try:
+            org_id = int(os.environ.get("org_id"))
+        except ValueError:
+            pass
 
     if cli_flags is None:
         cli_flags = []
@@ -215,6 +221,7 @@ def run_full_pipeline(
         flags=cli_flags,
         mermaid_diagram=mermaid_diagram,
         owner_id=owner_id,
+        org_id=org_id,
         healing_rounds_taken=1,
         run_duration=0.0,
         errors_encountered=[],
@@ -224,10 +231,12 @@ def run_full_pipeline(
 
     # ── 2. Development & Audit Loop (self-healing) ───────────────
     retry = RetryContext(max_rounds=3)
+    retry.record_decision("pipeline_started")
     is_deployed = False
 
     while retry.has_retries_left:
         print(f"\n--- Round {retry.current_round}: Development & Audit ---")
+        retry.record_decision(f"round_{retry.current_round}_started")
 
         developer_agent = developer_agent_cls.get_agent()
         auditor_agent = auditor_agent_cls.get_agent()
@@ -287,18 +296,104 @@ def run_full_pipeline(
             verbose=True,
         )
 
-        try:
-            crew_result = str(crew_dev.kickoff())
-        except Exception as e:
-            print(f"\n[!] Developer Crew failed with error: {str(e)}")
+        # ── Crew kickoff with rate-limit-aware retry ─────────────
+        import re as _re
+        import time as _time_sleep
+        MAX_CREW_RETRIES = 3
+        crew_result = None
+        crew_succeeded = False
+
+        for crew_attempt in range(1, MAX_CREW_RETRIES + 1):
+            try:
+                crew_result = str(crew_dev.kickoff())
+                retry.record_decision("fix_applied")
+                # Fallback: Extract and write files from the developer's output if tools were not called
+                if dev_task.output and dev_task.output.raw:
+                    extracted = TerraformTools.extract_and_write_files_from_text(dev_task.output.raw, slug)
+                    if extracted:
+                        print(f"Fallback Extractor: Successfully extracted and wrote {len(extracted)} files from Developer response: {extracted}")
+                crew_succeeded = True
+                break
+            except Exception as e:
+                error_str = str(e)
+                error_lower = error_str.lower()
+                is_rate_limit = any(kw in error_lower for kw in [
+                    "429", "quota", "exhausted", "rate", "resource_exhausted",
+                    "rate-limited", "limit", "too many requests"
+                ])
+
+                if is_rate_limit and crew_attempt < MAX_CREW_RETRIES:
+                    # Parse exact wait time from Google's error response
+                    wait_time = 30  # safe default
+                    match_secs = _re.search(r"retry\s+in\s+([\d\.]+)\s*s", error_lower)
+                    match_delay = _re.search(r"['\"]retryDelay['\"]\s*:\s*['\"](\d+)s?['\"]", error_lower)
+                    if match_secs:
+                        wait_time = float(match_secs.group(1)) + 2.0
+                    elif match_delay:
+                        wait_time = float(match_delay.group(1)) + 2.0
+
+                    print(f"\n⏳ [Rate Limit] Crew attempt {crew_attempt}/{MAX_CREW_RETRIES} hit rate limit. "
+                          f"Waiting {wait_time:.1f}s before retrying...")
+                    retry.record_decision(f"crew_rate_limited_attempt_{crew_attempt}")
+                    _time_sleep.sleep(wait_time)
+
+                    # Recreate crew for a fresh kickoff (CrewAI doesn't support re-kicking a failed crew)
+                    developer_agent = developer_agent_cls.get_agent()
+                    dev_task = TerraformGenerationTasks.write_terraform_task(
+                        developer_agent, slug, arch_result, error_guidance
+                    )
+                    active_tasks = [dev_task, audit_task, cost_task]
+                    active_agents = [developer_agent, auditor_agent, finops_agent]
+                    if deploy_task:
+                        deployer_agent = deployer_agent_cls.get_agent()
+                        deploy_task = TerraformDeploymentTasks.deployment_task(deployer_agent, slug)
+                        active_tasks.append(deploy_task)
+                        active_agents.append(deployer_agent)
+                    if testing_task:
+                        testing_agent = testing_agent_cls.get_agent()
+                        testing_task = TerraformTestingTasks.behavior_testing_task(testing_agent, slug)
+                        active_tasks.append(testing_task)
+                        active_agents.append(testing_agent)
+                    crew_dev = Crew(
+                        agents=active_agents,
+                        tasks=active_tasks,
+                        process=Process.sequential,
+                        verbose=True,
+                    )
+                    continue
+                else:
+                    # Non-rate-limit error or exhausted retries — fail permanently
+                    print(f"\n[!] Developer Crew failed with error: {error_str}")
+                    retry.record_decision("crew_execution_failed")
+                    run_duration = _time_perf.time() - start_time
+                    ProjectTracker.save(
+                        slug,
+                        status="failed",
+                        healing_rounds_taken=retry.current_round,
+                        run_duration=round(run_duration, 2),
+                        errors_encountered=retry.errors + [f"Crew execution failed: {error_str}"],
+                        reflection_advice=getattr(retry, "reflection_advice", None),
+                        decision_trace=retry.decision_trace
+                    )
+                    return {
+                        "slug": slug,
+                        "status": "failed",
+                        "estimated_cost": "0.00",
+                        "security_issues": 0,
+                    }
+
+        if not crew_succeeded:
+            print(f"\n[!] Developer Crew failed after {MAX_CREW_RETRIES} rate-limit retries.")
+            retry.record_decision("crew_execution_failed_after_retries")
             run_duration = _time_perf.time() - start_time
             ProjectTracker.save(
                 slug,
                 status="failed",
                 healing_rounds_taken=retry.current_round,
                 run_duration=round(run_duration, 2),
-                errors_encountered=retry.errors + [f"Crew execution failed: {str(e)}"],
-                reflection_advice=getattr(retry, "reflection_advice", None)
+                errors_encountered=retry.errors + ["Crew failed: rate limit retries exhausted"],
+                reflection_advice=getattr(retry, "reflection_advice", None),
+                decision_trace=retry.decision_trace
             )
             return {
                 "slug": slug,
@@ -338,6 +433,11 @@ def run_full_pipeline(
                     verbose=True,
                 )
                 completion_crew.kickoff()
+                # Fallback: Extract and write files from the completion response if tools were not called
+                if completion_task.output and completion_task.output.raw:
+                    extracted = TerraformTools.extract_and_write_files_from_text(completion_task.output.raw, slug)
+                    if extracted:
+                        print(f"Fallback Extractor: Successfully extracted and wrote {len(extracted)} files from Completion response: {extracted}")
             except Exception as comp_err:
                 print(f"\n[!] Completion retry {completion_attempt + 1} failed: {comp_err}")
         else:
@@ -357,19 +457,28 @@ def run_full_pipeline(
         # Ensure terraform is syntactically valid before considering this round a success
         val_result = TerraformTools._validate_terraform_code(slug)
         if "Failed" in val_result:
+            retry.record_decision("terraform_validation_failed")
             if should_retry(val_result):
                 print(f"\n[!] Terraform Validation Failed. Retrying...")
                 
-                # Dynamic LLM Reflection fallback trigger
+                # Enforce Priority Routing:
+                # 1. Trusted matches first (no reflection)
+                # 2. Candidate matches second (no reflection)
+                # 3. Dynamic reflection fallback if no hits or if previous round failed
                 pm = _get_pattern_manager()
-                has_pattern = False
+                trusted_hits = []
+                candidate_hits = []
                 if pm:
-                    hits = pm.match(val_result)
-                    if hits:
-                        has_pattern = True
+                    trusted_hits = pm.match_trusted(val_result)
+                    candidate_hits = pm.match_candidates(val_result)
                 
-                if not has_pattern:
+                has_pattern = bool(trusted_hits or candidate_hits)
+                trigger_reflection = not has_pattern
+                
+                if trigger_reflection:
                     print("\n🔬 No static failure pattern matched. Triggering LLM Reflection...")
+                    retry.record_decision("reflection_triggered")
+                    retry.record_decision("search_triggered")
                     from orchestrator.reflection import reflect_on_error
                     ref_advice = reflect_on_error(val_result, slug)
                     if ref_advice:
@@ -377,19 +486,32 @@ def run_full_pipeline(
                         print(f"✅ Reflection Generated Advice: {ref_advice['fix_advice']}")
                 else:
                     retry.reflection_advice = None
+                    if trusted_hits:
+                        print(f"[Priority Routing] Matched Trusted Pattern(s): {[h['error_substring'] for h in trusted_hits]}")
+                        retry.record_decision("trusted_pattern_matched")
+                    elif candidate_hits:
+                        print(f"[Priority Routing] Matched Candidate Pattern(s): {[h['error_substring'] for h in candidate_hits]}")
+                        retry.record_decision("candidate_pattern_matched")
                 
                 retry.record_errors(f"Terraform validation failed: {val_result}")
                 retry.advance()
                 continue
             else:
                 print("\n[!] Hard stop or max retries reached. Validation failed.")
+                retry.record_decision("validation_failed")
                 retry.record_errors(f"Terraform validation failed (hard stop): {val_result}")
                 break
+        else:
+            retry.record_decision("terraform_validation_succeeded")
                 
         findings = audit_results.get("findings", [])
         critical_count = len(
             [f for f in findings if f.get("severity") in ["CRITICAL", "HIGH"]]
         )
+        if critical_count > 0:
+            retry.record_decision("security_audit_failed")
+        else:
+            retry.record_decision("security_audit_succeeded")
 
         # Track best state
         if retry.best_finding_count is None or critical_count < retry.best_finding_count:
@@ -418,11 +540,17 @@ def run_full_pipeline(
                         is_deployed = False
                 else:
                     is_deployed = False
+            
+            if is_deployed:
+                retry.record_decision("deployment_succeeded")
+            else:
+                retry.record_decision("deployment_failed")
 
         if critical_count == 0 and is_deployed:
             print(
                 "\n✅ Verification SUCCESS! No security issues and deployment is live."
             )
+            retry.record_decision("fix_succeeded")
             if retry.current_round > 1:
                 main_tf_path = os.path.join(output_base, "main.tf")
                 fix_applied_content = ""
@@ -456,14 +584,22 @@ def run_full_pipeline(
         pm = _get_pattern_manager()
         has_pattern = False
         if pm:
-            hits = pm.match(error_summary)
+            trusted_hits = pm.match_trusted(error_summary)
+            candidate_hits = pm.match_candidates(error_summary)
+            hits = trusted_hits + candidate_hits
             if hits:
                 has_pattern = True
                 for p in hits:
                     pm.decay_pattern(p["error_substring"])
+                if trusted_hits:
+                    retry.record_decision("trusted_pattern_matched")
+                else:
+                    retry.record_decision("candidate_pattern_matched")
                     
         if not has_pattern:
             print("\n🔬 No static failure pattern matched. Triggering LLM Reflection...")
+            retry.record_decision("reflection_triggered")
+            retry.record_decision("search_triggered")
             from orchestrator.reflection import reflect_on_error
             ref_advice = reflect_on_error(error_summary, slug)
             if ref_advice:
@@ -510,6 +646,7 @@ def run_full_pipeline(
             ).lower()
 
         if revert_choice == "y":
+            retry.record_decision("revert_triggered")
             TerraformTools._restore_workspace(slug, retry.best_backup)
             print(
                 f"Workspace reverted to best-known version with "
@@ -519,6 +656,16 @@ def run_full_pipeline(
     # ── 4. Final FinOps Report ───────────────────────────────────
     print("\nFinalizing Project Reports...")
     cost_results = estimator._execute_infracost(output_base)
+
+    report_path = os.path.join(output_base, "FINANCIAL_REPORT.md")
+    if not os.path.exists(report_path):
+        print(f"Fallback cost report: Generating FINANCIAL_REPORT.md dynamically at {report_path}...")
+        try:
+            report_content = estimator._build_markdown_report(cost_results, budget)
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(report_content)
+        except Exception as e:
+            print(f"Fallback cost report generation failed: {e}")
 
     total_cost = float(cost_results.get("total_monthly_cost", 0))
     budget_status = (
@@ -536,6 +683,8 @@ def run_full_pipeline(
     if do_apply and 'testing_task' in locals() and testing_task and hasattr(testing_task, "output") and testing_task.output:
         qa_report = str(testing_task.output.raw)
 
+    retry.record_decision("pipeline_completed")
+
     ProjectTracker.save(
         slug,
         prompt=prompt,
@@ -552,7 +701,8 @@ def run_full_pipeline(
         errors_encountered=retry.errors,
         patterns_applied=retry.patterns_applied,
         qa_report=qa_report,
-        reflection_advice=getattr(retry, "reflection_advice", None)
+        reflection_advice=getattr(retry, "reflection_advice", None),
+        decision_trace=retry.decision_trace
     )
 
     print("\n" + "=" * 50)

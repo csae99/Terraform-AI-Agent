@@ -3,10 +3,13 @@ let logInterval = null;
 let currentUser = null;
 let allProjects = [];
 let currentCodeFiles = {};
+let userOrgs = [];
+let activeOrgId = null;
 
 // ─── Init ───────────────────────────────────────────────────────
 async function init() {
     if (!await checkAuth()) return;
+    await fetchUserOrgs();
     await fetchStats();
     await fetchProjects();
 }
@@ -75,7 +78,8 @@ function switchPrimaryTab(tabId) {
 // ─── Stats ──────────────────────────────────────────────────────
 async function fetchStats() {
     try {
-        const response = await apiFetch('/api/stats');
+        const url = activeOrgId ? `/api/stats?org_id=${activeOrgId}` : '/api/stats';
+        const response = await apiFetch(url);
         const stats = await response.json();
         const container = document.getElementById('global-stats');
         container.innerHTML = `
@@ -92,7 +96,8 @@ async function fetchStats() {
 // ─── Projects ───────────────────────────────────────────────────
 async function fetchProjects() {
     try {
-        const response = await apiFetch('/api/projects');
+        const url = activeOrgId ? `/api/projects?org_id=${activeOrgId}` : '/api/projects';
+        const response = await apiFetch(url);
         allProjects = await response.json();
         const badge = document.getElementById('workspace-count');
         if (badge) badge.innerText = allProjects.length;
@@ -200,7 +205,14 @@ async function checkDrift() {
     }
 }
 
-function closeModal() { document.getElementById('project-modal').style.display = 'none'; }
+function closeModal(modalId) {
+    if (modalId) {
+        const el = document.getElementById(modalId);
+        if (el) el.style.display = 'none';
+    } else {
+        document.getElementById('project-modal').style.display = 'none';
+    }
+}
 
 async function deleteProject() {
     if (!currentProject) return;
@@ -370,6 +382,57 @@ async function switchModalTab(tabId) {
             html += '</div>';
             remediationContainer.innerHTML = html;
         }
+
+        // Render Decision Trace
+        const traceContainer = document.getElementById('diagnostics-decision-trace');
+        const trace = currentProject.decision_trace || [];
+        if (trace.length === 0) {
+            traceContainer.innerHTML = '<p class="text-muted">No trace records available.</p>';
+        } else {
+            let traceHtml = '<div class="decision-trace-flow">';
+            trace.forEach((step, idx) => {
+                let badgeClass = 'badge-default';
+                let stepLabel = step.replace(/_/g, ' ').toUpperCase();
+                let icon = '⚙️';
+                
+                if (step.includes('started')) {
+                    badgeClass = 'badge-started';
+                    icon = '🚀';
+                } else if (step.includes('failed')) {
+                    badgeClass = 'badge-failed';
+                    icon = '❌';
+                } else if (step.includes('succeeded') || step.includes('success')) {
+                    badgeClass = 'badge-success';
+                    icon = '✅';
+                } else if (step.includes('reflection')) {
+                    badgeClass = 'badge-reflection';
+                    icon = '🧠';
+                } else if (step.includes('search')) {
+                    badgeClass = 'badge-search';
+                    icon = '🔍';
+                } else if (step.includes('pattern')) {
+                    badgeClass = 'badge-pattern';
+                    icon = '📚';
+                } else if (step.includes('apply') || step.includes('applied')) {
+                    badgeClass = 'badge-apply';
+                    icon = '🔧';
+                }
+                
+                traceHtml += `
+                    <div class="trace-step-badge ${badgeClass}">
+                        <span>${icon}</span>
+                        <span>${stepLabel}</span>
+                    </div>
+                `;
+                if (idx < trace.length - 1) {
+                    traceHtml += `
+                        <span class="trace-arrow"><i class="fas fa-arrow-right"></i></span>
+                    `;
+                }
+            });
+            traceHtml += '</div>';
+            traceContainer.innerHTML = traceHtml;
+        }
         
         // Render QA Report
         const qaContainer = document.getElementById('diagnostics-qa-report');
@@ -494,10 +557,13 @@ async function generateInfra() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
         
+        const payload = { prompt, budget, apply, new_project, credentials, ai_config };
+        if (activeOrgId) payload.org_id = activeOrgId;
+
         const response = await apiFetch('/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, budget, apply, new_project, credentials, ai_config }),
+            body: JSON.stringify(payload),
             signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -575,6 +641,191 @@ function startPollingLogs() {
 
 function closeLiveModal() {
     document.getElementById('live-console-modal').style.display = 'none';
+}
+
+// ─── Organization & Workspace Context ───────────────────────────
+async function fetchUserOrgs() {
+    try {
+        const response = await apiFetch('/api/orgs');
+        userOrgs = await response.json();
+        populateWorkspaceSelector();
+    } catch (e) { console.error('Failed to fetch user orgs', e); }
+}
+
+function populateWorkspaceSelector() {
+    const select = document.getElementById('workspace-context-select');
+    if (!select) return;
+    // Preserve current selection
+    const prevVal = select.value;
+    select.innerHTML = '<option value="personal">👤 Personal Workspace</option>';
+    userOrgs.forEach(org => {
+        const roleLabel = org.role ? ` (${org.role.toUpperCase()})` : '';
+        select.innerHTML += `<option value="${org.id}">🏢 ${org.name}${roleLabel}</option>`;
+    });
+    // Restore selection if still valid
+    if (prevVal && select.querySelector(`option[value="${prevVal}"]`)) {
+        select.value = prevVal;
+    }
+    // Show/hide team button based on current context
+    const teamBtn = document.getElementById('btn-manage-team');
+    if (teamBtn) teamBtn.style.display = activeOrgId ? 'inline-flex' : 'none';
+}
+
+function handleWorkspaceContextChange() {
+    const select = document.getElementById('workspace-context-select');
+    const val = select.value;
+    if (val === 'personal') {
+        activeOrgId = null;
+    } else {
+        activeOrgId = parseInt(val);
+    }
+    const teamBtn = document.getElementById('btn-manage-team');
+    if (teamBtn) teamBtn.style.display = activeOrgId ? 'inline-flex' : 'none';
+    fetchStats();
+    fetchProjects();
+}
+
+// ─── Create Organization Modal ──────────────────────────────────
+function openCreateOrgModal() {
+    document.getElementById('new-org-name').value = '';
+    document.getElementById('modal-create-org').style.display = 'flex';
+}
+
+async function submitCreateOrg() {
+    const name = document.getElementById('new-org-name').value.trim();
+    if (!name) return showToast('Organization name is required.', 'error');
+    try {
+        const res = await apiFetch('/api/orgs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to create organization');
+        }
+        const org = await res.json();
+        showToast(`Organization "${org.name}" created!`, 'success');
+        closeModal('modal-create-org');
+        await fetchUserOrgs();
+        // Switch to the new org context
+        activeOrgId = org.id;
+        const select = document.getElementById('workspace-context-select');
+        if (select) select.value = String(org.id);
+        handleWorkspaceContextChange();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+// ─── Manage Team Members Modal ──────────────────────────────────
+function openManageTeamModal() {
+    if (!activeOrgId) return showToast('Select an organization first.', 'error');
+    const org = userOrgs.find(o => o.id === activeOrgId);
+    const titleEl = document.getElementById('org-modal-title-name');
+    if (titleEl && org) titleEl.innerText = org.name;
+    document.getElementById('invite-username').value = '';
+    document.getElementById('modal-manage-team').style.display = 'flex';
+    fetchOrgMembers();
+}
+
+async function fetchOrgMembers() {
+    if (!activeOrgId) return;
+    try {
+        const res = await apiFetch(`/api/orgs/${activeOrgId}/members`);
+        const members = await res.json();
+        const tbody = document.getElementById('org-members-tbody');
+        const currentOrg = userOrgs.find(o => o.id === activeOrgId);
+        const isAdmin = currentOrg && ['owner', 'admin'].includes(currentOrg.role);
+
+        if (!members.length) {
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:1rem;color:#888;text-align:center;">No members yet.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = members.map(m => {
+            const roleColor = m.role === 'owner' ? '#f59e0b' : m.role === 'admin' ? '#6366f1' : m.role === 'viewer' ? '#94a3b8' : '#22c55e';
+            const roleSelect = isAdmin && m.role !== 'owner'
+                ? `<select onchange="updateMemberRole(${m.user_id}, this.value)" style="background:#0f172a;color:#fff;border:1px solid #334155;border-radius:4px;padding:2px 6px;font-size:0.8rem;">
+                     <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
+                     <option value="member" ${m.role==='member'?'selected':''}>Member</option>
+                     <option value="viewer" ${m.role==='viewer'?'selected':''}>Viewer</option>
+                   </select>`
+                : `<span style="color:${roleColor};font-weight:600;text-transform:uppercase;font-size:0.8rem;">${m.role}</span>`;
+
+            const removeBtn = isAdmin && m.role !== 'owner'
+                ? `<button onclick="removeOrgMember(${m.user_id})" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#f87171;border-radius:4px;padding:3px 8px;font-size:0.75rem;cursor:pointer;">Remove</button>`
+                : '';
+
+            return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                <td style="padding:0.5rem;">${m.username}</td>
+                <td style="padding:0.5rem;color:#888;">${m.email || '—'}</td>
+                <td style="padding:0.5rem;">${roleSelect}</td>
+                <td style="padding:0.5rem;text-align:right;">${removeBtn}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to fetch org members', e);
+        showToast('Failed to load team members.', 'error');
+    }
+}
+
+async function submitAddMember() {
+    if (!activeOrgId) return;
+    const username = document.getElementById('invite-username').value.trim();
+    const role = document.getElementById('invite-role').value;
+    if (!username) return showToast('Enter a username to invite.', 'error');
+    try {
+        const res = await apiFetch(`/api/orgs/${activeOrgId}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, role })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to add member');
+        }
+        showToast(`Added ${username} as ${role}`, 'success');
+        document.getElementById('invite-username').value = '';
+        fetchOrgMembers();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+async function updateMemberRole(targetUserId, newRole) {
+    if (!activeOrgId) return;
+    try {
+        const res = await apiFetch(`/api/orgs/${activeOrgId}/members/${targetUserId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: newRole })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to update role');
+        }
+        showToast('Role updated successfully.', 'success');
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+async function removeOrgMember(targetUserId) {
+    if (!activeOrgId) return;
+    if (!confirm('Are you sure you want to remove this member from the organization?')) return;
+    try {
+        const res = await apiFetch(`/api/orgs/${activeOrgId}/members/${targetUserId}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to remove member');
+        }
+        showToast('Member removed.', 'success');
+        fetchOrgMembers();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
 }
 
 // ─── Boot ───────────────────────────────────────────────────────

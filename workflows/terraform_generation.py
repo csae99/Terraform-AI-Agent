@@ -5,13 +5,14 @@ class TerraformGenerationTasks:
     @staticmethod
     def design_architecture_task(agent, requirement):
         return Task(
-            description=f'Analyze the following infrastructure requirement and design a MINIMAL architecture.\n'
+            description=f'Analyze the following infrastructure requirement and design a MODULAR architecture.\n'
                         f'Requirement: {requirement}\n'
                         'IMPORTANT: DO NOT add NAT Gateways, Private Subnets, or Multi-AZ unless explicitly requested.\n'
                         '1. Identify necessary providers and resources.\n'
-                        '2. You MUST provide a **Mermaid.js diagram string** representing the architecture.\n'
-                        '3. The first line of your response must be: PROJECT_SLUG: <slug>\n'
-                        '   - The slug MUST be a descriptive kebab-case name derived from the requirement (e.g., "eks-public-cluster", "s3-versioned-bucket").\n'
+                        '2. You MUST design the project with a modular layout (Root calling submodules under `modules/` like `modules/networking/`, `modules/aks/`, etc.).\n'
+                        '3. You MUST provide a **Mermaid.js diagram string** representing the architecture.\n'
+                        '4. The first line of your response must be: PROJECT_SLUG: <slug>\n'
+                        '   - The slug MUST be a descriptive kebab-case name derived from the requirement.\n'
                         '   - NEVER use generic names like "terraform-project" or timestamps.\n'
                         '\n'
                         'EKS-SPECIFIC RULES:\n'
@@ -19,14 +20,14 @@ class TerraformGenerationTasks:
                         '- ALWAYS include IAM policy attachments (AmazonEKSClusterPolicy, AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryReadOnly, AmazonEKS_CNI_Policy).\n'
                         '- ALWAYS include security groups for the cluster and nodes.\n'
                         '- The design MUST include a `provider` block and `terraform { required_providers { } }` block.\n',
-            expected_output='A detailed architecture document including a Mermaid.js diagram block starting with ```mermaid. The first line must be: PROJECT_SLUG: <slug>',
+            expected_output='A detailed modular architecture document including a Mermaid.js diagram block starting with ```mermaid. The first line must be: PROJECT_SLUG: <slug>',
             agent=agent
         )
 
     @staticmethod
     def write_terraform_task(agent, project_slug, arch_result, error_guidance=""):
         desc = (
-            f'Based on the Architect\'s design, implement the Terraform project: {project_slug}.\n'
+            f'Based on the Architect\'s modular design, implement the Terraform project: {project_slug}.\n'
             f'--- ARCHITECTURE DESIGN ---\n{arch_result}\n---------------------------\n'
         )
         if error_guidance:
@@ -44,8 +45,10 @@ class TerraformGenerationTasks:
             '2. DO NOT WRITE PLAIN TEXT TERRAFORM. YOU MUST CALL THE TOOL.\n'
             '3. If you need to create 15 files, you MUST call the tool 15 times.\n'
             '4. If a "PREVIOUS ROUND FAILED" block is present, you MUST prioritize correcting the reported errors and applying the provided KNOWN FIX GUIDANCE or reflection advice. You MUST override the Architect design if it contradicts the required fix (e.g. if the design specifies "enable_auto_scaling = true" but the guidance instructs to rename it to "auto_scaling_enabled = true", you MUST apply the rename).\n'
-            '5. Structure: Root `main.tf` calling modules in `modules/` directory.\n'
-            '   Module sources MUST be relative path strings (e.g., source = "./modules/vpc").\n'
+            '5. STRICT MODULAR STRUCTURE REQUIREMENT:\n'
+            '   You MUST organize the code into logical submodules under the `modules/` directory (e.g., `./modules/networking`, `./modules/aks`, `./modules/acr`).\n'
+            '   The root `main.tf` must only call these modules. You MUST use the `Write Terraform File` tool to create `main.tf`, `variables.tf`, and `outputs.tf` for EACH module, as well as the root files.\n'
+            '   DO NOT write all resources flatly in the root directory.\n'
             '6. You MUST create a `README.md` in the project ROOT.\n'
             '\n'
             '## HCL FORMATTING (CRITICAL)\n'
@@ -60,7 +63,7 @@ class TerraformGenerationTasks:
             '  }\n'
             '\n'
             '## REQUIRED FILES\n'
-            '- Root files: Define the `terraform { required_providers { } }` block and `provider` block exactly once (e.g. in `versions.tf` or `main.tf`). DO NOT duplicate provider blocks across multiple files.\n'
+            '- Root files: Define the `terraform { required_providers { } }` block and `provider` block exactly once in `versions.tf` or root `main.tf`. DO NOT duplicate provider blocks in submodules.\n'
             '- Root `variables.tf`: Input variables (e.g., region).\n'
             '- Root `outputs.tf`: Key outputs (endpoints, IDs, ARNs).\n'
             '\n'
@@ -80,7 +83,7 @@ class TerraformGenerationTasks:
 
         return Task(
             description=desc,
-            expected_output=f'A fully populated modular project in output/{project_slug}/ consisting of multiple .tf files.',
+            expected_output=f'A fully populated modular project in output/{project_slug}/ consisting of root files and modules under the modules/ directory.',
             agent=agent
         )
 
