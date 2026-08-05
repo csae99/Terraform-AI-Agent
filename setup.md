@@ -1,4 +1,4 @@
-# Terraform AI Agent - Setup Guide (Phase 9)
+# Terraform AI Agent - Setup Guide (Phase 10)
 
 This guide provides step-by-step instructions for setting up the Universal Terraform AI Agent on both Windows and Linux.
 
@@ -150,6 +150,8 @@ Features:
 - **FinOps Presentation Layer**: Integrated with `marked.js` to parse cost estimation markdown files dynamically into responsive HTML tables, highlighting budget status compliances (danger/success) inside glowing glassmorphism alert cards.
 - **Workspace Explorer**: Browse generated projects with tabbed code viewers, visual Mermaid topology, version-controlled evolution diff comparisons, and raw deployment logs.
 - **User Authentication**: Secure user register, login, and project isolation database logic.
+- **Organization Workspaces** *(Phase 10)*: Create organizations, invite team members by username, assign roles (Owner/Admin/Member/Viewer), and switch between Personal and Org contexts seamlessly via the header dropdown.
+- **Team Management** *(Phase 10)*: Manage organization members with role-based permissions. Viewers are read-only; Members can generate infrastructure; Owners/Admins can invite and manage team members.
 
 ---
 
@@ -212,4 +214,4 @@ docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
 ```
 
 ---
-*Last Updated: 2026-05-24*
+*Last Updated: 2026-08-05*

@@ -1,6 +1,6 @@
-# 🤖 Multi-Agent Terraform Orchestration System (Phase 9)
+# 🤖 Multi-Agent Terraform Orchestration System (Phase 10)
 
-This document provides a deep dive into the **Phase 9 Multi-Agent Architecture** of the Terraform AI Agent. This system has evolved from a simple code generator into a full-lifecycle **Orchestrated Self-Healing Deployment Platform** with pattern-based failure intelligence, asynchronous execution queues, local cloud emulation, and continuous QA behavior validation.
+This document provides a deep dive into the **Phase 10 Multi-Agent Architecture** of the Terraform AI Agent. This system has evolved from a simple code generator into a full-lifecycle **Orchestrated Self-Healing Deployment Platform** with multi-tenant organization workspaces, role-based access control, pattern-based failure intelligence, asynchronous execution queues, local cloud emulation, and continuous QA behavior validation.
 
 ---
 
@@ -61,12 +61,22 @@ A failure pattern knowledge base that allows agents to remember fixes to common 
 | `failure_patterns.json` | Catalog of 20+ known error patterns (S3 naming, IAM permissions, dependency errors, syntax issues, provider misconfigs, timeouts) with categorized fix suggestions. |
 | `pattern_manager.py` | `PatternManager` class featuring lookup logic (`match()`, `format_advice()`) and `learn_from_run()` to extract and append new signatures automatically on retry success. |
 
+### Multi-Tenant Organization Layer (`tools/project/`)
+Enables GitHub-style multi-organization workspaces with team collaboration and RBAC.
+
+| Module | Purpose |
+| :--- | :--- |
+| `tracker.py` — `OrgTracker` | Organization CRUD: create orgs with auto-slugging, list user memberships, add/remove members with roles (owner/admin/member/viewer), check RBAC permissions. |
+| `tracker.py` — `ProjectTracker` | SQL-backed project metadata with `org_id` scoping. `load_all(org_id=X)` returns org-scoped projects; `load_all(owner_id=X)` returns personal projects. |
+| `tracker.py` — `UserTracker` | User registration, password hashing (Werkzeug), and session-based authentication. |
+| `tracker.py` — DB Models | `UserModel`, `OrganizationModel`, `OrgMemberModel` (junction table), `ProjectModel` (with `org_id` FK), `RunModel`, `JobModel`, `BillingUsageModel`. |
+
 ### Concurrency Queue Layer (`workers/` & `redis`)
 Ensures scalability under heavy loads by offloading blocking agent work to a job queue.
 
 | Module | Purpose |
 | :--- | :--- |
-| `celery_worker.py` | Celery app task wrapper (`run_agent_pipeline_task`) executing main script subprocesses asynchronously and streaming live console output line-by-line to Redis. |
+| `celery_worker.py` | Celery app task wrapper (`run_agent_pipeline_task`) executing main script subprocesses asynchronously and streaming live console output line-by-line to Redis. Passes `org_id` via environment variables. |
 | `redis` | Broker database holding the active task registry and the `logs:active-run` logs. |
 
 ---
@@ -162,6 +172,8 @@ python app/dashboard.py
 ```
 - **Asynchronous Execution**: Dispatches generation jobs to Celery workers in the background without blocking FastAPI.
 - **Live Agent Stream**: Real-time log streaming from Redis broker using Server-Sent Events (SSE).
+- **Organization Workspaces**: Header dropdown to switch between Personal and Organization contexts. Stats, projects, and generation all scope to the active workspace.
+- **Team Management**: Modal UI for inviting members by username, assigning roles (Admin/Member/Viewer), and removing team members. RBAC enforced server-side.
 
 ---
 
@@ -184,4 +196,20 @@ python app/dashboard.py
 
 ---
 
-*Last Updated: 2026-05-24*
+## 🏢 Organization & RBAC API
+
+| Endpoint | Method | Auth | Purpose |
+| :--- | :--- | :--- | :--- |
+| `/api/orgs` | GET | User | List all organizations the user belongs to |
+| `/api/orgs` | POST | User | Create a new organization (creator becomes Owner) |
+| `/api/orgs/{id}/members` | GET | Org Member | List all members and their roles |
+| `/api/orgs/{id}/members` | POST | Owner/Admin | Invite a registered user by username with a role |
+| `/api/orgs/{id}/members/{uid}` | PUT | Owner/Admin | Update a member's role |
+| `/api/orgs/{id}/members/{uid}` | DELETE | Owner/Admin | Remove a member from the organization |
+| `/api/projects?org_id=X` | GET | Org Member | List projects scoped to the organization |
+| `/api/stats?org_id=X` | GET | Org Member | Get dashboard metrics for the organization |
+| `/api/generate` | POST (with `org_id`) | Non-Viewer | Generate infrastructure in an organization context |
+
+---
+
+*Last Updated: 2026-08-05*

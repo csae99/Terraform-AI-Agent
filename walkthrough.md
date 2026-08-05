@@ -198,6 +198,26 @@ To resolve the transient `502 - Invalid URL` error returned by OpenRouter's gene
   - This prevents `openai.AuthenticationError (401 - invalid_api_key)` errors caused by sending Groq key-authenticated requests directly to official OpenAI API servers.
   - Added stripping of prompt caching parameters (`cache_breakpoint` and `cache_control`) from request message dictionaries when routing to Groq or Mistral. This resolves the `BadRequestError` exception thrown by the Groq API due to unsupported caching properties inside the system messages.
 
+### 6. Phase 10: Multi-Tenant Organizations & RBAC
+We implemented a GitHub-style Multi-Organization and team collaboration system with Role-Based Access Control (RBAC) to allow multi-tenant setups.
 
+- **Database Schema Upgrades (`tools/project/tracker.py`):**
+  - Added `OrgMemberModel` junction table with columns for `org_id`, `user_id`, `role`, and `created_at`.
+  - Added `OrganizationModel` columns for `slug` and `created_at` with relationships to org members and projects.
+  - Added `org_id` foreign key column to `ProjectModel` for scoping projects to specific organizations.
+  - Updated `_add_missing_columns()` to automatically run `ALTER TABLE` operations, injecting missing schema columns (`org_id`, `slug`, `created_at`) dynamically without losing existing SQLite records.
+  - Created the `OrgTracker` helper class to encapsulate organization CRUD, membership querying, team invitations, and role updates.
 
+- **Backend API & Scoping (`app/dashboard.py`):**
+  - Added six new organization endpoints for listing orgs, creating orgs, listing members, inviting members, updating roles, and removing members.
+  - Updated the `/api/projects` and `/api/stats` endpoints to accept an optional `org_id` query parameter, filtering workspace lists and metrics respectively.
+  - Gates generation actions on `/api/generate` to block members with the `viewer` role from triggering new infrastructure runs.
 
+- **Pipeline Scope Propagation (`orchestrator/pipeline.py` & `workers/celery_worker.py`):**
+  - Updated the orchestrator's `run_full_pipeline()` to accept an `org_id` parameter, persisting it to SQLite via `ProjectTracker.save()`.
+  - Modified the worker runner to extract `org_id` and pass it through environment variable scopes down to subprocesses.
+
+- **UI Front-end Workspace Integration (`static/index.html`, `static/app.js`):**
+  - Added a "Workspace Context" dropdown selector to the header navbar to switch contexts between "Personal Workspace" and any joined organizations.
+  - Added modals and forms for "Create Organization" and "Manage Team Members" (including role selector dropdowns and member removal).
+  - Wired JavaScript logic to dynamically toggle workspace visibility, query scoped stats/projects on switch, and block/permit action buttons based on user permissions.

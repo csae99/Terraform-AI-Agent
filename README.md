@@ -1,19 +1,20 @@
-# 🤖 Universal Terraform AI Agent (Phase 9: Scaling & Local Cloud Emulation)
+# 🤖 Universal Terraform AI Agent (Phase 10: Multi-Tenant Organizations & RBAC)
 
-A powerful, interactive, and modular AI system designed to generate enterprise-grade Terraform infrastructure. Built to be **Universal**, it can be powered by cloud LLMs (Gemini, Groq, Mistral, OpenAI) or run entirely locally via **Ollama**.
+A powerful, interactive, and modular AI system designed to generate enterprise-grade Terraform infrastructure. Built to be **Universal**, it can be powered by cloud LLMs (Gemini, Groq, Mistral, OpenAI, ZenMux) or run entirely locally via **Ollama**. Now features **GitHub-style Multi-Organization Workspaces** with Role-Based Access Control (RBAC) for team collaboration.
 
 ---
 
 ## 🚀 Key Features
 
+- **Multi-Tenant Organizations & RBAC** *(Phase 10)*: GitHub-style **multi-organization workspaces** with team collaboration. Create organizations, invite members by username, assign roles (Owner, Admin, Member, Viewer), and seamlessly switch between Personal and Organization contexts. Viewer role is restricted from generating/destroying infrastructure.
 - **Multi-Agent Orchestration**: Powered by **CrewAI**, utilizing 6 specialized agents (Architect, Developer, Security Reviewer, FinOps Specialist, Deployment Planner, and QA Testing Agent) for a robust production pipeline.
 - **Central Pipeline Orchestrator**: A dedicated `orchestrator/` module provides a single authoritative entry-point (`run_full_pipeline`) for both the CLI and Web Dashboard, with built-in self-healing retry logic.
 - **Asynchronous Job Queue**: Powered by **Celery** and **Redis** to run heavy Terraform generation, deployment, and testing tasks concurrently in the background without blocking the web gateway.
 - **Local AWS Emulation**: Integrated **Floci** (a local, high-speed AWS emulator) to test deploy mock resources (S3, EC2, RDS, Lambda, DynamoDB, SQS) completely free of charge.
 - **Continuous QA Testing Agent**: A dedicated agent that runs post-apply behavior verification tests (HTTP checks, S3 read/write validations, AWS resource status audits) against emulated or real environments.
 - **Failure Pattern Memory & Self-Learning**: When Terraform errors are successfully resolved via retries, the system triggers an LLM self-learning loop to automatically extract the root cause and update `failure_patterns.json` dynamically, continuously expanding its own knowledge bank.
-- **Universal LLM Support**: Powered by **LiteLLM**, allowing you to swap between 100+ providers (Gemini, Groq, Mistral, OpenAI) via a single `.env` setting or the Web UI.
-- **Web Dashboard**: Full-featured Flask dashboard with user authentication, project management, live agent log streaming, visual topology (Mermaid.js), and FinOps reports.
+- **Universal LLM Support**: Powered by **LiteLLM**, allowing you to swap between 100+ providers (Gemini, Groq, Mistral, OpenAI, ZenMux) via a single `.env` setting or the Web UI.
+- **Web Dashboard**: Full-featured FastAPI dashboard with user authentication, organization management, project isolation, live agent log streaming, visual topology (Mermaid.js), and FinOps reports.
 - **Modular by Default**: Automatically generates organized "Root + Submodules" structures under the `modules/` directory (e.g. `modules/networking/`, `modules/aks/`) for any multi-resource projects, guaranteeing high-quality, reusable Terraform code.
 - **AI Self-Healing & Web-Search**: The system automatically identifies security vulnerabilities and live deployment errors, initiating autonomous "Fix Rounds" to resolve them — powered by **dynamic LLM reflection** and **autonomous web-search documentation lookup** to resolve API/provider changes dynamically.
 - **Hallucination & Code Block Filtering**: Safe HCL code extraction ignores non-HCL syntax blocks (like Mermaid, JSON, Bash) and automatically purges text placeholders while safely preserving valid, small `.tf` files (such as inputs/outputs/versions).
@@ -81,6 +82,8 @@ The dashboard provides:
 - 🔧 **Build Tab**: Submit infrastructure requirements with budget and AI model selection. Supports checking a toggle to force "Local Emulation Mode (Floci)".
 - 📁 **Workspaces Tab**: View all generated projects with Terraform code, visual topology, evolution history, FinOps reports, and deployment logs.
 - 📊 **Dashboard Metrics**: Total projects, live deployments, monthly cloud spend, and security risk counts.
+- 🏢 **Organization Workspaces**: Create organizations, invite team members, assign roles (Owner/Admin/Member/Viewer), and switch between Personal and Org contexts via the header dropdown.
+- 👥 **Team Management**: Manage organization members with role-based permissions — Owners/Admins can invite, promote, demote, or remove members.
 
 ### Workflow Phases
 1. **Architecture**: The Architect designs the blueprint and generates a `project_slug`.
@@ -133,7 +136,7 @@ docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
 terraform-ai-agent/
 ├── app/                    # Application entry-points
 │   ├── main.py             #   CLI (thin wrapper → orchestrator)
-│   └── dashboard.py        #   Flask Web Dashboard
+│   └── dashboard.py        #   FastAPI Web Dashboard + Org RBAC API
 │
 ├── orchestrator/           # Central pipeline engine
 │   ├── pipeline.py         #   run_full_pipeline() — single entry-point
@@ -160,7 +163,8 @@ terraform-ai-agent/
 │   ├── finance/            #   Infracost cost estimation
 │   ├── cloud/              #   AWS readiness checks
 │   ├── deployment/         #   Live deployment & testing_tools.py
-│   └── project/            #   ProjectTracker (SQLite/PostgreSQL)
+│   └── project/            #   ProjectTracker, UserTracker, OrgTracker
+│       └── tracker.py      #     Multi-tenant DB models + RBAC helpers
 │
 ├── memory/                 # Failure pattern knowledge base
 │   ├── failure_patterns.json  # 20+ known error→fix mappings
@@ -172,7 +176,15 @@ terraform-ai-agent/
 │   ├── model_registry.py   #   Provider catalog
 │   └── fallback.py         #   Multi-provider failover
 │
+├── workers/                # Celery async task workers
+│   └── celery_worker.py    #   Background pipeline execution
+│
 ├── static/                 # Dashboard frontend (HTML/CSS/JS)
+│   ├── index.html          #   Main dashboard + Org context switcher
+│   ├── login.html          #   User auth page
+│   ├── app.js              #   Frontend logic + Org management
+│   └── style.css           #   Glassmorphic dark theme
+│
 ├── evaluation/             # Test cases & policy validation
 ├── output/                 # Generated Terraform projects
 ├── Dockerfile              # Containerized deployment
@@ -181,4 +193,34 @@ terraform-ai-agent/
 
 ---
 
-*Last Updated: 2026-07-03*
+## 🏢 Multi-Tenant Organization & RBAC
+
+### Database Models
+| Model | Purpose |
+|-------|----------|
+| `UserModel` | User registration, password hashing, session auth |
+| `OrganizationModel` | Org identity with `name`, `slug`, `owner_id` |
+| `OrgMemberModel` | User↔Org membership with role (owner/admin/member/viewer) |
+| `ProjectModel` | Infrastructure projects scoped by `owner_id` (personal) or `org_id` (organization) |
+
+### RBAC Permission Matrix
+| Action | Owner | Admin | Member | Viewer |
+|--------|:-----:|:-----:|:------:|:------:|
+| View Projects & Dashboards | ✅ | ✅ | ✅ | ✅ |
+| Generate Infrastructure | ✅ | ✅ | ✅ | ❌ |
+| Invite/Remove Members | ✅ | ✅ | ❌ | ❌ |
+| Change Member Roles | ✅ | ✅ | ❌ | ❌ |
+
+### Organization API Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/orgs` | GET | List user's organizations |
+| `/api/orgs` | POST | Create new organization |
+| `/api/orgs/{id}/members` | GET | List org members |
+| `/api/orgs/{id}/members` | POST | Add member by username |
+| `/api/orgs/{id}/members/{uid}` | PUT | Update member role |
+| `/api/orgs/{id}/members/{uid}` | DELETE | Remove member |
+
+---
+
+*Last Updated: 2026-08-05*
