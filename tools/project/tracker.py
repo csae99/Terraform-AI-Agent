@@ -67,6 +67,9 @@ class ProjectModel(Base):
     approval_status = Column(String, default="none")  # none, pending, approved, rejected
     approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     
+    # IaC Runtime Engine (terraform / opentofu)
+    engine = Column(String, default="terraform")
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -177,7 +180,8 @@ def _add_missing_columns():
             "pr_number": "INTEGER DEFAULT NULL",
             "pr_status": "VARCHAR DEFAULT 'none'",
             "approval_status": "VARCHAR DEFAULT 'none'",
-            "approved_by_id": "INTEGER DEFAULT NULL"
+            "approved_by_id": "INTEGER DEFAULT NULL",
+            "engine": "VARCHAR DEFAULT 'terraform'"
         }
         for col_name, col_def in proj_new_cols.items():
             if col_name not in proj_cols:
@@ -232,7 +236,8 @@ class ProjectTracker:
              errors_encountered=None, patterns_applied=None, qa_report=None,
              reflection_advice=None, decision_trace=None,
              git_repo=None, git_branch=None, pr_url=None, pr_number=None,
-             pr_status=None, approval_status=None, approved_by_id=None):
+             pr_status=None, approval_status=None, approved_by_id=None,
+             engine=None):
         """Save or update project metadata in DB."""
         session = SessionLocal()
         try:
@@ -267,6 +272,7 @@ class ProjectTracker:
                 project.pr_status = pr_status or "none"
                 project.approval_status = approval_status or "none"
                 project.approved_by_id = approved_by_id
+                project.engine = engine or "terraform"
             else:
                 if prompt is not None: project.prompt = prompt
                 if status is not None: project.status = status
@@ -293,6 +299,7 @@ class ProjectTracker:
                 if pr_status is not None: project.pr_status = pr_status
                 if approval_status is not None: project.approval_status = approval_status
                 if approved_by_id is not None: project.approved_by_id = approved_by_id
+                if engine is not None: project.engine = engine
             
             session.commit()
             return ProjectTracker.load(slug)
@@ -345,6 +352,7 @@ class ProjectTracker:
                     "pr_status": project.pr_status or "none",
                     "approval_status": project.approval_status or "none",
                     "approved_by_id": project.approved_by_id,
+                    "engine": project.engine or "terraform",
                     "owner_id": project.owner_id,
                     "org_id": project.org_id,
                     "created_at": project.created_at.isoformat() if project.created_at else "",
@@ -388,6 +396,7 @@ class ProjectTracker:
                     "pr_number": p.pr_number,
                     "pr_status": p.pr_status or "none",
                     "approval_status": p.approval_status or "none",
+                    "engine": p.engine or "terraform",
                     "updated_at": p.updated_at.isoformat() if p.updated_at else "",
                     "owner_id": p.owner_id,
                     "org_id": p.org_id

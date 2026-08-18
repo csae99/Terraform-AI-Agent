@@ -125,6 +125,10 @@ function renderProjects(projects) {
         return;
     }
     grid.innerHTML = projects.map(p => {
+        const engine = p.engine || 'terraform';
+        const engineBadge = engine === 'opentofu'
+            ? `<span class="status-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 0.7rem;">🧅 OpenTofu</span>`
+            : `<span class="status-badge" style="background: rgba(147, 51, 234, 0.15); color: #c084fc; border: 1px solid rgba(147, 51, 234, 0.35); font-size: 0.7rem;">🟣 Terraform</span>`;
         const prBadge = p.pr_url ? `<span class="status-badge" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); margin-left: 0.5rem; font-size: 0.7rem;"><i class="fab fa-github"></i> PR #${p.pr_number || ''} (${p.approval_status || 'open'})</span>` : '';
         return `
         <div class="project-card" onclick="openProject('${p.slug}')">
@@ -134,6 +138,7 @@ function renderProjects(projects) {
                     <span class="project-provider">${p.provider}</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.3rem;">
+                    ${engineBadge}
                     ${prBadge}
                     <span class="status-badge status-${p.status}">${p.status}</span>
                 </div>
@@ -170,6 +175,15 @@ async function openProject(slug) {
         currentProject = project;
         document.getElementById('modal-project-slug').innerText = project.slug;
         document.getElementById('project-modal').style.display = 'flex';
+
+        const engineBadge = document.getElementById('modal-engine-badge');
+        if (engineBadge) {
+            const isTofu = (project.engine === 'opentofu');
+            engineBadge.innerText = isTofu ? '🧅 OpenTofu' : '🟣 Terraform';
+            engineBadge.style.background = isTofu ? 'rgba(245, 158, 11, 0.2)' : 'rgba(147, 51, 234, 0.2)';
+            engineBadge.style.color = isTofu ? '#fbbf24' : '#c084fc';
+            engineBadge.style.borderColor = isTofu ? 'rgba(245, 158, 11, 0.4)' : 'rgba(147, 51, 234, 0.4)';
+        }
 
         const driftBadge = document.getElementById('modal-drift-status');
         if (project.drift_status) {
@@ -549,6 +563,7 @@ async function generateInfra() {
     const git_repo = document.getElementById('gitops-repo').value.trim();
     const target_branch = document.getElementById('gitops-branch').value.trim() || 'main';
     const git_token = document.getElementById('gitops-token').value.trim();
+    const engine = document.getElementById('infra-engine')?.value || 'terraform';
     const genBtn = document.getElementById('btn-generate');
 
     if (!prompt) return showToast("Please enter an infrastructure requirement.", "error");
@@ -582,7 +597,7 @@ async function generateInfra() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
         
-        const payload = { prompt, budget, apply, new_project, credentials, ai_config, gitops, git_repo, target_branch, git_token };
+        const payload = { prompt, budget, apply, new_project, credentials, ai_config, gitops, git_repo, target_branch, git_token, engine };
         if (activeOrgId) payload.org_id = activeOrgId;
 
         const response = await apiFetch('/api/generate', {

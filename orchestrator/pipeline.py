@@ -151,6 +151,7 @@ def run_full_pipeline(
     git_repo: str = None,
     git_token: str = None,
     target_branch: str = "main",
+    engine: str = "terraform",
 ) -> dict:
     """Execute the full multi-agent Terraform pipeline.
 
@@ -167,6 +168,7 @@ def run_full_pipeline(
     git_repo_target = git_repo or os.environ.get("GIT_REPO")
     git_token_target = git_token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GIT_TOKEN")
     git_base_branch = target_branch or os.environ.get("GIT_TARGET_BRANCH") or "main"
+    engine_target = engine or os.environ.get("IAC_ENGINE") or os.environ.get("DEFAULT_IAC_ENGINE") or "terraform"
 
     if not org_id and os.environ.get("org_id"):
         try:
@@ -466,10 +468,10 @@ def run_full_pipeline(
         # ── Security analysis for self-healing ───────────────────
         audit_results = auditor.run_comprehensive_scan(output_base)
         
-        # Ensure terraform is syntactically valid before considering this round a success
-        val_result = TerraformTools._validate_terraform_code(slug)
+        # Ensure terraform/opentofu is syntactically valid before considering this round a success
+        val_result = TerraformTools._validate_terraform_code(slug, engine_name=engine_target)
         if "Failed" in val_result:
-            retry.record_decision("terraform_validation_failed")
+            retry.record_decision("iac_validation_failed")
             if should_retry(val_result):
                 print(f"\n[!] Terraform Validation Failed. Retrying...")
                 
@@ -783,7 +785,8 @@ def run_full_pipeline(
         pr_url=pr_url,
         pr_number=pr_number,
         pr_status=pr_status,
-        approval_status=approval_status
+        approval_status=approval_status,
+        engine=engine_target
     )
 
     print("\n" + "=" * 50)

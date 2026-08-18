@@ -76,6 +76,13 @@
                         <label class="meta-label">Budget (USD)</label>
                         <input type="number" id="infra-budget" class="form-input" value="100">
                     </div>
+                    <div class="build-budget-col" style="min-width: 140px;">
+                        <label class="meta-label">IaC Engine</label>
+                        <select id="infra-engine" class="form-input" style="font-weight: 600;">
+                            <option value="terraform" selected>🟣 Terraform</option>
+                            <option value="opentofu">🧅 OpenTofu</option>
+                        </select>
+                    </div>
                     <div class="build-toggle-col">
                         <label class="meta-label">Live Deploy</label>
                         <input type="checkbox" id="infra-apply">
@@ -236,7 +243,8 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div id="modal-title-area">
-                    <h2 id="modal-project-slug" style="display: inline-block; margin-right: 1rem;">Project Details</h2>
+                    <h2 id="modal-project-slug" style="display: inline-block; margin-right: 0.5rem;">Project Details</h2>
+                    <span id="modal-engine-badge" class="status-badge" style="background: rgba(147, 51, 234, 0.2); color: #c084fc; border: 1px solid rgba(147, 51, 234, 0.4); margin-right: 0.5rem;">🟣 Terraform</span>
                     <span id="modal-drift-status" class="status-badge" style="display: none;"></span>
                 </div>
                 <div class="modal-header-actions">

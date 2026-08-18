@@ -1,223 +1,74 @@
-# Walkthrough: Bug Fixes, Refactoring, & Workspace Toggle
+# 🚀 Walkthrough: Phase 11 Enterprise GitOps, PR Automation, Approval Gates & Audit Trails
 
-This walkthrough details the changes made to fix the orchestration self-healing loops, clean up dependency handling, migrate testing suites, implement the Workspace Overwrite/New Run toggle, configure Infracost Docker-based execution, configure Docker compose for native in-container tool execution, and resolve Docker build hash verification errors.
+## 📋 Executive Overview
 
-## Summary of Changes
+In **Phase 11**, the Terraform AI Agent was enhanced from an isolated code generator into an **Enterprise-Ready GitOps Delivery Platform**. Instead of un-reviewed direct cloud mutations, the agent can now automatically isolate infrastructure changes into git feature branches (`ai/{slug}-{timestamp}`), commit modular HCL code, push to remote repositories, and synthesize production-grade Pull Requests with visual Mermaid topologies, Infracost budget tables, and Checkov security reports.
 
-### 1. Orchestration & Self-Healing Repairs
-- **File modified:** [pipeline.py](file:///c:/Users/User/Music/Terraform-AI-Agent/orchestrator/pipeline.py)
-  - Fixed the type error in the `should_retry()` check where a `RetryContext` object was mistakenly passed instead of the validation result string (`should_retry(val_result)`).
-  - Modified the validation failure check so it correctly records the validation error, advances the retry counter, and `continue`s the loop on retryable syntax errors. On non-retryable errors or max rounds reached, it records a hard stop and `break`s out to avoid wasteful agent runs on invalid Terraform states.
-  - Implemented error context and advice injection: If a previous round failed and recorded error traces/advice, the developer task gets enriched with an `error_guidance` context string.
-  - Revamped loop-level error recording: Now records comprehensive, actionable logs (the specific Checkov security audit details or the actual Terraform Apply stdout/stderr) instead of generic strings, allowing the `PatternManager` to match known issues against `failure_patterns.json` accurately.
-
-### 2. Workflow Injection Context
-- **File modified:** [terraform_generation.py](file:///c:/Users/User/Music/Terraform-AI-Agent/workflows/terraform_generation.py)
-  - Expanded `write_terraform_task` to accept and inject an optional `error_guidance` parameter. When present, it formats and appends the exact error traces and known-fix instructions from the pattern database directly to the developer agent's task description.
-
-### 3. Captured Output Conflicts in Pytest
-- **Files modified:** [dashboard.py](file:///c:/Users/User/Music/Terraform-AI-Agent/app/dashboard.py) and [main.py](file:///c:/Users/User/Music/Terraform-AI-Agent/app/main.py)
-  - Added a safety check (`and "pytest" not in sys.modules`) before wrapping standard output and error streams in `io.TextIOWrapper` on Windows. This prevents conflict with `pytest`'s internal output capture mechanism, resolving the `ValueError: I/O operation on closed file` failures during test runs.
-
-### 4. Test Suite Migrations
-- **File modified:** [test_api_endpoints.py](file:///c:/Users/User/Music/Terraform-AI-Agent/test-cases/test_api_endpoints.py)
-  - Migrated the test client from Flask to FastAPI using `fastapi.testclient.TestClient`.
-  - Added dependency overriding to mock and bypass session-based user authentication (`get_current_user`), returning a valid mock user for testing.
-- **File modified:** [test_backend_integration.py](file:///c:/Users/User/Music/Terraform-AI-Agent/test-cases/test_backend_integration.py)
-  - Updated stale module import paths to match the restructured directory layout (e.g., pointing to `tools.project.tracker` and `tools.deployment.deployment_tools`).
-  - Rewrote agent initialization tests to match the modular `BaseAgent` instantiation design.
-  - Fixed a `TypeError` by invoking the underlying undecorated function via the `.func` attribute on CrewAI `@tool` objects (`DeploymentTools.detect_drift.func`).
-
-### 5. Workspace Overwrite vs. New Run Toggle
-We introduced a user-controlled toggle (Option 4) that allows users to either overwrite their existing workspace in-place (re-using the base project slug) or create a fresh workspace (automatically appending a sequential counter suffix if the project name is taken).
-
-- **HTML Front-end (`static/index.html`):** Added a "New Workspace" toggle checkbox (`#infra-new-project`) next to "Live Deploy", defaulted to checked.
-- **JS Front-end (`static/app.js`):** Modified the `generateInfra()` function to extract the checked state of the workspace toggle and send it as a `new_project` boolean parameter in the JSON payload of the POST request.
-- **Web App API (`app/dashboard.py`):** 
-  - Updated the `/api/generate` POST handler to read `new_project` from the JSON body.
-  - Updated `run_agent_workflow()` background task to accept `new_project` and append the `--new-project` argument to the python subprocess command if `new_project` is `True`.
-- **CLI Entrypoint (`app/main.py`):** Added a `--new-project` argument using `argparse` and passed it down to `run_full_pipeline()`.
-- **Orchestrator (`orchestrator/pipeline.py`):** 
-  - Updated `run_full_pipeline()` to accept `new_project: bool = False`.
-  - Implemented slug collision logic: if `new_project` is `True`, it checks the SQLite database (`ProjectTracker.load()`) and output folders. If the slug already exists, it increments a counter (e.g., `-1`, `-2`) sequentially until a free slug name is acquired.
-
-### 6. Docker-based Infracost Subprocess Execution
-- **File modified:** [cost_estimation.py](file:///c:/Users/User/Music/Terraform-AI-Agent/tools/finance/cost_estimation.py)
-  - Configured `CostEstimator` to utilize Docker for cost estimation as requested by the user, setting `self._use_native = False`.
-  - Updated the Docker command to mount the specific project directory (`abs_project_path`) directly to `/code` instead of mounting the root repository and working with Windows relative paths.
-  - Formatted the Windows host volume mount path using Unix-style drive formatting (`/c/path/to/dir`) to ensure Docker Desktop can successfully resolve the directory mount on Windows and prevent empty folder bindings.
-
-### 7. Frontend Report Display & Slug Propagation Alignment
-- **File modified:** [dashboard.py](file:///c:/Users/User/Music/Terraform-AI-Agent/app/dashboard.py)
-  - The project report API (`/api/projects/{slug}/report`) previously returned `{"report": content}`. However, the frontend JavaScript (`app.js`) expected `data.content`, causing it to render `undefined` in the modal. We updated the backend route to return both `"report"` and `"content"` keys, correcting the UI output seamlessly.
-- **File modified:** [pipeline.py](file:///c:/Users/User/Music/Terraform-AI-Agent/orchestrator/pipeline.py)
-  - The Architect agent's design document natively includes the base slug (e.g. `productionvalid-aws-eks`). When the orchestrator resolved a unique sequential slug (e.g. `productionvalid-aws-eks-1`), downstream agents (Developer and FinOps) saw the base slug in the design specs, leading them to call tools with the wrong project name. We added a dynamic replacement block that replaces all occurrences of `base_slug` with the new unique `slug` in the Architect's output, aligning all downstream agent tasks.
-
-### 8. Full Dockerization and Environment Detection
-- **File modified:** [docker-compose.yml](file:///c:/Users/User/Music/Terraform-AI-Agent/docker-compose.yml)
-  - Added `- RUNNING_IN_DOCKER=true` under the `agent` service environment.
-- **File modified:** [cost_estimation.py](file:///c:/Users/User/Music/Terraform-AI-Agent/tools/finance/cost_estimation.py)
-  - Updated the `CostEstimator` initialization logic to auto-detect if the process is running inside a Docker container (checking `RUNNING_IN_DOCKER` or checking if `/.dockerenv` exists).
-  - When running inside the Docker container, `self._use_native` is set to `True` so it executes `infracost` directly inside the container (which is bundled natively in the Dockerfile). If running outside of Docker on a host machine, it falls back to Docker-based tool execution (or local executable if registered).
-
-### 9. Docker Build Pip Hash & Timeout Fixes
-- **File modified:** [Dockerfile](file:///c:/Users/User/Music/Terraform-AI-Agent/Dockerfile)
-  - Upgraded `pip` in the container build layer using `pip install --no-cache-dir --upgrade pip` before installing `requirements.txt` and `checkov`. This resolves PyPI package metadata hash verification discrepancies in Python 3.11's default `pip 24.0` environment (specifically with checkov dependencies like `soupsieve`).
-  - Added `--default-timeout=1000 --retries=10` options to `pip install` commands. This mitigates `IncompleteRead` / broken connection errors caused by network drops during the download of large packages (e.g. `litellm` and `checkov`).
-
-### 10. Gemini Safety Settings Pydantic Validation Fix
-- **File modified:** [config.py](file:///c:/Users/User/Music/Terraform-AI-Agent/llm/config.py)
-  - Changed `extra_kwargs["safety_settings"]` from a list of dictionaries to a dictionary. This resolves the Pydantic type validation error (`GeminiCompletion` schema validation expecting `dict_type` instead of `list`) thrown by crewAI's native Gemini completion initialization during agent setup.
-  - Implemented a monkey-patch on `GeminiCompletion._prepare_generation_config` to intercept the generation configuration assembly and convert the safety settings back into a list of dictionaries. This resolves the secondary validation error where the underlying Google GenAI SDK's `GenerateContentConfig` expected a `list` type for safety settings instead of a dictionary.
-
-### 11. FinOps Report UI Presentation Improvements
-- **File modified:** [index.html](file:///c:/Users/User/Music/Terraform-AI-Agent/static/index.html)
-  - Integrated `marked.js` Markdown parser library via jsDelivr CDN link.
-- **File modified:** [app.js](file:///c:/Users/User/Music/Terraform-AI-Agent/static/app.js)
-  - Updated the financial tab content render route to parse markdown string `data.content` into structural HTML nodes using `marked.parse()`.
-  - Added regex patterns to search for budget headers (e.g. `STATUS: OVER BUDGET` or `STATUS: WITHIN BUDGET`) and replace them with rich, glassmorphism alert cards with relevant warning/success check icons.
-- **File modified:** [style.css](file:///c:/Users/User/Music/Terraform-AI-Agent/static/style.css)
-  - Added full `.markdown-body` style sheet to render Markdown content beautifully in dark mode.
-  - Designed custom table styling with transparent backgrounds, blue accent headers, and interactive row hover states.
-  - Added styled list and sub-element details (inline code blocks, custom bold accents for optimization rules).
-  - Styled `.finops-alert` containers (`.finops-danger` and `.finops-success`) to render premium, harmoniously colored glowing alert boxes.
-- **File modified:** [index.html](file:///c:/Users/User/Music/Terraform-AI-Agent/static/index.html)
-  - Incremented the stylesheet cache-busting parameter version from `?v=8` to `?v=9` to force browsers to load the new styling rules.
-
-### 12. Project Documentation Updates
-- **File modified:** [README.md](file:///c:/Users/User/Music/Terraform-AI-Agent/README.md)
-  - Documented the multi-service Docker Compose architecture, standard image tag structures, and Docker Hub pushing flows (`docker push`). Updated the last updated timestamp.
-- **File modified:** [setup.md](file:///c:/Users/User/Music/Terraform-AI-Agent/setup.md)
-  - Documented the PostgreSQL database transition, container runtime automatic tool environment adjustments, the new sequential workspace toggle, and `marked.js` FinOps presentation layers. Updated the last updated timestamp.
-
-### 13. QA Behavior Verification (Testing Agent Integration)
-- **File created:** [testing_agent.py](file:///c:/Users/User/Music/Terraform-AI-Agent/agents/testing_agent.py)
-  - Defined the `TestingAgent` class subclassing `BaseAgent` which acts as the infrastructure QA and Behavior Validator. It utilizes custom behavior smoke testing tools to verify deployed resources.
-- **File created:** [testing_tools.py](file:///c:/Users/User/Music/Terraform-AI-Agent/tools/deployment/testing_tools.py)
-  - Created custom testing tools decorated with `@tool` for the agent's toolbox:
-    - `verify_http_endpoint`: Sends HTTP requests to target URLs (supports docker routing rewrites when running inside a container targeting `localhost` services on `floci`).
-    - `verify_s3_bucket`: Verifies S3 bucket reachability, write access (runs a real put/get test file operation), and read accuracy, with target redirection to Floci under emulation mode.
-    - `verify_aws_resource_exists`: Validates existing AWS resources and active states across EC2, SQS, DynamoDB, Lambda, and RDS services.
-- **File created:** [terraform_testing.py](file:///c:/Users/User/Music/Terraform-AI-Agent/workflows/terraform_testing.py)
-  - Created a sequential task `behavior_testing_task` configured with the QA Testing Agent to run smoke testing steps post-deployment.
-- **File modified:** [pipeline.py](file:///c:/Users/User/Music/Terraform-AI-Agent/orchestrator/pipeline.py)
-  - Registered `TestingAgent` and `TerraformTestingTasks` into the main execution pipeline.
-  - Implemented the robust `is_deployed` status checks checking both the task outputs or falling back to raw apply log traces (`terraform_apply.log`) to correctly determine success when multiple tasks run after the deploy task in the sequential Crew execution list.
-
-### 14. Dynamic Self-Learning Failure Pattern Loop
-- **File modified:** [pipeline.py](file:///c:/Users/User/Music/Terraform-AI-Agent/orchestrator/pipeline.py)
-  - Integrated a self-learning callback trigger inside the successful retry block (when `retry.current_round > 1` and `critical_count == 0` and `is_deployed` is True).
-  - It reads the successfully corrected HCL code from `main.tf` and invokes `pattern_manager.learn_from_run()` with the accumulated historical error logs and corrected code to automatically expand the failure pattern catalog (`failure_patterns.json`) dynamically.
-
-### 15. CLI & Dependency Setup for Emulation Mode
-- **File modified:** [main.py](file:///c:/Users/User/Music/Terraform-AI-Agent/app/main.py)
-  - Added a `--test-local` CLI flag argument that propagates to the orchestrator pipeline, forcing providers override injection for local cloud emulation testing.
-- **File modified:** [requirements.txt](file:///c:/Users/User/Music/Terraform-AI-Agent/requirements.txt)
-  - Added `boto3` and `requests` packages to satisfy Python AWS SDK and HTTP testing tool requirements.
-
-### 16. FinOps Report Optimization Recommendation Alignment
-- **File modified:** [cost_estimation.py](file:///c:/Users/User/Music/Terraform-AI-Agent/tools/finance/cost_estimation.py)
-  - Created the new `@tool("Append Optimization Recommendations")` that intercepts the programmatically generated `FINANCIAL_REPORT.md` and replaces the generic rule-based optimization recommendations section with custom, intelligent LLM-generated recommendations.
-- **File modified:** [cost_optimizer.py](file:///c:/Users/User/Music/Terraform-AI-Agent/agents/cost_optimizer.py)
-  - Registered the new `append_optimization_recommendations` tool for the `CostOptimizer` agent.
-- **File modified:** [terraform_validation.py](file:///c:/Users/User/Music/Terraform-AI-Agent/workflows/terraform_validation.py)
-  - Updated the `financial_analysis_task` to instruct the agent to run the `Append Optimization Recommendations` tool after report generation to insert its tailored advice (like S3 lifecycle policies and bucket optimizations).
-
-### 17. SQL Metadata Overwrite Bug Fix
-- **File modified:** [tracker.py](file:///c:/Users/User/Music/Terraform-AI-Agent/tools/project/tracker.py)
-  - Fixed a python default-argument bug in `ProjectTracker.save()` where calling `save` with omitted/default arguments (such as during drift checking or initial tracking stages) unconditionally reset column data (`estimated_cost=0.0` and `security_issues=0`) in the database.
-  - Converted defaults to `None` and added checks (`if X is not None:`) to only update fields that are explicitly passed in the call.
-- **File created:** [sync_db.py](file:///c:/Users/User/Music/Terraform-AI-Agent/scripts/sync_db.py)
-  - Added a CLI repair script that scans all output directories, parses the generated `FINANCIAL_REPORT.md` file, extracts the actual projected cost, and syncs it back to the database.
-
-### 18. Docker Network Isolation & Service Resolution
-- **File modified:** [docker-compose.yml](file:///c:/Users/User/Music/Terraform-AI-Agent/docker-compose.yml)
-  - Defined a custom bridge network `agent-network` at the bottom of the configuration file.
-  - Connected all five services (`db`, `redis`, `floci`, `agent`, `worker`) to the network to guarantee isolated, collision-free inter-service DNS name resolution.
-
-### 19. Project Failure Status Tracking Fix
-- **File modified:** [pipeline.py](file:///c:/Users/User/Music/Terraform-AI-Agent/orchestrator/pipeline.py)
-  - Fixed a crash where developer crew execution failures caused the pipeline to throw an `AttributeError`. Replaced the legacy/non-existent `ProjectTracker.update_status(slug, "failed")` method call with the correct SQL-backed database method `ProjectTracker.save(slug, status="failed")`.
-
-### 20. Invalid Default LLM Model Correction
-- **Files modified:** [.env](file:///c:/Users/User/Music/Terraform-AI-Agent/.env), [test_post.py](file:///c:/Users/User/Music/Terraform-AI-Agent/scratch/test_post.py), [test_user_workflow.py](file:///c:/Users/User/Music/Terraform-AI-Agent/scratch/test_user_workflow.py), [test_e2e.py](file:///c:/Users/User/Music/Terraform-AI-Agent/scratch/test_e2e.py)
-  - Fixed the `ValueError: Invalid response from LLM call - None or empty` error by replacing the invalid/non-existent `gemini-3.1-flash-lite` model with the stable, high-rate-limit `gemini-2.0-flash` model (10 RPM compared to the restrictive 2 RPM of `gemini-1.5-flash` on the free tier) across all default settings and test suites.
+Additionally, we implemented **Enterprise Team Approval Gates** and an **Immutable Audit Trail**, requiring sign-offs by Organization Owners or Admins before live deployment.
 
 ---
 
-## Verification Results
+## 🛠️ Key Components Delivered
 
-### 1. Pytest Execution
-We ran the test suite using `pytest` inside the `venv313` environment:
+### 1. GitOps Tooling Layer (`tools/gitops/gitops_tools.py`)
+- **`init_git_repo(project_dir)`**: Automatically initializes Git repositories inside generated workspace directories if absent.
+- **`create_feature_branch(project_dir, slug, base_branch)`**: Deterministically spins up timestamped feature branches (e.g. `ai/prod-s3-1787075566`).
+- **`commit_files(project_dir, slug, prompt)`**: Atomic staging (`git add -A`) and structured commit messaging.
+- **`push_branch(project_dir, repo_url, branch_name, token)`**: Supports authenticated HTTPS token injection for GitHub/GitLab.
+- **`generate_pr_body(slug, prompt, ...)`**: Constructs Markdown PR bodies containing:
+  - 🗺️ Visual Architecture Topology (Mermaid diagram)
+  - 💰 FinOps & Cost Breakdown (Infracost table)
+  - 🛡️ Security & Compliance Audit (Checkov / tfsec summary)
+  - 🧪 Behavior Validation Test Plan
+- **`create_pull_request(repo_url, branch_name, ...)`**: Interacts with the GitHub REST API (with local fallback simulation for offline/dev modes).
+- **`merge_pull_request(repo_url, pr_number, ...)`**: Executes automated squash merges once approved.
 
-```powershell
-$env:PYTHONPATH="."; .\venv313\Scripts\python.exe -m pytest test-cases/
-```
+### 2. GitOps Coordinator Agent (`agents/gitops_coordinator.py`)
+- Created `GitOpsCoordinator(BaseAgent)` with role **GitOps & Release Coordinator**.
+- Created `GitOpsWorkflowTasks` in `workflows/gitops_workflow.py` for task composition.
 
-#### Output Trace:
-```
-============================= test session starts =============================
-platform win32 -- Python 3.13.13, pytest-9.0.3, pluggy-1.6.0
-rootdir: C:\Users\User\Music\Terraform-AI-Agent
-plugins: anyio-4.13.0, langsmith-0.7.33
-collected 6 items
+### 3. Database Schema & Audit Logging (`tools/project/tracker.py`)
+- **`ProjectModel` Columns**: Added `git_repo`, `git_branch`, `pr_url`, `pr_number`, `pr_status`, `approval_status`, `approved_by_id`.
+- **`AuditLogModel`**: Stores immutable event records (`id`, `org_id`, `user_id`, `action`, `resource_slug`, `details`, `created_at`).
+- **`AuditTracker`**:
+  - `log_action()` records actions such as `gitops_pr_created`, `gitops_pr_approved`, and `gitops_pr_merged_and_deployed`.
+  - `get_logs()` retrieves chronological, filtered audit feeds for organization compliance.
+- **Dynamic Schema Migration**: `_add_missing_columns()` dynamically adds missing columns to existing SQLite/PostgreSQL databases on startup without manual migration scripts.
 
-test-cases\test_api_endpoints.py ...                                     [ 50%]
-test-cases\test_backend_integration.py ...                               [100%]
+### 4. Pipeline & CLI Integration (`orchestrator/pipeline.py` & `app/main.py`)
+- `run_full_pipeline()` accepts `gitops: bool`, `git_repo: str`, `git_token: str`, `target_branch: str`.
+- When GitOps mode is active, the orchestrator routes the final state through feature branch creation, file commits, PR generation, and audit logging, setting status to `pr_opened` with `approval_status="pending"`.
+- Added CLI flags: `--gitops`, `--git-repo`, `--git-token`, `--target-branch`.
 
-============================= 6 passed in 13.61s ==============================
-```
+### 5. API Endpoints (`app/dashboard.py` & `workers/celery_worker.py`)
+- `GET /api/projects/{slug}/gitops`: Fetches PR URL, branch name, approval status, and live GitHub PR state.
+- `POST /api/projects/{slug}/approve`: Validates Org Owner/Admin RBAC permissions, sets `approval_status="approved"`, and logs audit trail.
+- `POST /api/projects/{slug}/merge-deploy`: Validates approval, triggers GitHub squash merge, and applies live cloud mutation.
+- `GET /api/audit-logs`: Retrieves organization-scoped audit logs.
 
-### 2. Workspace Collision Logic Verification
-A custom test script was executed at `scratch/test_toggle.py` to assert the database and filesystem collision handling:
-* When `new_project` is set to `True` and `test-unique-slug` exists, the second execution automatically resolves to `test-unique-slug-1`.
-* The third execution automatically resolves to `test-unique-slug-2`.
-* When `new_project` is `False`, the system overwrites the existing folder/record in-place.
-All assertions in the test script passed successfully!
+### 6. Modern Frontend UI (`static/index.html` & `static/app.js`)
+- **Build Form**: Added "GitOps Mode" checkbox and expandable drawer for Git Repo URL, Target Branch, and GitHub PAT.
+- **Workspaces View**: Added GitHub PR badges (`PR #42 (open)`) to project cards.
+- **Project Detail Modal**: Added **🔀 GitOps & PR** tab with real-time PR badges, branch links, approver metadata, and interactive "Approve PR" and "Merge & Deploy" control buttons.
+- **Audit Trail Tab**: Added top navigation tab rendering a real-time table of enterprise audit events.
 
-### 3. OpenRouter Stability Fix (Stealth 502 Error Resolution)
-To resolve the transient `502 - Invalid URL` error returned by OpenRouter's generic router (`openrouter/free`) routing to the offline/misconfigured `"Stealth"` provider:
-- **Model Redirection / Mapping**: Added automatic mapping in `get_llm()` within `llm/config.py` to redirect generic `openrouter/free` or `free` requests to the stable and highly capable `openrouter/meta-llama/llama-3.3-70b-instruct:free` model.
-- **Default Model & Fallback Updates**:
-  - Modified `.env` to set `DEFAULT_MODEL` to `openrouter/meta-llama/llama-3.3-70b-instruct:free`.
-  - Updated the fallback model configuration in `llm/config.py` to target `openrouter/meta-llama/llama-3.3-70b-instruct:free`.
-  - Updated the test endpoint (`/api/test_run`) in `app/dashboard.py` to run using `meta-llama/llama-3.3-70b-instruct:free`.
+---
 
-### 4. Self-Learning Loop Hallucination & Failure Pattern Correction
-- **File modified:** [failure_patterns.json](file:///c:/Users/User/Music/Terraform-AI-Agent/memory/failure_patterns.json)
-  - Replaced the incorrectly generated `enable_node_public_ip` entry with the correct pattern for `enable_auto_scaling`.
-  - Defined the proper error substring (`enable_auto_scaling`), description, and fix strategy (`Rename 'enable_auto_scaling = true' to 'auto_scaling_enabled = true'`) for AzureRM v4 compatibility.
-- **File modified:** [pattern_manager.py](file:///c:/Users/User/Music/Terraform-AI-Agent/memory/pattern_manager.py)
-  - Added strict `CRITICAL` anti-hallucination instructions to the self-learning extraction prompt to ensure that extracted error substrings and fix advice are based strictly on parameters present in the raw error logs and applied fixes, preventing parameter confusion (e.g., confusing `enable_auto_scaling` with `enable_node_public_ip`) in future automated learning cycles.
+## 🧪 Verification & Test Results
 
-### 5. OpenAI/Groq API Key Cross-Routing Alignment (gpt-oss-120b)
-- **File modified:** [config.py](file:///c:/Users/User/Music/Terraform-AI-Agent/llm/config.py)
-  - Patched `get_llm()`, `_patched_litellm_completion()`, and `_patched_openai_chat_create()` to automatically intercept `openai/gpt-oss-120b` (or any model containing `gpt-oss-120b`) requests.
-  - If a Groq API key is used (starting with `gsk_` or configured as `GROQ_API_KEY`), the model routing automatically prepends the `groq/` provider identifier and switches the base request endpoint to Groq's OpenAI-compatible API gateway (`https://api.groq.com/openai/v1`).
-  - If an OpenRouter API key is used instead, it automatically routes the request to OpenRouter's gateway (`https://openrouter.ai/api/v1`).
-  - This prevents `openai.AuthenticationError (401 - invalid_api_key)` errors caused by sending Groq key-authenticated requests directly to official OpenAI API servers.
-  - Added stripping of prompt caching parameters (`cache_breakpoint` and `cache_control`) from request message dictionaries when routing to Groq or Mistral. This resolves the `BadRequestError` exception thrown by the Groq API due to unsupported caching properties inside the system messages.
+We executed automated test suites covering all layers:
 
-### 6. Phase 10: Multi-Tenant Organizations & RBAC
-We implemented a GitHub-style Multi-Organization and team collaboration system with Role-Based Access Control (RBAC) to allow multi-tenant setups.
+1. **Git Operations & CLI Test** (`scratch/test_gitops.py`):
+   - ✅ `GitOpsTools.init_git_repo` verified.
+   - ✅ Feature branch creation verified.
+   - ✅ Atomic git commits verified.
+   - ✅ Rich Markdown PR synthesis verified.
+   - ✅ Database persistence across all GitOps columns verified.
+   - ✅ `AuditTracker.log_action` and `get_logs` verified.
 
-- **Database Schema Upgrades (`tools/project/tracker.py`):**
-  - Added `OrgMemberModel` junction table with columns for `org_id`, `user_id`, `role`, and `created_at`.
-  - Added `OrganizationModel` columns for `slug` and `created_at` with relationships to org members and projects.
-  - Added `org_id` foreign key column to `ProjectModel` for scoping projects to specific organizations.
-  - Updated `_add_missing_columns()` to automatically run `ALTER TABLE` operations, injecting missing schema columns (`org_id`, `slug`, `created_at`) dynamically without losing existing SQLite records.
-  - Created the `OrgTracker` helper class to encapsulate organization CRUD, membership querying, team invitations, and role updates.
-
-- **Backend API & Scoping (`app/dashboard.py`):**
-  - Added six new organization endpoints for listing orgs, creating orgs, listing members, inviting members, updating roles, and removing members.
-  - Updated the `/api/projects` and `/api/stats` endpoints to accept an optional `org_id` query parameter, filtering workspace lists and metrics respectively.
-  - Gates generation actions on `/api/generate` to block members with the `viewer` role from triggering new infrastructure runs.
-
-- **Pipeline Scope Propagation (`orchestrator/pipeline.py` & `workers/celery_worker.py`):**
-  - Updated the orchestrator's `run_full_pipeline()` to accept an `org_id` parameter, persisting it to SQLite via `ProjectTracker.save()`.
-  - Modified the worker runner to extract `org_id` and pass it through environment variable scopes down to subprocesses.
-
-- **UI Front-end Workspace Integration (`static/index.html`, `static/app.js`):**
-  - Added a "Workspace Context" dropdown selector to the header navbar to switch contexts between "Personal Workspace" and any joined organizations.
-  - Added modals and forms for "Create Organization" and "Manage Team Members" (including role selector dropdowns and member removal).
-  - Wired JavaScript logic to dynamically toggle workspace visibility, query scoped stats/projects on switch, and block/permit action buttons based on user permissions.
+2. **FastAPI & RBAC Authorization Test** (`scratch/test_gitops_api.py`):
+   - ✅ Member approval attempt blocked (`403 Forbidden`).
+   - ✅ Organization Owner approval succeeded (`200 OK`).
+   - ✅ GitOps status endpoint returned approver identity (`org_owner_1`).
+   - ✅ Merge & Deploy triggered live transition to `deployed`.
+   - ✅ Audit logs endpoint returned audit trail events (`gitops_pr_approved`, `gitops_pr_merged_and_deployed`).

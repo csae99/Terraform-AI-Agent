@@ -47,6 +47,7 @@ def main():
     parser.add_argument("--git-repo", type=str, help="Target Git repository URL (e.g., https://github.com/org/repo.git)")
     parser.add_argument("--git-token", type=str, help="GitHub Personal Access Token (or GIT_TOKEN env)")
     parser.add_argument("--target-branch", type=str, default="main", help="Target branch for PR (default: main)")
+    parser.add_argument("--engine", type=str, default="terraform", choices=["terraform", "opentofu", "tofu"], help="IaC execution engine (terraform, opentofu)")
     args = parser.parse_args()
 
     # Handle Destructive Actions
@@ -70,6 +71,8 @@ def main():
         cli_flags.append("--test-local")
     if args.gitops:
         cli_flags.append("--gitops")
+    if args.engine and args.engine != "terraform":
+        cli_flags.append(f"--engine={args.engine}")
 
     owner_id = os.getenv("owner_id")
 
@@ -88,6 +91,7 @@ def main():
         git_repo=args.git_repo,
         git_token=args.git_token,
         target_branch=args.target_branch,
+        engine=args.engine,
     )
 
 

@@ -1,33 +1,11 @@
 import os
 import subprocess
+from typing import Optional
 from crewai.tools import tool
+from tools.engine import EngineFactory
 
 class DeploymentTools:
     
-    @staticmethod
-    def _run_command(command, cwd):
-        """Helper to run shell commands and capture output."""
-        try:
-            # Support both string and list commands
-            if isinstance(command, str):
-                cmd_list = command.split()
-            else:
-                cmd_list = command
-            process = subprocess.run(
-                cmd_list,
-                cwd=cwd,
-                capture_output=True,
-                text=True
-            )
-            return {
-                "success": process.returncode == 0,
-                "stdout": process.stdout,
-                "stderr": process.stderr,
-                "exit_code": process.returncode
-            }
-        except Exception as e:
-            return {"success": False, "stderr": str(e), "stdout": "", "exit_code": -1}
-
     @staticmethod
     def _save_log(project_path, log_name, content):
         """Saves tool output to a log file for persistent audit."""
@@ -42,9 +20,9 @@ class DeploymentTools:
             return " (Warning: Failed to save log)"
 
     @tool("Run Terraform Plan")
-    def run_terraform_plan(project_slug: str, is_destroy: bool = False) -> str:
+    def run_terraform_plan(project_slug: str, is_destroy: bool = False, engine_name: Optional[str] = None) -> str:
         """
-        Executes 'terraform plan' for a specific project.
+        Executes 'plan' for a specific project using the active IaC engine (Terraform/OpenTofu).
         If is_destroy=True, it generates a destruction plan.
         Returns the plan output or detailed error messages.
         """
@@ -52,36 +30,33 @@ class DeploymentTools:
         if not os.path.exists(project_path):
             return f"Error: Project directory '{project_path}' not found."
 
-        # Ensure init is run first
-        DeploymentTools._run_command("terraform init -backend=false", project_path)
+        engine = EngineFactory.get_engine(engine_name)
+        result = engine.plan(project_path, is_destroy=is_destroy)
         
-        cmd = "terraform plan -no-color"
-        if is_destroy:
-            cmd += " -destroy"
-            
-        result = DeploymentTools._run_command(cmd, project_path)
-        log_name = "terraform_plan_destroy" if is_destroy else "terraform_plan"
+        log_name = f"{engine.name}_plan_destroy" if is_destroy else f"{engine.name}_plan"
         combined_output = f"STDOUT:\n{result['stdout']}\n\nSTDERR:\n{result['stderr']}"
         log_msg = DeploymentTools._save_log(project_path, log_name, combined_output)
 
         if result["success"]:
-            return f"✅ Terraform Plan Succeeded{log_msg}:\n{result['stdout']}"
+            return f"✅ {engine.name.capitalize()} Plan Succeeded{log_msg}:\n{result['stdout']}"
         else:
-            return f"❌ Terraform Plan Failed{log_msg}:\n{result['stderr']}"
+            return f"❌ {engine.name.capitalize()} Plan Failed{log_msg}:\n{result['stderr']}"
 
     @tool("Run Terraform Apply")
-    def run_terraform_apply(project_slug: str) -> str:
+    def run_terraform_apply(project_slug: str, engine_name: Optional[str] = None) -> str:
         """
-        Executes 'terraform apply -auto-approve' for a specific project.
+        Executes 'apply -auto-approve' for a specific project using the active IaC engine (Terraform/OpenTofu).
         WARNING: This creates real cloud resources and may incur costs.
         """
         project_path = os.path.join("output", project_slug)
         if not os.path.exists(project_path):
             return f"Error: Project directory '{project_path}' not found."
 
-        result = DeploymentTools._run_command("terraform apply -auto-approve -no-color", project_path)
+        engine = EngineFactory.get_engine(engine_name)
+        result = engine.apply(project_path, auto_approve=True)
+        
         combined_output = f"STDOUT:\n{result['stdout']}\n\nSTDERR:\n{result['stderr']}"
-        log_msg = DeploymentTools._save_log(project_path, "terraform_apply", combined_output)
+        log_msg = DeploymentTools._save_log(project_path, f"{engine.name}_apply", combined_output)
 
         if result["success"]:
             return f"🚀 Deployment Successful!{log_msg}\nOutputs:\n{result['stdout']}"
@@ -89,17 +64,19 @@ class DeploymentTools:
             return f"❌ Deployment Failed with API Error{log_msg}:\n{result['stderr']}\n\nSTDOUT Trace:\n{result['stdout']}"
 
     @tool("Run Terraform Destroy")
-    def run_terraform_destroy(project_slug: str) -> str:
+    def run_terraform_destroy(project_slug: str, engine_name: Optional[str] = None) -> str:
         """
-        Executes 'terraform destroy -auto-approve' to clean up infrastructure.
+        Executes 'destroy -auto-approve' to clean up infrastructure using the active IaC engine.
         """
         project_path = os.path.join("output", project_slug)
         if not os.path.exists(project_path):
             return f"Error: Project directory '{project_path}' not found."
 
-        result = DeploymentTools._run_command("terraform destroy -auto-approve -no-color", project_path)
+        engine = EngineFactory.get_engine(engine_name)
+        result = engine.destroy(project_path, auto_approve=True)
+        
         combined_output = f"STDOUT:\n{result['stdout']}\n\nSTDERR:\n{result['stderr']}"
-        log_msg = DeploymentTools._save_log(project_path, "terraform_destroy", combined_output)
+        log_msg = DeploymentTools._save_log(project_path, f"{engine.name}_destroy", combined_output)
 
         if result["success"]:
             return f"🧹 Infrastructure successfully destroyed.{log_msg}"
@@ -107,32 +84,25 @@ class DeploymentTools:
             return f"❌ Destroy Failed{log_msg}:\n{result['stderr']}"
 
     @tool("Detect Infrastructure Drift")
-    def detect_drift(project_slug: str) -> str:
+    def detect_drift(project_slug: str, engine_name: Optional[str] = None) -> str:
         """
-        Detects if the actual cloud state has drifted from the Terraform code.
-        Uses 'terraform plan -detailed-exitcode'.
+        Detects if the actual cloud state has drifted from the IaC code.
+        Uses 'plan -detailed-exitcode'.
         Exit codes: 0=In Sync, 2=Drift Detected, 1=Error.
         """
         project_path = os.path.join("output", project_slug)
         if not os.path.exists(project_path):
             return f"Error: Project directory '{project_path}' not found."
 
-        # Ensure init is run
-        DeploymentTools._run_command("terraform init -backend=false", project_path)
-
-        # detailed-exitcode: 
-        # 0 = Succeeded, no changes
-        # 1 = Error
-        # 2 = Succeeded, there is a drift (changes needed)
-        result = DeploymentTools._run_command("terraform plan -detailed-exitcode -no-color", project_path)
+        engine = EngineFactory.get_engine(engine_name)
+        result = engine.plan(project_path, detailed_exitcode=True)
         
         exit_code = result["exit_code"]
         stdout = result["stdout"]
         
         if exit_code == 0:
-            return "✅ IN SYNC: The actual infrastructure matches the Terraform configuration exactly."
+            return f"✅ IN SYNC: The actual infrastructure matches the {engine.name.capitalize()} configuration exactly."
         elif exit_code == 2:
-            # Extract summary line (e.g., "Plan: 1 to add, 0 to change, 1 to destroy.")
             summary = "Drift detected."
             for line in stdout.splitlines():
                 if "Plan:" in line:
@@ -141,4 +111,5 @@ class DeploymentTools:
             return f"⚠️ DRIFT DETECTED: {summary}\n\nDetailed Plan:\n{stdout}"
         else:
             return f"❌ ERROR during drift check:\n{result['stderr']}"
+
 

@@ -1,12 +1,12 @@
-# 🤖 Multi-Agent Terraform Orchestration System (Phase 10)
+# 🤖 Multi-Agent Terraform Orchestration System (Phase 11: Enterprise GitOps)
 
-This document provides a deep dive into the **Phase 10 Multi-Agent Architecture** of the Terraform AI Agent. This system has evolved from a simple code generator into a full-lifecycle **Orchestrated Self-Healing Deployment Platform** with multi-tenant organization workspaces, role-based access control, pattern-based failure intelligence, asynchronous execution queues, local cloud emulation, and continuous QA behavior validation.
+This document provides a deep dive into the **Phase 11 Multi-Agent Architecture** of the Terraform AI Agent. This system has evolved from a simple code generator into a full-lifecycle **Orchestrated Self-Healing Deployment Platform** with multi-tenant organization workspaces, enterprise GitOps pull request automation, team approval gates, immutable audit trails, pattern-based failure intelligence, asynchronous execution queues, local cloud emulation, and continuous QA behavior validation.
 
 ---
 
 ## 🏗️ The Multi-Agent Workflow
 
-The system uses a sequential and iterative process to ensure production-grade infrastructure code. A central **Orchestrator** (`orchestrator/pipeline.py`) manages the entire lifecycle, while an asynchronous task queue (**Celery/Redis**) processes workloads. An LLM-powered **Self-Learning Failure Memory** dynamically learns from resolved runs, and a dedicated **QA Behavior Validator** runs smoke tests against real or emulated cloud backends.
+The system uses a sequential and iterative process to ensure production-grade infrastructure code. A central **Orchestrator** (`orchestrator/pipeline.py`) manages the entire lifecycle, while an asynchronous task queue (**Celery/Redis**) processes workloads. An LLM-powered **Self-Learning Failure Memory** dynamically learns from resolved runs, and a dedicated **GitOps Coordinator** synthesizes Pull Requests before deployment.
 
 ```mermaid
 graph TD
@@ -24,11 +24,15 @@ graph TD
     Reflection -->|Dynamic Fix Advice| Developer
     
     Auditor -->|Clean Scan| FinOps[FinOps Specialist]
-    FinOps -->|Cost Analysis| Deployer[Deployment Specialist]
+    FinOps -->|Cost Analysis| GitOps[GitOps & Release Coordinator]
+    GitOps -->|Open Pull Request| GitHub[(GitHub/GitLab PR)]
+    GitHub -->|Org Owner/Admin Sign-off| ApprovalGate{Enterprise Approval Gate}
+    ApprovalGate -->|Approved| Deployer[Deployment Specialist]
     Deployer -->|Live Logs/Errors| Memory
     Deployer -->|New Deploy Errors| Reflection
     Deployer -->|Deployed Resources| QATester[QA Behavior Validator]
-    QATester -->|Smoke Tests Output| User
+    QATester -->|Smoke Tests Output| AuditTrail[(Enterprise Audit Log)]
+    AuditTrail --> User
     
     subgraph "Self-Healing Loop (Up to 3 Rounds)"
     Developer
@@ -45,38 +49,40 @@ graph TD
 
 ## 🧱 Core Architecture Layers
 
-### Orchestrator Layer (`orchestrator/`)
-The central pipeline engine that coordinates all agents, manages state, and drives the self-healing loop.
+### IaC Engine Abstraction Layer (`tools/engine/`)
+Universal runtime abstraction layer supporting both HashiCorp Terraform and Linux Foundation OpenTofu.
 
 | Module | Purpose |
 | :--- | :--- |
-| `pipeline.py` | `run_full_pipeline()` — single authoritative entry-point for both CLI and Web Dashboard. Manages the Architect → Developer → Validator → FinOps → Deploy → QA Tester workflow. |
-| `retry_handler.py` | `RetryContext` tracks self-healing rounds, accumulates errors, and fetches pattern-based advice. `should_retry()` distinguishes retryable errors from hard stops. |
+| `base.py` | `IaCEngine` abstract base class defining standard operations (`fmt`, `init`, `validate`, `plan`, `apply`, `destroy`, `show_state`, `get_version`, `is_available`). |
+| `terraform_engine.py` | `TerraformEngine` implementing CLI operations using the `terraform` binary. |
+| `opentofu_engine.py` | `OpenTofuEngine` implementing CLI operations using the `tofu` binary. |
+| `factory.py` | `EngineFactory` managing engine resolution (`get_engine()`), environment checks, and automatic fallback when a binary is not present on PATH. |
 
-### Memory Layer (`memory/`)
-A failure pattern knowledge base that allows agents to remember fixes to common Terraform errors.
-
-| Module | Purpose |
-| :--- | :--- |
-| `failure_patterns.json` | Catalog of 20+ known error patterns (S3 naming, IAM permissions, dependency errors, syntax issues, provider misconfigs, timeouts) with categorized fix suggestions. |
-| `pattern_manager.py` | `PatternManager` class featuring lookup logic (`match()`, `format_advice()`) and `learn_from_run()` to extract and append new signatures automatically on retry success. |
-
-### Multi-Tenant Organization Layer (`tools/project/`)
-Enables GitHub-style multi-organization workspaces with team collaboration and RBAC.
+### GitOps & Release Layer (`tools/gitops/` & `agents/gitops_coordinator.py`)
+Deterministic Git operations, pull request synthesis, and GitHub REST API integration.
 
 | Module | Purpose |
 | :--- | :--- |
+| `gitops_tools.py` | `GitOpsTools` provides branch creation (`ai/{slug}-{timestamp}`), atomic commit staging, remote push, Markdown PR body generation (with Mermaid diagram, Infracost table, and Checkov findings), GitHub PR creation, and automated squash merging. |
+| `gitops_coordinator.py` | `GitOpsCoordinator` agent reviews generated IaC and prepares release metadata for repository pull requests. |
+
+### Enterprise Audit Trail Layer (`tools/project/`)
+Immutable audit log tracking all actions across multi-tenant organizations.
+
+| Module | Purpose |
+| :--- | :--- |
+| `tracker.py` — `AuditTracker` | Immutable activity logging (`log_action()`, `get_logs()`) for `gitops_pr_created`, `gitops_pr_approved`, `gitops_pr_merged_and_deployed`, and organization memberships. |
 | `tracker.py` — `OrgTracker` | Organization CRUD: create orgs with auto-slugging, list user memberships, add/remove members with roles (owner/admin/member/viewer), check RBAC permissions. |
-| `tracker.py` — `ProjectTracker` | SQL-backed project metadata with `org_id` scoping. `load_all(org_id=X)` returns org-scoped projects; `load_all(owner_id=X)` returns personal projects. |
+| `tracker.py` — `ProjectTracker` | SQL-backed project metadata with `org_id` scoping and GitOps columns (`git_repo`, `git_branch`, `pr_url`, `pr_number`, `pr_status`, `approval_status`, `approved_by_id`). |
 | `tracker.py` — `UserTracker` | User registration, password hashing (Werkzeug), and session-based authentication. |
-| `tracker.py` — DB Models | `UserModel`, `OrganizationModel`, `OrgMemberModel` (junction table), `ProjectModel` (with `org_id` FK), `RunModel`, `JobModel`, `BillingUsageModel`. |
 
 ### Concurrency Queue Layer (`workers/` & `redis`)
 Ensures scalability under heavy loads by offloading blocking agent work to a job queue.
 
 | Module | Purpose |
 | :--- | :--- |
-| `celery_worker.py` | Celery app task wrapper (`run_agent_pipeline_task`) executing main script subprocesses asynchronously and streaming live console output line-by-line to Redis. Passes `org_id` via environment variables. |
+| `celery_worker.py` | Celery app task wrapper (`run_agent_pipeline_task`) executing main script subprocesses asynchronously and streaming live console output line-by-line to Redis. Supports GitOps flags. |
 | `redis` | Broker database holding the active task registry and the `logs:active-run` logs. |
 
 ---
@@ -103,12 +109,16 @@ Ensures scalability under heavy loads by offloading blocking agent work to a job
 - **Role**: Analyzes the financial impact of the generated infrastructure.
 - **Tooling**: Integrated with **Infracost**. Exposes tools to query costs, output markdown reports, and write dynamic recommendations.
 
-### 5. Deployment Specialist (The Operator)
-- **Role**: Executes the live infrastructure changes and handles provider-level interactions.
+### 5. GitOps & Release Coordinator (The Release Engineer)
+- **Role**: Manages version control, branch staging, and Pull Request synthesis.
+- **Tooling**: Uses `GitOpsTools` to create isolated feature branches, stage all `.tf` files, push to remote repos, and open formatted PRs on GitHub.
+
+### 6. Deployment Specialist (The Operator)
+- **Role**: Executes live infrastructure changes once PR is approved.
 - **Tooling**: Uses `terraform plan` and `terraform apply`.
 - **Self-Healing Capabilities**: Captures real-time CLI errors and feeds technical error logs back to the Pattern Memory and Developer for immediate code remediation.
 
-### 6. QA Behavior Validator (The Tester)
+### 7. QA Behavior Validator (The Tester)
 - **Role**: Performs live post-apply behavior verification tests to ensure that deployed resources are actually healthy and reachable.
 - **Tooling**: Utilizes `TestingTools` class to probe HTTP endpoints, check S3 bucket read/write operations, and verify AWS resource active states.
 

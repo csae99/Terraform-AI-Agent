@@ -20,9 +20,9 @@ logging.basicConfig(level=logging.INFO)
 # Force UTF-8 encoding for console output on Windows
 if sys.platform == "win32" and "pytest" not in sys.modules:
     try:
-        if hasattr(sys.stdout, 'buffer'):
+        if hasattr(sys.stdout, 'buffer') and getattr(sys.stdout, 'encoding', '').lower() != 'utf-8':
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-        if hasattr(sys.stderr, 'buffer'):
+        if hasattr(sys.stderr, 'buffer') and getattr(sys.stderr, 'encoding', '').lower() != 'utf-8':
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
     except AttributeError:
         pass
@@ -109,7 +109,7 @@ def _run_subprocess_sync(cmd, env, cwd, temp_slug):
 
 # --- Background Task ---
 async def run_agent_workflow(prompt: str, budget: float, apply: bool, credentials: dict = None, ai_config: dict = None, new_project: bool = False,
-                             gitops: bool = False, git_repo: str = None, git_token: str = None, target_branch: str = "main"):
+                             gitops: bool = False, git_repo: str = None, git_token: str = None, target_branch: str = "main", engine: str = "terraform"):
     # Use absolute path to main.py so it works regardless of CWD
     main_script = os.path.join(_project_root, "app", "main.py")
     cmd = [sys.executable, main_script, prompt, "--budget", str(budget), "--auto-fix"]
@@ -125,6 +125,8 @@ async def run_agent_workflow(prompt: str, budget: float, apply: bool, credential
         cmd.extend(["--git-token", git_token])
     if target_branch:
         cmd.extend(["--target-branch", target_branch])
+    if engine and engine != "terraform":
+        cmd.extend(["--engine", engine])
     
     if ai_config:
         if ai_config.get("model"):
@@ -330,6 +332,7 @@ async def generate_infrastructure(request: Request, background_tasks: Background
         git_repo = data.get("git_repo")
         git_token = data.get("git_token")
         target_branch = data.get("target_branch", "main")
+        engine = data.get("engine", "terraform")
 
         if not prompt:
             raise HTTPException(status_code=400, detail="No prompt provided")
@@ -343,17 +346,17 @@ async def generate_infrastructure(request: Request, background_tasks: Background
             credentials["org_id"] = org_id
 
         credentials["owner_id"] = user.id
-        logger.info(f"Generate request from user {user.id} (Org: {org_id}): prompt='{prompt[:80]}...' budget={budget} apply={apply} gitops={gitops}")
+        logger.info(f"Generate request from user {user.id} (Org: {org_id}): prompt='{prompt[:80]}...' budget={budget} apply={apply} gitops={gitops} engine={engine}")
         
         if r_client:
             r_client.delete("logs:active-run")
             r_client.set("logs:active-run", "🚀 Queueing Celery Job...\n")
             run_agent_pipeline_task.delay(prompt, budget, apply, credentials, ai_config, new_project,
-                                          gitops, git_repo, git_token, target_branch)
+                                          gitops, git_repo, git_token, target_branch, engine)
         else:
             active_logs["active-run"] = "🚀 Starting Workflow locally...\n"
             background_tasks.add_task(run_agent_workflow, prompt, budget, apply, credentials, ai_config, new_project,
-                                      gitops, git_repo, git_token, target_branch)
+                                      gitops, git_repo, git_token, target_branch, engine)
             
         return {"message": "Workflow started", "status": "processing"}
     except HTTPException:
@@ -737,7 +740,10 @@ async def get_audit_logs(org_id: Optional[int] = None, slug: Optional[str] = Non
     logs = AuditTracker.get_logs(org_id=org_id, resource_slug=slug, limit=100)
     return logs
 
-
+@app.get("/api/engine/status")
+async def get_engine_status():
+    from tools.engine import EngineFactory
+    return EngineFactory.list_available_engines()
 
 
 if __name__ == "__main__":

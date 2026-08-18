@@ -15,7 +15,7 @@ r_client = redis.from_url(redis_url)
 
 @celery_app.task(name="tasks.run_agent_pipeline")
 def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None, ai_config=None, new_project=False,
-                            gitops=False, git_repo=None, git_token=None, target_branch="main"):
+                            gitops=False, git_repo=None, git_token=None, target_branch="main", engine="terraform"):
     # Construct the command exactly like app/dashboard.py
     project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
     main_script = os.path.join(project_root, "app", "main.py")
@@ -33,6 +33,8 @@ def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None,
         cmd.extend(["--git-token", git_token])
     if target_branch:
         cmd.extend(["--target-branch", target_branch])
+    if engine and engine != "terraform":
+        cmd.extend(["--engine", engine])
         
     if ai_config:
         if ai_config.get("model"):

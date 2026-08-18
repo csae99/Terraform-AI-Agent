@@ -3,6 +3,7 @@ import re
 import subprocess
 import shutil
 from datetime import datetime
+from typing import Optional
 from crewai.tools import tool
 
 class TerraformTools:
@@ -74,52 +75,33 @@ class TerraformTools:
         return content
 
     @staticmethod
-    def _auto_fmt(filepath: str) -> None:
-        """Best-effort terraform fmt on a single file. Silent on failure."""
+    def _auto_fmt(filepath: str, engine_name: Optional[str] = None) -> None:
+        """Best-effort IaC fmt on a single file using the configured engine (Terraform/OpenTofu)."""
         try:
-            directory = os.path.dirname(filepath)
-            subprocess.run(
-                ["terraform", "fmt", os.path.basename(filepath)],
-                cwd=directory,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            from tools.engine import EngineFactory
+            engine = EngineFactory.get_engine(engine_name)
+            engine.fmt(filepath)
         except Exception:
             pass  # fmt is optional — don't block the pipeline
 
     @staticmethod
-    def _validate_terraform_code(project_slug: str = "workspace") -> str:
+    def _validate_terraform_code(project_slug: str = "workspace", engine_name: Optional[str] = None) -> str:
         slug = TerraformTools._sanitize_slug(project_slug)
         output_dir = os.path.join("output", slug)
         if not os.path.exists(output_dir):
-            return f"No terraform files found in {output_dir}. Are you sure the slug is correct?"
+            return f"No IaC files found in {output_dir}. Are you sure the slug is correct?"
 
         try:
-            # Init (MUST run before validate so modules are installed)
-            init_process = subprocess.run(
-                ["terraform", "init", "-backend=false"],
-                cwd=output_dir,
-                capture_output=True,
-                text=True
-            )
-            if init_process.returncode != 0:
-                return f"Terraform Init Failed for project '{slug}':\n{init_process.stderr}"
-
-            # Validate
-            validate_process = subprocess.run(
-                ["terraform", "validate"],
-                cwd=output_dir,
-                capture_output=True,
-                text=True
-            )
-            if validate_process.returncode == 0:
-                return f"Terraform Validate Succeeded for project '{slug}'! Code is syntactically valid."
+            from tools.engine import EngineFactory
+            engine = EngineFactory.get_engine(engine_name)
+            res = engine.validate(output_dir)
+            if res["success"]:
+                return f"{engine.name.capitalize()} Validate Succeeded for project '{slug}'! Code is syntactically valid."
             else:
-                return f"Terraform Validate Failed for project '{slug}':\n{validate_process.stderr}"
+                return f"{engine.name.capitalize()} Validate Failed for project '{slug}':\n{res.get('stderr', '') or res.get('stdout', '')}"
 
         except FileNotFoundError:
-            return "Terraform CLI is not installed or not in PATH. Cannot validate code."
+            return "IaC Engine CLI (terraform/tofu) is not installed or not in PATH. Cannot validate code."
         except Exception as e:
             return f"An unexpected error occurred during validation: {str(e)}"
 

@@ -57,3 +57,30 @@ This document outlines the steps to manually verify the entire platform lifecycl
     - [ ] Generation request is blocked by server-side RBAC with a 403 Forbidden alert.
     - [ ] Switching back to `👤 Personal Workspace` restores personal projects and full generation rights.
 
+## 8. GitOps Pull Request Automation
+- **Action**:
+    1. In the Build tab, toggle **GitOps Mode**.
+    2. Provide Git repository URL (e.g. `https://github.com/my-org/terraform-repo.git`), target branch `main`, and GitHub PAT.
+    3. Click **Generate**.
+- **Expectation**:
+    - [ ] Agent creates an isolated branch `ai/{slug}-{timestamp}` and commits all generated `.tf` code.
+    - [ ] Agent opens a Pull Request on GitHub with visual Mermaid topology diagram, Infracost table, and Checkov findings.
+    - [ ] Project status is set to `pr_opened` and `approval_status` is `pending`.
+
+## 9. Enterprise Approval Gate & Merge
+- **Action**:
+    1. Open the project in the dashboard and navigate to the **🔀 GitOps & PR** tab.
+    2. Log in as a Member -> verify that the **Approve PR** button triggers a 403 Forbidden error.
+    3. Log in as an Organization Owner or Admin -> click **Approve PR**.
+    4. Click **Merge & Deploy**.
+- **Expectation**:
+    - [ ] Status updates to `✅ Approved` with approver's username.
+    - [ ] Merge triggers automated squash merge on GitHub and marks project `deployed`.
+
+## 10. Enterprise Audit Trail
+- **Action**:
+    1. Click the **Audit Trail** tab in the main navigation.
+- **Expectation**:
+    - [ ] Immutable audit table displays chronological activity feed.
+    - [ ] Actions `gitops_pr_created`, `gitops_pr_approved`, and `gitops_pr_merged_and_deployed` are visible with timestamps and user identifiers.
+

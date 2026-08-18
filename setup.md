@@ -1,4 +1,4 @@
-# Terraform AI Agent - Setup Guide (Phase 10)
+# Terraform AI Agent - Setup Guide (Phase 11: Enterprise GitOps)
 
 This guide provides step-by-step instructions for setting up the Universal Terraform AI Agent on both Windows and Linux.
 
@@ -6,9 +6,10 @@ This guide provides step-by-step instructions for setting up the Universal Terra
 
 1.  **Python 3.9+**: The core engine of the agent.
 2.  **Terraform CLI**: Required for infrastructure validation and deployment.
-3.  **Docker**: Essential for FinOps (Infracost), Security (Checkov), and local cloud emulation (Floci).
-4.  **AWS CLI**: Required for live deployments in Phase 5.
-5.  **API Keys**: Gemini API key (Primary) and an Infracost API token.
+3.  **Git CLI**: Required for branch creation and automated Pull Requests.
+4.  **Docker**: Essential for FinOps (Infracost), Security (Checkov), and local cloud emulation (Floci).
+5.  **AWS / Cloud CLI**: Required for live deployments.
+6.  **API Keys**: LLM API key (Gemini/OpenAI/Mistral), Infracost API token, and optional GitHub Personal Access Token (for GitOps PRs).
 
 ---
 
