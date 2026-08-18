@@ -34,4 +34,26 @@ This document outlines the steps to manually verify the entire platform lifecycl
 ## 5. Persistence Recovery
 - **Action**: Run `docker-compose restart`.
 - **Expectation**:
-    - [ ] Refresh dashboard. All projects and logs must still be present (retrieved from PostgreSQL).
+    - [ ] Refresh dashboard. All projects and logs must still be present (retrieved from PostgreSQL/SQLite).
+
+## 6. Multi-Tenant Organization Workspaces
+- **Action**:
+    1. Click the **+ New Org** button in the header.
+    2. Enter an organization name (e.g. `DevOps Engineering`) and submit.
+- **Expectation**:
+    - [ ] Organization is created and user is assigned the `OWNER` role.
+    - [ ] Workspace selector automatically switches to `🏢 DevOps Engineering (OWNER)`.
+    - [ ] "Team Members" button appears next to the workspace selector.
+    - [ ] Projects list displays 0 projects (scoped to new org).
+
+## 7. Team Invitation & RBAC Enforcement
+- **Action**:
+    1. Click **👥 Team Members** in the org workspace context.
+    2. Invite another registered user with role `Viewer`.
+    3. Log in as the invited `Viewer` user and switch to the organization workspace.
+    4. Attempt to generate new infrastructure.
+- **Expectation**:
+    - [ ] Viewer can view existing org projects and stats.
+    - [ ] Generation request is blocked by server-side RBAC with a 403 Forbidden alert.
+    - [ ] Switching back to `👤 Personal Workspace` restores personal projects and full generation rights.
+

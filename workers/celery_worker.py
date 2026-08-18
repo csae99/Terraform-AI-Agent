@@ -14,7 +14,8 @@ celery_app = Celery("tasks", broker=redis_url, backend=redis_url)
 r_client = redis.from_url(redis_url)
 
 @celery_app.task(name="tasks.run_agent_pipeline")
-def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None, ai_config=None, new_project=False):
+def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None, ai_config=None, new_project=False,
+                            gitops=False, git_repo=None, git_token=None, target_branch="main"):
     # Construct the command exactly like app/dashboard.py
     project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
     main_script = os.path.join(project_root, "app", "main.py")
@@ -24,6 +25,14 @@ def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None,
         cmd.append("--apply")
     if new_project:
         cmd.append("--new-project")
+    if gitops:
+        cmd.append("--gitops")
+    if git_repo:
+        cmd.extend(["--git-repo", git_repo])
+    if git_token:
+        cmd.extend(["--git-token", git_token])
+    if target_branch:
+        cmd.extend(["--target-branch", target_branch])
         
     if ai_config:
         if ai_config.get("model"):
@@ -36,6 +45,7 @@ def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None,
             cmd.extend(["--model", model])
         if ai_config.get("key"):
             cmd.extend(["--model-key", ai_config.get("key")])
+
             
     env = os.environ.copy()
     if credentials:

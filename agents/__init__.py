@@ -4,6 +4,7 @@ from .security_reviewer import SecurityReviewer
 from .cost_optimizer import CostOptimizer
 from .deployment_planner import DeploymentPlanner
 from .testing_agent import TestingAgent
+from .gitops_coordinator import GitOpsCoordinator
 
 __all__ = [
     "TerraformArchitect",
@@ -11,5 +12,7 @@ __all__ = [
     "SecurityReviewer",
     "CostOptimizer",
     "DeploymentPlanner",
-    "TestingAgent"
+    "TestingAgent",
+    "GitOpsCoordinator"
 ]
+

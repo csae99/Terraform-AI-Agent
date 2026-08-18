@@ -54,6 +54,9 @@
             <i class="fas fa-folder-open"></i> Workspaces
             <span class="nav-badge" id="workspace-count"></span>
         </button>
+        <button class="primary-nav-tab" id="nav-audit" onclick="switchPrimaryTab('audit')">
+            <i class="fas fa-history"></i> Audit Trail
+        </button>
     </div>
 
     <!-- ═══ BUILD TAB ═══ -->
@@ -81,8 +84,31 @@
                         <label class="meta-label">New Workspace</label>
                         <input type="checkbox" id="infra-new-project" checked>
                     </div>
+                    <div class="build-toggle-col">
+                        <label class="meta-label">GitOps Mode</label>
+                        <input type="checkbox" id="infra-gitops" onchange="toggleGitOpsSection()">
+                    </div>
                     <button class="btn-generate tab-btn active" id="btn-generate" onclick="generateInfra()">Generate</button>
                 </div>
+
+                <!-- GitOps Pull Request Settings -->
+                <details id="gitops-section" class="advanced-section" style="border-color: rgba(99, 102, 241, 0.4);">
+                    <summary class="summary-blue" style="color: #818cf8;"><i class="fab fa-github"></i> 🔀 GitOps & Pull Request Automation (Optional)</summary>
+                    <div class="config-grid-3" style="margin-top: 1rem;">
+                        <div>
+                            <label class="meta-label">Repository URL</label>
+                            <input type="text" id="gitops-repo" class="form-input form-input-sm" placeholder="https://github.com/org/terraform-repo.git">
+                        </div>
+                        <div>
+                            <label class="meta-label">Target Branch</label>
+                            <input type="text" id="gitops-branch" class="form-input form-input-sm" value="main" placeholder="main">
+                        </div>
+                        <div>
+                            <label class="meta-label">GitHub Token (PAT)</label>
+                            <input type="password" id="gitops-token" class="form-input form-input-sm" placeholder="ghp_xxxxxxxxxxxx">
+                        </div>
+                    </div>
+                </details>
 
                 <!-- AI Model Configuration -->
                 <details class="advanced-section">
@@ -227,6 +253,7 @@
                     <button class="modal-tab" onclick="switchModalTab('financial')">💰 FinOps Report</button>
                     <button class="modal-tab" onclick="switchModalTab('logs')">📋 Deployment Logs</button>
                     <button class="modal-tab" onclick="switchModalTab('diagnostics')">🔬 Diagnostics & Telemetry</button>
+                    <button class="modal-tab" onclick="switchModalTab('gitops')">🔀 GitOps & PR</button>
                 </div>
 
                 <div id="modal-tab-code" class="modal-tab-content active">
@@ -302,7 +329,76 @@
                      </div>
                 </div>
 
+                <div id="modal-tab-gitops" class="modal-tab-content" style="display: none;">
+                    <div class="gitops-layout" style="display: flex; flex-direction: column; gap: 1.5rem; padding: 1rem 0;">
+                        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <h3 style="margin: 0; font-size: 1.1rem; color: #fff;"><i class="fab fa-github" style="color: #a5b4fc;"></i> Release & Pull Request Status</h3>
+                                <span id="gitops-approval-badge" class="status-badge">Pending</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                <div>
+                                    <span class="meta-label">Git Branch</span>
+                                    <div id="gitops-branch-name" style="font-family: monospace; font-weight: 600; color: #60a5fa;">-</div>
+                                </div>
+                                <div>
+                                    <span class="meta-label">Pull Request</span>
+                                    <div id="gitops-pr-link">-</div>
+                                </div>
+                                <div>
+                                    <span class="meta-label">Approved By</span>
+                                    <div id="gitops-approved-by" style="font-weight: 600; color: #4ade80;">-</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Approval Gate Controls -->
+                        <div id="gitops-approval-actions" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius-sm); padding: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; color: #fff;">Enterprise Approval Gate</h4>
+                                <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">Organization Owners & Admins can approve and merge this infrastructure release.</p>
+                            </div>
+                            <div style="display: flex; gap: 0.75rem;">
+                                <button id="btn-approve-pr" onclick="approveProjectPR()" class="btn-sm" style="background: #10b981; border: none; color: #fff; font-weight: 600; padding: 0.6rem 1.2rem; border-radius: var(--radius-sm); cursor: pointer;">
+                                    <i class="fas fa-check"></i> Approve PR
+                                </button>
+                                <button id="btn-merge-deploy" onclick="mergeAndDeployProject()" class="btn-sm" style="background: #6366f1; border: none; color: #fff; font-weight: 600; padding: 0.6rem 1.2rem; border-radius: var(--radius-sm); cursor: pointer;">
+                                    <i class="fas fa-code-merge"></i> Merge & Deploy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
         </div>
+    </div>
+
+    <!-- ═══ AUDIT LOGS TAB ═══ -->
+    <div id="view-audit" class="primary-view" style="display: none;">
+        <main>
+            <div class="section-header">
+                <h2>Enterprise Audit Trail</h2>
+                <div class="workspace-toolbar">
+                    <button class="tab-btn active" onclick="loadAuditLogs()"><i class="fas fa-sync"></i> Refresh Audit Logs</button>
+                </div>
+            </div>
+            <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem; overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border-color); color: #aaa;">
+                            <th style="padding: 0.75rem;">Timestamp</th>
+                            <th style="padding: 0.75rem;">User</th>
+                            <th style="padding: 0.75rem;">Action</th>
+                            <th style="padding: 0.75rem;">Resource</th>
+                            <th style="padding: 0.75rem;">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-logs-tbody">
+                        <!-- Audit events injected dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
     </div>
 
     <!-- ─── Create Organization Modal ─── -->

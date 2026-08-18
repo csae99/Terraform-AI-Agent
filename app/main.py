@@ -43,6 +43,10 @@ def main():
     parser.add_argument("--model-key", type=str, help="API Key for the selected model")
     parser.add_argument("--new-project", action="store_true", help="Generate a unique project slug if it already exists")
     parser.add_argument("--test-local", action="store_true", help="Run in local cloud emulation mode with Floci")
+    parser.add_argument("--gitops", action="store_true", help="Enable GitOps mode: create branch and open Pull Request")
+    parser.add_argument("--git-repo", type=str, help="Target Git repository URL (e.g., https://github.com/org/repo.git)")
+    parser.add_argument("--git-token", type=str, help="GitHub Personal Access Token (or GIT_TOKEN env)")
+    parser.add_argument("--target-branch", type=str, default="main", help="Target branch for PR (default: main)")
     args = parser.parse_args()
 
     # Handle Destructive Actions
@@ -64,6 +68,8 @@ def main():
         cli_flags.append("--new-project")
     if args.test_local:
         cli_flags.append("--test-local")
+    if args.gitops:
+        cli_flags.append("--gitops")
 
     owner_id = os.getenv("owner_id")
 
@@ -78,8 +84,13 @@ def main():
         new_project=args.new_project,
         cli_flags=cli_flags,
         test_local=args.test_local,
+        gitops=args.gitops,
+        git_repo=args.git_repo,
+        git_token=args.git_token,
+        target_branch=args.target_branch,
     )
 
 
 if __name__ == "__main__":
     main()
+

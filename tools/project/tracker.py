@@ -27,7 +27,7 @@ class UserModel(Base, UserMixin):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationship to projects
-    projects = relationship("ProjectModel", back_populates="owner")
+    projects = relationship("ProjectModel", back_populates="owner", foreign_keys="[ProjectModel.owner_id]")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -58,6 +58,15 @@ class ProjectModel(Base):
     decision_trace = Column(JSON, default=list)
     qa_report = Column(Text, default="")
     
+    # GitOps & Approval Gate Columns
+    git_repo = Column(String, nullable=True)
+    git_branch = Column(String, nullable=True)
+    pr_url = Column(String, nullable=True)
+    pr_number = Column(Integer, nullable=True)
+    pr_status = Column(String, default="none")  # none, open, approved, merged, closed
+    approval_status = Column(String, default="none")  # none, pending, approved, rejected
+    approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -65,7 +74,8 @@ class ProjectModel(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     org_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
     
-    owner = relationship("UserModel", back_populates="projects")
+    owner = relationship("UserModel", foreign_keys=[owner_id], back_populates="projects")
+    approver = relationship("UserModel", foreign_keys=[approved_by_id])
     organization = relationship("OrganizationModel", back_populates="projects")
 
 
@@ -124,6 +134,21 @@ class BillingUsageModel(Base):
     run_time_seconds = Column(Float, default=0.0)
 
 
+class AuditLogModel(Base):
+    __tablename__ = "audit_logs"
+    
+    id = Column(Integer, primary_key=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String, index=True)  # create_project, gitops_pr_created, pr_approved, pr_merged, deploy_infra, delete_project
+    resource_slug = Column(String, nullable=True)
+    details = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("UserModel")
+    organization = relationship("OrganizationModel")
+
+
 # Create tables
 Base.metadata.create_all(bind=engine)
 
@@ -145,7 +170,14 @@ def _add_missing_columns():
             "qa_report": "TEXT DEFAULT ''",
             "reflection_advice": "JSON DEFAULT NULL",
             "decision_trace": "JSON DEFAULT '[]'",
-            "org_id": "INTEGER DEFAULT NULL"
+            "org_id": "INTEGER DEFAULT NULL",
+            "git_repo": "VARCHAR DEFAULT NULL",
+            "git_branch": "VARCHAR DEFAULT NULL",
+            "pr_url": "VARCHAR DEFAULT NULL",
+            "pr_number": "INTEGER DEFAULT NULL",
+            "pr_status": "VARCHAR DEFAULT 'none'",
+            "approval_status": "VARCHAR DEFAULT 'none'",
+            "approved_by_id": "INTEGER DEFAULT NULL"
         }
         for col_name, col_def in proj_new_cols.items():
             if col_name not in proj_cols:
@@ -193,12 +225,14 @@ class ProjectTracker:
     OUTPUT_DIR = "output"
 
     @staticmethod
-    def save(slug, prompt=None, status=None, budget=None,
-             estimated_cost=None, security_issues=None, provider=None, 
-             flags=None, mermaid_diagram=None, drift_status=None, owner_id=None,
-             org_id=None, healing_rounds_taken=None, run_duration=None,
+    def save(slug, prompt=None, status=None, budget=None, estimated_cost=None,
+             security_issues=None, provider=None, mermaid_diagram=None,
+             drift_status=None, flags=None, owner_id=None, org_id=None,
+             healing_rounds_taken=None, run_duration=None,
              errors_encountered=None, patterns_applied=None, qa_report=None,
-             reflection_advice=None, decision_trace=None):
+             reflection_advice=None, decision_trace=None,
+             git_repo=None, git_branch=None, pr_url=None, pr_number=None,
+             pr_status=None, approval_status=None, approved_by_id=None):
         """Save or update project metadata in DB."""
         session = SessionLocal()
         try:
@@ -226,6 +260,13 @@ class ProjectTracker:
                 project.qa_report = qa_report or ""
                 project.reflection_advice = reflection_advice
                 project.decision_trace = decision_trace if decision_trace is not None else []
+                project.git_repo = git_repo
+                project.git_branch = git_branch
+                project.pr_url = pr_url
+                project.pr_number = pr_number
+                project.pr_status = pr_status or "none"
+                project.approval_status = approval_status or "none"
+                project.approved_by_id = approved_by_id
             else:
                 if prompt is not None: project.prompt = prompt
                 if status is not None: project.status = status
@@ -245,6 +286,13 @@ class ProjectTracker:
                 if qa_report is not None: project.qa_report = qa_report
                 if reflection_advice is not None: project.reflection_advice = reflection_advice
                 if decision_trace is not None: project.decision_trace = decision_trace
+                if git_repo is not None: project.git_repo = git_repo
+                if git_branch is not None: project.git_branch = git_branch
+                if pr_url is not None: project.pr_url = pr_url
+                if pr_number is not None: project.pr_number = pr_number
+                if pr_status is not None: project.pr_status = pr_status
+                if approval_status is not None: project.approval_status = approval_status
+                if approved_by_id is not None: project.approved_by_id = approved_by_id
             
             session.commit()
             return ProjectTracker.load(slug)
@@ -290,6 +338,13 @@ class ProjectTracker:
                     "reflection_advice": project.reflection_advice,
                     "decision_trace": project.decision_trace or [],
                     "qa_report": project.qa_report,
+                    "git_repo": project.git_repo,
+                    "git_branch": project.git_branch,
+                    "pr_url": project.pr_url,
+                    "pr_number": project.pr_number,
+                    "pr_status": project.pr_status or "none",
+                    "approval_status": project.approval_status or "none",
+                    "approved_by_id": project.approved_by_id,
                     "owner_id": project.owner_id,
                     "org_id": project.org_id,
                     "created_at": project.created_at.isoformat() if project.created_at else "",
@@ -327,6 +382,12 @@ class ProjectTracker:
                     "drift_status": p.drift_status,
                     "healing_rounds_taken": p.healing_rounds_taken,
                     "run_duration": p.run_duration,
+                    "git_repo": p.git_repo,
+                    "git_branch": p.git_branch,
+                    "pr_url": p.pr_url,
+                    "pr_number": p.pr_number,
+                    "pr_status": p.pr_status or "none",
+                    "approval_status": p.approval_status or "none",
                     "updated_at": p.updated_at.isoformat() if p.updated_at else "",
                     "owner_id": p.owner_id,
                     "org_id": p.org_id
@@ -555,4 +616,56 @@ class OrgTracker:
             return False
         finally:
             session.close()
+
+
+class AuditTracker:
+    @staticmethod
+    def log_action(action, user_id=None, org_id=None, resource_slug=None, details=""):
+        """Record an audit event."""
+        session = SessionLocal()
+        try:
+            audit = AuditLogModel(
+                user_id=user_id,
+                org_id=org_id,
+                action=action,
+                resource_slug=resource_slug,
+                details=str(details)
+            )
+            session.add(audit)
+            session.commit()
+            return True
+        except Exception as e:
+            print(f"[AuditTracker] Error recording audit log: {e}")
+            return False
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_logs(org_id=None, user_id=None, limit=50):
+        """Retrieve audit logs scoped by organization or user."""
+        session = SessionLocal()
+        try:
+            query = session.query(AuditLogModel)
+            if org_id is not None:
+                query = query.filter(AuditLogModel.org_id == org_id)
+            elif user_id is not None:
+                query = query.filter(AuditLogModel.user_id == user_id)
+            logs = query.order_by(AuditLogModel.created_at.desc()).limit(limit).all()
+            results = []
+            for l in logs:
+                username = l.user.username if l.user else "System"
+                results.append({
+                    "id": l.id,
+                    "action": l.action,
+                    "user_id": l.user_id,
+                    "username": username,
+                    "org_id": l.org_id,
+                    "resource_slug": l.resource_slug,
+                    "details": l.details,
+                    "created_at": l.created_at.isoformat() if l.created_at else ""
+                })
+            return results
+        finally:
+            session.close()
+
 

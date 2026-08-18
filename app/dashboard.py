@@ -32,7 +32,8 @@ _project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from tools.project.tracker import ProjectTracker, UserTracker, OrgTracker
+from tools.project.tracker import ProjectTracker, UserTracker, OrgTracker, AuditTracker
+from tools.gitops.gitops_tools import GitOpsTools
 import redis
 from workers.celery_worker import run_agent_pipeline_task
 
@@ -107,7 +108,8 @@ def _run_subprocess_sync(cmd, env, cwd, temp_slug):
         raise
 
 # --- Background Task ---
-async def run_agent_workflow(prompt: str, budget: float, apply: bool, credentials: dict = None, ai_config: dict = None, new_project: bool = False):
+async def run_agent_workflow(prompt: str, budget: float, apply: bool, credentials: dict = None, ai_config: dict = None, new_project: bool = False,
+                             gitops: bool = False, git_repo: str = None, git_token: str = None, target_branch: str = "main"):
     # Use absolute path to main.py so it works regardless of CWD
     main_script = os.path.join(_project_root, "app", "main.py")
     cmd = [sys.executable, main_script, prompt, "--budget", str(budget), "--auto-fix"]
@@ -115,6 +117,14 @@ async def run_agent_workflow(prompt: str, budget: float, apply: bool, credential
         cmd.append("--apply")
     if new_project:
         cmd.append("--new-project")
+    if gitops:
+        cmd.append("--gitops")
+    if git_repo:
+        cmd.extend(["--git-repo", git_repo])
+    if git_token:
+        cmd.extend(["--git-token", git_token])
+    if target_branch:
+        cmd.extend(["--target-branch", target_branch])
     
     if ai_config:
         if ai_config.get("model"):
@@ -316,6 +326,10 @@ async def generate_infrastructure(request: Request, background_tasks: Background
         credentials = data.get("credentials") or {}
         ai_config = data.get("ai_config")
         org_id = data.get("org_id")
+        gitops = data.get("gitops", False)
+        git_repo = data.get("git_repo")
+        git_token = data.get("git_token")
+        target_branch = data.get("target_branch", "main")
 
         if not prompt:
             raise HTTPException(status_code=400, detail="No prompt provided")
@@ -329,15 +343,17 @@ async def generate_infrastructure(request: Request, background_tasks: Background
             credentials["org_id"] = org_id
 
         credentials["owner_id"] = user.id
-        logger.info(f"Generate request from user {user.id} (Org: {org_id}): prompt='{prompt[:80]}...' budget={budget} apply={apply} new_project={new_project}")
+        logger.info(f"Generate request from user {user.id} (Org: {org_id}): prompt='{prompt[:80]}...' budget={budget} apply={apply} gitops={gitops}")
         
         if r_client:
             r_client.delete("logs:active-run")
             r_client.set("logs:active-run", "🚀 Queueing Celery Job...\n")
-            run_agent_pipeline_task.delay(prompt, budget, apply, credentials, ai_config, new_project)
+            run_agent_pipeline_task.delay(prompt, budget, apply, credentials, ai_config, new_project,
+                                          gitops, git_repo, git_token, target_branch)
         else:
             active_logs["active-run"] = "🚀 Starting Workflow locally...\n"
-            background_tasks.add_task(run_agent_workflow, prompt, budget, apply, credentials, ai_config, new_project)
+            background_tasks.add_task(run_agent_workflow, prompt, budget, apply, credentials, ai_config, new_project,
+                                      gitops, git_repo, git_token, target_branch)
             
         return {"message": "Workflow started", "status": "processing"}
     except HTTPException:
@@ -609,6 +625,118 @@ async def run_debug_code(request: Request):
         sys.stdout = old_out
         sys.stderr = old_err
     return {"output": result}
+
+
+# --- GitOps & Audit Endpoints ---
+
+@app.get("/api/projects/{slug}/gitops")
+async def get_project_gitops(slug: str, user=Depends(get_current_user)):
+    project = ProjectTracker.load(slug)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+    
+    # Check live status from GitHub if available
+    live_pr_info = None
+    if project.get("git_repo") and project.get("pr_number"):
+        try:
+            live_pr_info = GitOpsTools.get_pr_status(project["git_repo"], project["pr_number"])
+        except Exception:
+            pass
+
+    approver_name = None
+    if project.get("approved_by_id"):
+        approver = UserTracker.get_by_id(project["approved_by_id"])
+        if approver:
+            approver_name = approver.username
+
+    return {
+        "slug": slug,
+        "git_repo": project.get("git_repo"),
+        "git_branch": project.get("git_branch"),
+        "pr_url": project.get("pr_url"),
+        "pr_number": project.get("pr_number"),
+        "pr_status": project.get("pr_status", "none"),
+        "approval_status": project.get("approval_status", "none"),
+        "approved_by": approver_name,
+        "live_github_info": live_pr_info
+    }
+
+@app.post("/api/projects/{slug}/approve")
+async def approve_project(slug: str, user=Depends(get_current_user)):
+    project = ProjectTracker.load(slug)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+
+    # RBAC Check: If project belongs to an org, user must be owner or admin
+    org_id = project.get("org_id")
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role not in ["owner", "admin"]:
+            raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can approve GitOps pull requests")
+    else:
+        # Personal project: must be owner
+        if project.get("owner_id") and project.get("owner_id") != user.id:
+            raise HTTPException(status_code=403, detail="Only the project owner can approve this request")
+
+    ProjectTracker.save(slug, approval_status="approved", approved_by_id=user.id)
+    AuditTracker.log_action(
+        action="gitops_pr_approved",
+        user_id=user.id,
+        org_id=org_id,
+        resource_slug=slug,
+        details=f"User '{user.username}' approved GitOps PR #{project.get('pr_number')} for {slug}"
+    )
+    return {"message": f"Project '{slug}' approved successfully", "approval_status": "approved", "approved_by": user.username}
+
+@app.post("/api/projects/{slug}/merge-deploy")
+async def merge_and_deploy(slug: str, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
+    project = ProjectTracker.load(slug)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+
+    org_id = project.get("org_id")
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role not in ["owner", "admin"]:
+            raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can trigger merge and deploy")
+
+    if project.get("approval_status") != "approved":
+        raise HTTPException(status_code=400, detail="Pull request must be approved prior to merge and deployment")
+
+    # Perform GitHub merge if repo & PR number exist
+    git_repo = project.get("git_repo")
+    pr_number = project.get("pr_number")
+    merge_res = {"success": True, "simulated": True}
+    if git_repo and pr_number:
+        merge_res = GitOpsTools.merge_pull_request(git_repo, pr_number)
+
+    ProjectTracker.save(slug, pr_status="merged", status="deployed")
+    AuditTracker.log_action(
+        action="gitops_pr_merged_and_deployed",
+        user_id=user.id,
+        org_id=org_id,
+        resource_slug=slug,
+        details=f"User '{user.username}' merged PR #{pr_number} and triggered live deployment"
+    )
+
+    return {
+        "message": f"PR #{pr_number} merged and deployment finalized for '{slug}'",
+        "pr_status": "merged",
+        "status": "deployed",
+        "merge_details": merge_res
+    }
+
+@app.get("/api/audit-logs")
+async def get_audit_logs(org_id: Optional[int] = None, slug: Optional[str] = None, user=Depends(get_current_user)):
+    # If org_id is provided, verify membership
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if not user_role:
+            raise HTTPException(status_code=403, detail="Access denied: Not a member of this organization")
+    
+    logs = AuditTracker.get_logs(org_id=org_id, resource_slug=slug, limit=100)
+    return logs
+
 
 
 

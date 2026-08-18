@@ -11,12 +11,15 @@ from datetime import datetime
 
 from crewai import Crew, Process
 
-from agents.terraform_architect import TerraformArchitect
-from agents.terraform_developer import TerraformDeveloper
-from agents.security_reviewer import SecurityReviewer
-from agents.cost_optimizer import CostOptimizer
-from agents.deployment_planner import DeploymentPlanner
-from agents.testing_agent import TestingAgent
+from agents import (
+    TerraformArchitect,
+    TerraformDeveloper,
+    SecurityReviewer,
+    CostOptimizer,
+    DeploymentPlanner,
+    TestingAgent,
+    GitOpsCoordinator,
+)
 
 from workflows.terraform_generation import TerraformGenerationTasks
 from workflows.terraform_validation import TerraformValidationTasks
@@ -144,6 +147,10 @@ def run_full_pipeline(
     new_project: bool = False,
     cli_flags: list = None,
     test_local: bool = False,
+    gitops: bool = False,
+    git_repo: str = None,
+    git_token: str = None,
+    target_branch: str = "main",
 ) -> dict:
     """Execute the full multi-agent Terraform pipeline.
 
@@ -156,6 +163,11 @@ def run_full_pipeline(
     import time as _time_perf
     start_time = _time_perf.time()
     is_test_local = test_local or os.environ.get("TEST_LOCAL") == "true" or "--test-local" in (cli_flags or [])
+    is_gitops = gitops or os.environ.get("GITOPS") == "true" or "--gitops" in (cli_flags or [])
+    git_repo_target = git_repo or os.environ.get("GIT_REPO")
+    git_token_target = git_token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GIT_TOKEN")
+    git_base_branch = target_branch or os.environ.get("GIT_TARGET_BRANCH") or "main"
+
     if not org_id and os.environ.get("org_id"):
         try:
             org_id = int(os.environ.get("org_id"))
@@ -677,6 +689,68 @@ def run_full_pipeline(
         retry.best_finding_count if retry.best_finding_count is not None else 0
     )
 
+    # ── 5. GitOps Branching & Pull Request Automation ────────────
+    pr_url = None
+    pr_number = None
+    pr_status = "none"
+    approval_status = "none"
+    git_branch_name = None
+
+    if is_gitops and git_repo_target:
+        print("\n" + "=" * 50)
+        print("         🔀 GITOPS RELEASE & PR COORDINATION")
+        print("=" * 50)
+        branch_res = GitOpsTools.create_feature_branch(output_base, slug, base_branch=git_base_branch)
+        git_branch_name = branch_res.get("branch_name", f"ai/{slug}")
+        print(f"Created Git Feature Branch: {git_branch_name}")
+
+        commit_res = GitOpsTools.commit_files(output_base, slug, prompt)
+        print(f"Committed IaC Files: {commit_res.get('commit_message', '')}")
+
+        push_res = GitOpsTools.push_branch(output_base, git_repo_target, git_branch_name, git_token_target)
+        if push_res.get("success"):
+            print(f"Pushed branch to remote repository: {git_repo_target}")
+        else:
+            print(f"Warning: Git push returned: {push_res.get('error')}")
+
+        pr_body = GitOpsTools.generate_pr_body(
+            slug=slug,
+            prompt=prompt,
+            arch_result=arch_result,
+            cost_summary=estimator.format_report(cost_results),
+            audit_summary=auditor.format_report(audit_results),
+            mermaid_diagram=mermaid_diagram
+        )
+
+        pr_res = GitOpsTools.create_pull_request(
+            repo_url=git_repo_target,
+            branch_name=git_branch_name,
+            target_branch=git_base_branch,
+            title=f"feat(iac): provision {slug}",
+            body=pr_body,
+            token=git_token_target
+        )
+
+        if pr_res.get("success"):
+            pr_url = pr_res.get("pr_url")
+            pr_number = pr_res.get("pr_number")
+            pr_status = "open"
+            approval_status = "pending"
+            final_status = "pr_opened"
+            print(f"✅ Pull Request Opened: {pr_url} (PR #{pr_number})")
+            print(f"🔒 Approval Status: PENDING (Requires Org Owner/Admin Approval)")
+
+            # Record Audit Trail
+            AuditTracker.log_action(
+                action="gitops_pr_created",
+                user_id=owner_id,
+                org_id=org_id,
+                resource_slug=slug,
+                details=f"Opened Pull Request #{pr_number} on {git_repo_target} (Branch: {git_branch_name})"
+            )
+        else:
+            print(f"❌ Failed to open Pull Request: {pr_res.get('error')}")
+
     # ── Gather Telemetry ──────────────────────────────────────────
     run_duration = _time_perf.time() - start_time
     qa_report = ""
@@ -696,13 +770,20 @@ def run_full_pipeline(
         flags=cli_flags,
         mermaid_diagram=mermaid_diagram,
         owner_id=owner_id,
+        org_id=org_id,
         healing_rounds_taken=retry.current_round,
         run_duration=round(run_duration, 2),
         errors_encountered=retry.errors,
         patterns_applied=retry.patterns_applied,
         qa_report=qa_report,
         reflection_advice=getattr(retry, "reflection_advice", None),
-        decision_trace=retry.decision_trace
+        decision_trace=retry.decision_trace,
+        git_repo=git_repo_target if is_gitops else None,
+        git_branch=git_branch_name,
+        pr_url=pr_url,
+        pr_number=pr_number,
+        pr_status=pr_status,
+        approval_status=approval_status
     )
 
     print("\n" + "=" * 50)

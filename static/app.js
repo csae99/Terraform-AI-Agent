@@ -73,6 +73,10 @@ function switchPrimaryTab(tabId) {
     document.querySelectorAll('.primary-nav-tab').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById(`nav-${tabId}`);
     if (btn) btn.classList.add('active');
+
+    if (tabId === 'audit') {
+        loadAuditLogs();
+    }
 }
 
 // ─── Stats ──────────────────────────────────────────────────────
@@ -120,14 +124,19 @@ function renderProjects(projects) {
         `;
         return;
     }
-    grid.innerHTML = projects.map(p => `
+    grid.innerHTML = projects.map(p => {
+        const prBadge = p.pr_url ? `<span class="status-badge" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); margin-left: 0.5rem; font-size: 0.7rem;"><i class="fab fa-github"></i> PR #${p.pr_number || ''} (${p.approval_status || 'open'})</span>` : '';
+        return `
         <div class="project-card" onclick="openProject('${p.slug}')">
             <div class="project-card-header">
                 <div>
                     <div class="project-slug">${p.slug}</div>
                     <span class="project-provider">${p.provider}</span>
                 </div>
-                <span class="status-badge status-${p.status}">${p.status}</span>
+                <div style="display: flex; align-items: center; gap: 0.3rem;">
+                    ${prBadge}
+                    <span class="status-badge status-${p.status}">${p.status}</span>
+                </div>
             </div>
             <div class="project-card-body">
                 <p class="project-prompt">${p.prompt || 'No description...'}</p>
@@ -137,7 +146,8 @@ function renderProjects(projects) {
                 </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // ─── Search & Filter ────────────────────────────────────────────
@@ -245,6 +255,8 @@ async function switchModalTab(tabId) {
         const res = await apiFetch(`/api/projects/${currentProject.slug}/code`);
         currentCodeFiles = await res.json();
         renderFileTabs(currentCodeFiles);
+    } else if (tabId === 'gitops' && currentProject) {
+        loadGitOpsDetails(currentProject.slug);
     } else if (tabId === 'visual' && currentProject?.mermaid_diagram) {
         const container = document.getElementById('mermaid-container');
         const diagramId = 'mermaid-tab-' + Date.now();
@@ -518,12 +530,25 @@ async function refreshData() {
     if (btn) { btn.innerText = "Refresh"; btn.disabled = false; }
 }
 
+// ─── GitOps Section Toggle ──────────────────────────────────────
+function toggleGitOpsSection() {
+    const isGitOps = document.getElementById('infra-gitops').checked;
+    const details = document.getElementById('gitops-section');
+    if (details) {
+        details.open = isGitOps;
+    }
+}
+
 // ─── Generate Infrastructure ────────────────────────────────────
 async function generateInfra() {
     const prompt = document.getElementById('infra-prompt').value;
     const budget = document.getElementById('infra-budget').value;
     const apply = document.getElementById('infra-apply').checked;
     const new_project = document.getElementById('infra-new-project').checked;
+    const gitops = document.getElementById('infra-gitops').checked;
+    const git_repo = document.getElementById('gitops-repo').value.trim();
+    const target_branch = document.getElementById('gitops-branch').value.trim() || 'main';
+    const git_token = document.getElementById('gitops-token').value.trim();
     const genBtn = document.getElementById('btn-generate');
 
     if (!prompt) return showToast("Please enter an infrastructure requirement.", "error");
@@ -557,7 +582,7 @@ async function generateInfra() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
         
-        const payload = { prompt, budget, apply, new_project, credentials, ai_config };
+        const payload = { prompt, budget, apply, new_project, credentials, ai_config, gitops, git_repo, target_branch, git_token };
         if (activeOrgId) payload.org_id = activeOrgId;
 
         const response = await apiFetch('/api/generate', {
@@ -828,5 +853,115 @@ async function removeOrgMember(targetUserId) {
     }
 }
 
+// ─── GitOps & Approval Handlers ─────────────────────────────────
+async function loadGitOpsDetails(slug) {
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/gitops`);
+        const data = await res.json();
+        
+        const badge = document.getElementById('gitops-approval-badge');
+        const branchEl = document.getElementById('gitops-branch-name');
+        const prLinkEl = document.getElementById('gitops-pr-link');
+        const approverEl = document.getElementById('gitops-approved-by');
+        const approveBtn = document.getElementById('btn-approve-pr');
+        const mergeBtn = document.getElementById('btn-merge-deploy');
+
+        branchEl.innerText = data.git_branch || 'Not configured';
+        approverEl.innerText = data.approved_by || 'None (Pending Review)';
+
+        if (data.pr_url) {
+            prLinkEl.innerHTML = `<a href="${data.pr_url}" target="_blank" style="color: #60a5fa; text-decoration: underline; font-weight: 600;">PR #${data.pr_number || 'View'} ↗</a>`;
+        } else {
+            prLinkEl.innerText = 'No Pull Request';
+        }
+
+        const appStatus = data.approval_status || 'none';
+        const prStatus = data.pr_status || 'none';
+
+        if (appStatus === 'approved') {
+            badge.innerText = '✅ Approved';
+            badge.className = 'status-badge status-deployed';
+            if (approveBtn) approveBtn.disabled = true;
+            if (mergeBtn) mergeBtn.disabled = (prStatus === 'merged');
+        } else if (appStatus === 'pending') {
+            badge.innerText = '⏳ Pending Approval';
+            badge.className = 'status-badge status-generating';
+            if (approveBtn) approveBtn.disabled = false;
+            if (mergeBtn) mergeBtn.disabled = true;
+        } else {
+            badge.innerText = prStatus === 'merged' ? '🚀 Merged' : 'None';
+            badge.className = 'status-badge';
+            if (approveBtn) approveBtn.disabled = true;
+            if (mergeBtn) mergeBtn.disabled = true;
+        }
+    } catch (e) {
+        console.error("Failed to load GitOps details", e);
+    }
+}
+
+async function approveProjectPR() {
+    if (!currentProject) return;
+    try {
+        const res = await apiFetch(`/api/projects/${currentProject.slug}/approve`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Approval failed');
+        showToast(data.message || 'Pull Request approved!', 'success');
+        await loadGitOpsDetails(currentProject.slug);
+        await fetchProjects();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+async function mergeAndDeployProject() {
+    if (!currentProject) return;
+    if (!confirm(`Merge PR and trigger live cloud deployment for "${currentProject.slug}"?`)) return;
+    try {
+        const res = await apiFetch(`/api/projects/${currentProject.slug}/merge-deploy`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Merge failed');
+        showToast(data.message || 'Merged & Deployed!', 'success');
+        await loadGitOpsDetails(currentProject.slug);
+        await fetchProjects();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+async function loadAuditLogs() {
+    try {
+        const url = activeOrgId ? `/api/audit-logs?org_id=${activeOrgId}` : '/api/audit-logs';
+        const res = await apiFetch(url);
+        const logs = await res.json();
+        const tbody = document.getElementById('audit-logs-tbody');
+        if (!tbody) return;
+        if (!logs || logs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #888;">No audit trail events recorded yet.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = logs.map(l => {
+            const actionColors = {
+                'gitops_pr_created': '#60a5fa',
+                'gitops_pr_approved': '#4ade80',
+                'gitops_pr_merged_and_deployed': '#a78bfa',
+                'org_created': '#f59e0b',
+                'member_added': '#38bdf8'
+            };
+            const col = actionColors[l.action] || '#ccc';
+            return `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 0.6rem; color: #888; font-family: monospace; font-size: 0.8rem;">${l.created_at}</td>
+                <td style="padding: 0.6rem; font-weight: 600; color: #fff;">${l.username}</td>
+                <td style="padding: 0.6rem;"><span style="color: ${col}; font-weight: 600; text-transform: uppercase; font-size: 0.75rem;">${l.action}</span></td>
+                <td style="padding: 0.6rem; font-family: monospace; color: #94a3b8;">${l.resource_slug || '—'}</td>
+                <td style="padding: 0.6rem; color: #cbd5e1; font-size: 0.85rem;">${l.details || '—'}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        console.error("Failed to load audit logs", e);
+        showToast("Failed to load audit logs", "error");
+    }
+}
+
 // ─── Boot ───────────────────────────────────────────────────────
 init();
+
