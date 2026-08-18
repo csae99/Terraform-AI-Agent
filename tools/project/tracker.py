@@ -641,15 +641,17 @@ class AuditTracker:
             session.close()
 
     @staticmethod
-    def get_logs(org_id=None, user_id=None, limit=50):
-        """Retrieve audit logs scoped by organization or user."""
+    def get_logs(org_id=None, user_id=None, resource_slug=None, limit=50):
+        """Retrieve audit logs scoped by organization, user, or resource."""
         session = SessionLocal()
         try:
             query = session.query(AuditLogModel)
             if org_id is not None:
                 query = query.filter(AuditLogModel.org_id == org_id)
-            elif user_id is not None:
+            if user_id is not None:
                 query = query.filter(AuditLogModel.user_id == user_id)
+            if resource_slug is not None:
+                query = query.filter(AuditLogModel.resource_slug == resource_slug)
             logs = query.order_by(AuditLogModel.created_at.desc()).limit(limit).all()
             results = []
             for l in logs:
