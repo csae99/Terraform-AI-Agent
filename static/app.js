@@ -975,6 +975,11 @@ async function loadAuditLogs() {
             </tr>`;
         }).join('');
     } catch (e) {
+        console.error("Failed to load audit logs", e);
+        showToast("Failed to load audit logs", "error");
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // ── Phase 12: Executive Analytics & Observability Handlers ─────────────
 // ════════════════════════════════════════════════════════════════════════
