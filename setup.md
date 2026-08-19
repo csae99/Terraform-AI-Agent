@@ -1,15 +1,16 @@
-# Terraform AI Agent - Setup Guide (Phase 11: Enterprise GitOps)
+# Terraform AI Agent - Setup Guide (Phase 12: Enterprise Observability & SaaS Billing)
 
 This guide provides step-by-step instructions for setting up the Universal Terraform AI Agent on both Windows and Linux.
 
 ## 🛠️ Core Requirements (All Platforms)
 
 1.  **Python 3.9+**: The core engine of the agent.
-2.  **Terraform CLI**: Required for infrastructure validation and deployment.
+2.  **IaC Engines**: **HashiCorp Terraform** (`terraform`) and/or **Linux Foundation OpenTofu** (`tofu`).
 3.  **Git CLI**: Required for branch creation and automated Pull Requests.
 4.  **Docker**: Essential for FinOps (Infracost), Security (Checkov), and local cloud emulation (Floci).
 5.  **AWS / Cloud CLI**: Required for live deployments.
-6.  **API Keys**: LLM API key (Gemini/OpenAI/Mistral), Infracost API token, and optional GitHub Personal Access Token (for GitOps PRs).
+6.  **Payment Gateways**: Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`) and/or Stripe (`STRIPE_SECRET_KEY`).
+7.  **API Keys**: LLM API key (Gemini/OpenAI/Mistral/ZenMux), Infracost API token, and optional GitHub Personal Access Token (for GitOps PRs).
 
 ---
 
@@ -25,17 +26,21 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 2. Security & Financial Tools (Dockerized)
-The platform now uses Dockerized versions of **Infracost** and **Checkov** to ensure consistency.
+### 2. IaC Engine Setup (Terraform / OpenTofu)
+You can install either or both engines via Chocolatey or Scoop:
+```powershell
+# Terraform
+choco install terraform -y
+
+# OpenTofu (Optional)
+choco install opentofu -y
+```
+
+### 3. Security & Financial Tools (Dockerized)
+The platform uses Dockerized versions of **Infracost** and **Checkov** to ensure consistency.
 - **Docker**: Ensure Docker Desktop is running.
 - **Infracost API Key**: Register at [infracost.io](https://www.infracost.io/) and add your key to the `.env` file.
 - **Checkov**: The agent will automatically pull and run the `bridgecrew/checkov` image.
-
-### 3. Authentication
-```powershell
-# Authenticate Infracost (Free API Key)
-# Note: Ensure INFRACOST_API_KEY is set in your .env file
-```
 
 ---
 
@@ -51,26 +56,21 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Tools & Binaries
-On Linux, we recommend using the direct installers or standalone binaries.
+### 2. IaC Engines & Binaries
+Install Terraform or OpenTofu:
+```bash
+# OpenTofu
+snap install --classic opentofu
+
+# Terraform
+sudo apt-get install terraform
+```
 
 **tfsec (Fast Scan):**
 ```bash
 curl -L -o tfsec https://github.com/aquasecurity/tfsec/releases/latest/download/tfsec-linux-amd64
 chmod +x tfsec
 sudo mv tfsec /usr/local/bin/
-```
-
-**Infracost & Checkov (Docker):**
-No manual installation is required. Ensure your user has permissions to run Docker:
-```bash
-sudo usermod -aG docker $USER
-```
-The agent will pull `infracost/infracost` and `bridgecrew/checkov` automatically.
-
-### 3. Authentication
-```bash
-# Ensure INFRACOST_API_KEY is set in your .env file
 ```
 
 ---
@@ -82,19 +82,32 @@ Create a `.env` file in the root directory:
 # Active Model
 DEFAULT_MODEL=gemini/gemini-2.0-flash
 
-# Keys
+# LLM API Keys
 GEMINI_API_KEY=your_key_here
-# MISTRAL_API_KEY=your_key_optional
+# OPENAI_API_KEY=your_key_here
+# ZENMUX_API_KEY=your_key_here
 # INFRACOST_API_KEY=your_key_optional
+
+# Payment Gateways (Stripe & Razorpay)
+DEFAULT_PAYMENT_GATEWAY=razorpay
+RAZORPAY_KEY_ID=rzp_test_your_id
+RAZORPAY_KEY_SECRET=your_secret_here
+
+STRIPE_PUBLISHABLE_KEY=pk_test_your_key
+STRIPE_SECRET_KEY=sk_test_your_secret
+
+# Default IaC Engine ('terraform' or 'opentofu')
+DEFAULT_IAC_ENGINE=terraform
 
 # Cloud Sync (Required for Live Deployments)
 AWS_ACCESS_KEY_ID=your_aws_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret
+AWS_DEFAULT_REGION=us-east-1
 
 # Dashboard
 FLASK_SECRET_KEY=your_random_secret
 
-# Redis Broker Url (Optional, defaults to redis://redis:6379/0)
+# Redis Broker Url (Optional, defaults to redis://localhost:6379/0)
 REDIS_URL=redis://localhost:6379/0
 
 # Enable Local AWS Emulation Mode (Floci)

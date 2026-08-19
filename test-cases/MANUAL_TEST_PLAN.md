@@ -84,3 +84,42 @@ This document outlines the steps to manually verify the entire platform lifecycl
     - [ ] Immutable audit table displays chronological activity feed.
     - [ ] Actions `gitops_pr_created`, `gitops_pr_approved`, and `gitops_pr_merged_and_deployed` are visible with timestamps and user identifiers.
 
+## 11. Dual IaC Engine Selection (Terraform & OpenTofu)
+- **Action**:
+    1. In the Build tab, select **OpenTofu** from the IaC Engine dropdown.
+    2. Click **Generate** and inspect the terminal output.
+- **Expectation**:
+    - [ ] Execution log indicates engine selected: `opentofu` (or falls back gracefully if `tofu` is not on PATH).
+    - [ ] Project metadata displays the engine badge (`opentofu`).
+
+## 12. Executive Analytics & Observability
+- **Action**:
+    1. Navigate to the **Analytics & Observability** tab in the top navigation.
+    2. Review KPI metric cards, failure taxonomy bars, and pattern confidence leaderboard.
+    3. Click the **Prometheus Metrics** link.
+- **Expectation**:
+    - [ ] Success rate, monthly spend, self-healing rounds, and financial savings are displayed.
+    - [ ] Failure taxonomy categorizes errors into clear buckets (e.g. IAM, Naming Conflict, Syntax).
+    - [ ] Pattern memory displays confidence percentages and trusted status badges.
+    - [ ] Prometheus metrics open in raw text format (`terraform_agent_runs_total`, etc.).
+
+## 13. Usage Metering & Dual Payment Gateways (Razorpay & Stripe)
+- **Action**:
+    1. Navigate to the **Billing & Plans** tab.
+    2. Verify monthly quota progress bar (e.g. `0 / 5 Runs Used`).
+    3. Click **Upgrade Plan** to open the subscription modal.
+    4. Toggle between **Razorpay (UPI / Cards / NetBanking)** and **Stripe (Global Cards)**.
+    5. Select **Upgrade to Pro** or **Enterprise**.
+- **Expectation**:
+    - [ ] Choosing Razorpay triggers the Razorpay Checkout popup (or instant verified upgrade in dev mode).
+    - [ ] Subscription plan updates to `PRO` (100 runs/month) or `ENTERPRISE` (unlimited).
+    - [ ] Cost attribution meters update with AI tokens, worker compute duration, and projected cloud costs.
+
+## 14. One-Click SOC2 Compliance Package Export
+- **Action**:
+    1. Navigate to the **Audit Trail** tab.
+    2. Click **Export JSON** and **Export CSV**.
+- **Expectation**:
+    - [ ] Browser downloads `soc2_compliance_package.json` with metadata, workspace inventory, and full audit logs.
+    - [ ] Browser downloads `soc2_compliance_audit_trail.csv` with comma-separated activity logs.
+
