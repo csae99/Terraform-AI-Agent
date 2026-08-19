@@ -60,7 +60,6 @@ async function apiFetch(url, options = {}) {
     return res;
 }
 
-// ─── Navigation ─────────────────────────────────────────────────
 function switchPrimaryTab(tabId) {
     document.querySelectorAll('.primary-view').forEach(v => v.style.display = 'none');
     const target = document.getElementById(`view-${tabId}`);
@@ -76,6 +75,10 @@ function switchPrimaryTab(tabId) {
 
     if (tabId === 'audit') {
         loadAuditLogs();
+    } else if (tabId === 'analytics') {
+        loadExecutiveAnalytics();
+    } else if (tabId === 'billing') {
+        loadBillingInfo();
     }
 }
 
@@ -972,8 +975,193 @@ async function loadAuditLogs() {
             </tr>`;
         }).join('');
     } catch (e) {
-        console.error("Failed to load audit logs", e);
-        showToast("Failed to load audit logs", "error");
+// ════════════════════════════════════════════════════════════════════════
+// ── Phase 12: Executive Analytics & Observability Handlers ─────────────
+// ════════════════════════════════════════════════════════════════════════
+
+async function loadExecutiveAnalytics() {
+    try {
+        const url = activeOrgId ? `/api/analytics/executive?org_id=${activeOrgId}` : '/api/analytics/executive';
+        const res = await apiFetch(url);
+        const data = await res.json();
+        const kpis = data.kpis || {};
+
+        document.getElementById('analytics-kpi-success-rate').innerText = `${kpis.success_rate_percent || 0}%`;
+        document.getElementById('analytics-kpi-savings').innerText = `$${kpis.estimated_financial_savings_usd || 0}`;
+        document.getElementById('analytics-kpi-monthly-spend').innerText = `$${kpis.total_monthly_spend || 0}`;
+        document.getElementById('analytics-kpi-healing-rounds').innerText = `${kpis.total_self_healing_rounds || 0} (${kpis.estimated_engineering_hours_saved || 0} hrs saved)`;
+
+        // Render Failure Taxonomy
+        const taxContainer = document.getElementById('analytics-failure-taxonomy');
+        const tax = data.failure_taxonomy || {};
+        const entries = Object.entries(tax);
+        if (entries.length === 0 || (entries.length === 1 && entries[0][0] === 'None')) {
+            taxContainer.innerHTML = `<p class="text-muted" style="padding: 1rem 0;">🎉 Zero runtime failures recorded across workspaces!</p>`;
+        } else {
+            const maxVal = Math.max(...entries.map(e => e[1]));
+            taxContainer.innerHTML = entries.map(([category, count]) => {
+                const pct = Math.max(8, Math.round((count / maxVal) * 100));
+                return `
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                        <span style="color: #cbd5e1; font-weight: 500;">${category}</span>
+                        <span style="color: #f87171; font-weight: 600;">${count} events</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div style="background: linear-gradient(90deg, #f87171, #ef4444); width: ${pct}%; height: 100%;"></div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // Render Pattern Memory Leaderboard
+        const leadContainer = document.getElementById('analytics-pattern-leaderboard');
+        const patterns = data.pattern_leaderboard || [];
+        if (patterns.length === 0) {
+            leadContainer.innerHTML = `<p class="text-muted" style="padding: 1rem 0;">No pattern memory records found.</p>`;
+        } else {
+            leadContainer.innerHTML = `
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); color: #888;">
+                        <th style="padding: 0.4rem;">Error Signature</th>
+                        <th style="padding: 0.4rem;">Confidence</th>
+                        <th style="padding: 0.4rem;">Successes</th>
+                        <th style="padding: 0.4rem;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${patterns.map(p => `
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                            <td style="padding: 0.5rem 0.4rem; font-family: monospace; color: #a5b4fc;">${p.signature}</td>
+                            <td style="padding: 0.5rem 0.4rem;">
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <div style="background: rgba(255,255,255,0.08); width: 50px; height: 6px; border-radius: 3px; overflow: hidden;">
+                                        <div style="background: #10b981; width: ${p.confidence_percent}%; height: 100%;"></div>
+                                    </div>
+                                    <span style="font-weight: 600; color: #fff;">${p.confidence_percent}%</span>
+                                </div>
+                            </td>
+                            <td style="padding: 0.5rem 0.4rem; color: #cbd5e1;">${p.success_count}</td>
+                            <td style="padding: 0.5rem 0.4rem;"><span class="status-badge" style="background: ${p.status === 'trusted' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)'}; color: ${p.status === 'trusted' ? '#34d399' : '#fbbf24'}; font-size: 0.7rem;">${p.status}</span></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            `;
+        }
+    } catch (e) {
+        console.error("Failed to load executive analytics", e);
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ── Phase 12: Billing & Usage Metering Handlers ────────────────────────
+// ════════════════════════════════════════════════════════════════════════
+
+async function loadBillingInfo() {
+    try {
+        const url = activeOrgId ? `/api/billing/subscription?org_id=${activeOrgId}` : '/api/billing/subscription';
+        const res = await apiFetch(url);
+        const data = await res.json();
+        const sub = data.subscription || {};
+        const plans = data.plans || {};
+        const statement = data.current_statement || {};
+        const consumption = statement.consumption || {};
+
+        const planMeta = plans[sub.plan] || { name: sub.plan, price_monthly: 0, monthly_runs: 5, features: [] };
+
+        document.getElementById('billing-current-plan-name').innerText = planMeta.name;
+        document.getElementById('billing-monthly-price').innerHTML = `$${planMeta.price_monthly}<span style="font-size: 1rem; color: #aaa;">/mo</span>`;
+        document.getElementById('billing-plan-description').innerText = planMeta.features[0] || "Active subscription tier.";
+        document.getElementById('billing-status-badge').innerText = sub.status.toUpperCase();
+
+        // Quota Bar
+        const used = sub.runs_this_month || 0;
+        const limit = sub.monthly_limit;
+        if (limit === -1) {
+            document.getElementById('billing-quota-text').innerText = `${used} Runs (Unlimited Capacity)`;
+            document.getElementById('billing-quota-bar').style.width = "100%";
+        } else {
+            const pct = Math.min(100, Math.round((used / limit) * 100));
+            document.getElementById('billing-quota-text').innerText = `${used} / ${limit} Runs Used`;
+            document.getElementById('billing-quota-bar').style.width = `${pct}%`;
+        }
+
+        // Cost Attribution
+        document.getElementById('billing-total-tokens').innerText = (consumption.total_tokens || 0).toLocaleString();
+        document.getElementById('billing-ai-cost').innerText = `Est. Cost: $${consumption.ai_cost_incurred_usd || 0}`;
+        document.getElementById('billing-compute-seconds').innerText = `${consumption.compute_seconds || 0}s`;
+        document.getElementById('billing-compute-cost').innerText = `Platform Fee: $${consumption.compute_cost_incurred_usd || 0}`;
+        document.getElementById('billing-infra-spend').innerText = `$${consumption.infra_projected_spend_usd || 0}`;
+
+        // Recent metered runs
+        const tbody = document.getElementById('billing-runs-tbody');
+        const runs = statement.recent_runs || [];
+        if (runs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #888;">No usage records logged yet for this period.</td></tr>`;
+        } else {
+            tbody.innerHTML = runs.map(r => `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <td style="padding: 0.5rem; color: #888; font-family: monospace;">${r.created_at ? r.created_at.substring(0, 16).replace('T', ' ') : '-'}</td>
+                    <td style="padding: 0.5rem; font-family: monospace; color: #a5b4fc;">${r.project_slug}</td>
+                    <td style="padding: 0.5rem; color: #cbd5e1;">${(r.tokens || 0).toLocaleString()}</td>
+                    <td style="padding: 0.5rem; color: #cbd5e1;">${r.compute_seconds || 0}s</td>
+                    <td style="padding: 0.5rem; font-weight: 600; color: #10b981;">$${r.platform_cost_usd || 0}</td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        console.error("Failed to load billing info", e);
+    }
+}
+
+function openUpgradeModal() {
+    const modal = document.getElementById('modal-upgrade-plan');
+    if (modal) modal.style.display = 'flex';
+}
+
+async function upgradeSubscription(planId) {
+    try {
+        const payload = { plan: planId };
+        if (activeOrgId) payload.org_id = activeOrgId;
+        const res = await apiFetch('/api/billing/upgrade', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Upgrade request failed");
+
+        showToast(data.message || `Successfully upgraded to ${planId.toUpperCase()} tier!`, "success");
+        closeModal('modal-upgrade-plan');
+        await loadBillingInfo();
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ── Phase 12: Compliance & Audit Package Export ────────────────────────
+// ════════════════════════════════════════════════════════════════════════
+
+async function exportCompliancePackage(format = 'json') {
+    try {
+        const url = activeOrgId ? `/api/compliance/export?org_id=${activeOrgId}&format=${format}` : `/api/compliance/export?format=${format}`;
+        const res = await apiFetch(url);
+        if (!res.ok) throw new Error("Failed to export compliance package");
+
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = format === 'csv' ? 'soc2_compliance_audit_trail.csv' : 'soc2_compliance_package.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast(`Compliance package exported as ${format.toUpperCase()}`, "success");
+    } catch (e) {
+        showToast(e.message, "error");
     }
 }
 

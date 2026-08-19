@@ -49,6 +49,25 @@ graph TD
 
 ## 🧱 Core Architecture Layers
 
+### Observability Layer (`observability/`)
+Distributed OpenTelemetry tracing, real-time Prometheus metrics collection, and executive failure taxonomy analytics.
+
+| Module | Purpose |
+| :--- | :--- |
+| `tracing.py` | `OpenTelemetryTracer` and `Span` managing in-memory trace buffers, span attributes, events, and execution timelines. |
+| `metrics.py` | `MetricsCollector` providing Prometheus exposition format, counters, gauges, duration histograms, and JSON metric summaries. |
+| `analytics.py` | `AnalyticsEngine` computing executive KPIs (success rates, cost savings, hours saved), failure taxonomy categorizer, and pattern memory leaderboard. |
+
+### Usage Metering & Billing Layer (`billing/`)
+Multi-dimensional consumption metering, tier quota management, and Stripe subscription service.
+
+| Module | Purpose |
+| :--- | :--- |
+| `metering.py` | `UsageMeter` estimating prompt/completion tokens, pricing per LLM model, compute worker duration cost, and 3-way cost attribution. |
+| `usage_tracking.py` | `BillingTracker`, `UsageRecordModel`, and `SubscriptionModel` managing monthly run quotas, usage persistence, and account tier upgrades. |
+| `stripe_service.py` | `StripeBillingService` defining Free, Pro, and Enterprise tiers with mock and live Stripe checkout session integration. |
+| `invoicing.py` | `InvoiceGenerator` synthesizing cost attribution statements and monthly invoice summaries. |
+
 ### IaC Engine Abstraction Layer (`tools/engine/`)
 Universal runtime abstraction layer supporting both HashiCorp Terraform and Linux Foundation OpenTofu.
 

@@ -54,6 +54,12 @@
             <i class="fas fa-folder-open"></i> Workspaces
             <span class="nav-badge" id="workspace-count"></span>
         </button>
+        <button class="primary-nav-tab" id="nav-analytics" onclick="switchPrimaryTab('analytics')">
+            <i class="fas fa-chart-line"></i> Analytics & Observability
+        </button>
+        <button class="primary-nav-tab" id="nav-billing" onclick="switchPrimaryTab('billing')">
+            <i class="fas fa-credit-card"></i> Billing & Plans
+        </button>
         <button class="primary-nav-tab" id="nav-audit" onclick="switchPrimaryTab('audit')">
             <i class="fas fa-history"></i> Audit Trail
         </button>
@@ -386,8 +392,10 @@
         <main>
             <div class="section-header">
                 <h2>Enterprise Audit Trail</h2>
-                <div class="workspace-toolbar">
-                    <button class="tab-btn active" onclick="loadAuditLogs()"><i class="fas fa-sync"></i> Refresh Audit Logs</button>
+                <div class="workspace-toolbar" style="display: flex; gap: 0.5rem;">
+                    <button class="tab-btn" onclick="exportCompliancePackage('json')"><i class="fas fa-download"></i> Export JSON</button>
+                    <button class="tab-btn" onclick="exportCompliancePackage('csv')"><i class="fas fa-file-csv"></i> Export CSV</button>
+                    <button class="tab-btn active" onclick="loadAuditLogs()"><i class="fas fa-sync"></i> Refresh</button>
                 </div>
             </div>
             <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem; overflow-x: auto;">
@@ -407,6 +415,197 @@
                 </table>
             </div>
         </main>
+    </div>
+
+    <!-- ═══ EXECUTIVE ANALYTICS & OBSERVABILITY TAB ═══ -->
+    <div id="view-analytics" class="primary-view" style="display: none;">
+        <main>
+            <div class="section-header">
+                <h2>Executive Observability & Analytics</h2>
+                <div class="workspace-toolbar" style="display: flex; gap: 0.5rem;">
+                    <a href="/api/observability/metrics?format=prometheus" target="_blank" class="tab-btn" style="text-decoration: none; color: #a5b4fc; display: inline-flex; align-items: center; gap: 0.4rem;">
+                        <i class="fas fa-satellite-dish"></i> Prometheus Metrics
+                    </a>
+                    <button class="tab-btn active" onclick="loadExecutiveAnalytics()"><i class="fas fa-sync"></i> Refresh</button>
+                </div>
+            </div>
+
+            <!-- Executive KPI Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="stat-card" style="padding: 1.25rem; background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.3);">
+                    <div style="color: #a5b4fc; font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">Success Rate</div>
+                    <div id="analytics-kpi-success-rate" style="font-size: 1.8rem; font-weight: 700; color: #fff; margin-top: 0.25rem;">-</div>
+                </div>
+                <div class="stat-card" style="padding: 1.25rem; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3);">
+                    <div style="color: #6ee7b7; font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">Financial Savings</div>
+                    <div id="analytics-kpi-savings" style="font-size: 1.8rem; font-weight: 700; color: #10b981; margin-top: 0.25rem;">-</div>
+                </div>
+                <div class="stat-card" style="padding: 1.25rem; background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.3);">
+                    <div style="color: #fcd34d; font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">Monthly Infra Spend</div>
+                    <div id="analytics-kpi-monthly-spend" style="font-size: 1.8rem; font-weight: 700; color: #fbbf24; margin-top: 0.25rem;">-</div>
+                </div>
+                <div class="stat-card" style="padding: 1.25rem; background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.3);">
+                    <div style="color: #d8b4fe; font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">Self-Healing Rounds</div>
+                    <div id="analytics-kpi-healing-rounds" style="font-size: 1.8rem; font-weight: 700; color: #c084fc; margin-top: 0.25rem;">-</div>
+                </div>
+            </div>
+
+            <!-- Two-column Analytics Layout -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+                <!-- Failure Taxonomy -->
+                <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                    <h3 style="margin-top: 0; margin-bottom: 1rem; color: #fff; font-size: 1.1rem;"><i class="fas fa-bug" style="color: #f87171;"></i> Top Failure Taxonomy Breakdown</h3>
+                    <div id="analytics-failure-taxonomy" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <p class="text-muted">Loading failure categories...</p>
+                    </div>
+                </div>
+
+                <!-- Pattern Memory Confidence Leaderboard -->
+                <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                    <h3 style="margin-top: 0; margin-bottom: 1rem; color: #fff; font-size: 1.1rem;"><i class="fas fa-brain" style="color: #a855f7;"></i> Pattern Memory Confidence Scoring</h3>
+                    <div id="analytics-pattern-leaderboard" style="max-height: 320px; overflow-y: auto;">
+                        <p class="text-muted">Loading pattern memory...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ═══ BILLING & SUBSCRIPTIONS TAB ═══ -->
+    <div id="view-billing" class="primary-view" style="display: none;">
+        <main>
+            <div class="section-header">
+                <h2>Usage Metering & Subscriptions</h2>
+                <div class="workspace-toolbar">
+                    <button class="tab-btn active" onclick="openUpgradeModal()"><i class="fas fa-arrow-up"></i> Upgrade Plan</button>
+                    <button class="tab-btn" onclick="loadBillingInfo()"><i class="fas fa-sync"></i> Refresh</button>
+                </div>
+            </div>
+
+            <!-- Plan Overview Card -->
+            <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: var(--radius-md); padding: 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <span style="font-size: 0.8rem; text-transform: uppercase; font-weight: 700; color: #a5b4fc; letter-spacing: 0.05em;">Current Subscription Tier</span>
+                    <h3 id="billing-current-plan-name" style="margin: 0.25rem 0 0.5rem 0; font-size: 1.8rem; color: #fff;">Free Tier</h3>
+                    <p id="billing-plan-description" style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">5 monthly infrastructure runs with self-healing and standard observability.</p>
+                </div>
+                <div style="text-align: right;">
+                    <div id="billing-monthly-price" style="font-size: 2rem; font-weight: 800; color: #fff;">$0<span style="font-size: 1rem; color: #aaa;">/mo</span></div>
+                    <span id="billing-status-badge" class="status-badge status-deployed">Active</span>
+                </div>
+            </div>
+
+            <!-- Quota Progress Bar -->
+            <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                    <span style="color: #fff; font-weight: 600;">Monthly Execution Quota</span>
+                    <span id="billing-quota-text" style="color: #a5b4fc; font-weight: 600;">0 / 5 Runs Used</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); height: 12px; border-radius: 6px; overflow: hidden;">
+                    <div id="billing-quota-bar" style="background: linear-gradient(90deg, #6366f1, #a855f7); width: 0%; height: 100%; transition: width 0.3s ease;"></div>
+                </div>
+            </div>
+
+            <!-- Cost Attribution & Metering Breakdown -->
+            <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem; color: #fff; font-size: 1.1rem;"><i class="fas fa-receipt" style="color: #10b981;"></i> Cost Attribution & Resource Consumption</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
+                        <span class="meta-label">Total LLM Tokens</span>
+                        <div id="billing-total-tokens" style="font-size: 1.3rem; font-weight: 700; color: #fff; margin-top: 0.25rem;">0</div>
+                        <span id="billing-ai-cost" style="font-size: 0.8rem; color: #94a3b8;">Est. Cost: $0.00</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
+                        <span class="meta-label">Worker Compute Seconds</span>
+                        <div id="billing-compute-seconds" style="font-size: 1.3rem; font-weight: 700; color: #fff; margin-top: 0.25rem;">0.0s</div>
+                        <span id="billing-compute-cost" style="font-size: 0.8rem; color: #94a3b8;">Platform Fee: $0.00</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
+                        <span class="meta-label">Projected Cloud Spend</span>
+                        <div id="billing-infra-spend" style="font-size: 1.3rem; font-weight: 700; color: #38bdf8; margin-top: 0.25rem;">$0.00</div>
+                        <span style="font-size: 0.8rem; color: #94a3b8;">Infracost monthly estimates</span>
+                    </div>
+                </div>
+
+                <h4 style="color: #ccc; margin-bottom: 0.75rem;">Recent Metered Runs</h4>
+                <div style="max-height: 250px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: #888;">
+                                <th style="padding: 0.5rem;">Timestamp</th>
+                                <th style="padding: 0.5rem;">Project</th>
+                                <th style="padding: 0.5rem;">Tokens</th>
+                                <th style="padding: 0.5rem;">Compute</th>
+                                <th style="padding: 0.5rem;">Platform Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billing-runs-tbody">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ─── Plan Upgrade Modal ─── -->
+    <div id="modal-upgrade-plan" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 9999;">
+        <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 850px; color: #fff;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.3rem; color: #fff;"><i class="fas fa-crown" style="color: #fbbf24;"></i> Select Subscription Plan</h3>
+                <button onclick="closeModal('modal-upgrade-plan')" style="background: none; border: none; color: #aaa; font-size: 1.3rem; cursor: pointer;">&times;</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <!-- Free Plan -->
+                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <h4 style="margin: 0 0 0.5rem 0; color: #fff; font-size: 1.1rem;">Free Tier</h4>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">$0<span style="font-size: 0.9rem; color: #aaa;">/mo</span></div>
+                        <ul style="padding-left: 1.2rem; font-size: 0.85rem; color: #cbd5e1; line-height: 1.6;">
+                            <li>5 runs/month</li>
+                            <li>Personal workspace</li>
+                            <li>Standard observability</li>
+                            <li>Terraform CLI engine</li>
+                        </ul>
+                    </div>
+                    <button onclick="upgradeSubscription('free')" class="btn-sm" style="width: 100%; margin-top: 1rem; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #fff; padding: 0.6rem; border-radius: var(--radius-sm); cursor: pointer;">Select Free</button>
+                </div>
+
+                <!-- Pro Plan -->
+                <div style="background: rgba(99, 102, 241, 0.08); border: 2px solid #6366f1; border-radius: var(--radius-sm); padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+                    <span style="position: absolute; top: -10px; right: 12px; background: #6366f1; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase;">Recommended</span>
+                    <div>
+                        <h4 style="margin: 0 0 0.5rem 0; color: #a5b4fc; font-size: 1.1rem;">Pro Developer</h4>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">$29<span style="font-size: 0.9rem; color: #aaa;">/mo</span></div>
+                        <ul style="padding-left: 1.2rem; font-size: 0.85rem; color: #cbd5e1; line-height: 1.6;">
+                            <li>100 runs/month</li>
+                            <li>GitOps & PR automation</li>
+                            <li>OpenTofu + Terraform dual engine</li>
+                            <li>Dynamic LLM reflection</li>
+                            <li>Self-learning pattern bank</li>
+                        </ul>
+                    </div>
+                    <button onclick="upgradeSubscription('pro')" class="btn-sm" style="width: 100%; margin-top: 1rem; background: #6366f1; border: none; color: #fff; font-weight: 700; padding: 0.6rem; border-radius: var(--radius-sm); cursor: pointer;">Upgrade to Pro</button>
+                </div>
+
+                <!-- Enterprise Plan -->
+                <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: var(--radius-sm); padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <h4 style="margin: 0 0 0.5rem 0; color: #c084fc; font-size: 1.1rem;">Enterprise Team</h4>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">$199<span style="font-size: 0.9rem; color: #aaa;">/mo</span></div>
+                        <ul style="padding-left: 1.2rem; font-size: 0.85rem; color: #cbd5e1; line-height: 1.6;">
+                            <li>Unlimited infrastructure runs</li>
+                            <li>Multi-tenant Organizations & RBAC</li>
+                            <li>Enterprise Approval Gates</li>
+                            <li>Immutable Audit Trails</li>
+                            <li>One-click SOC2 Compliance Export</li>
+                        </ul>
+                    </div>
+                    <button onclick="upgradeSubscription('enterprise')" class="btn-sm" style="width: 100%; margin-top: 1rem; background: #a855f7; border: none; color: #fff; font-weight: 700; padding: 0.6rem; border-radius: var(--radius-sm); cursor: pointer;">Upgrade to Enterprise</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ─── Create Organization Modal ─── -->

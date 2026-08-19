@@ -179,8 +179,24 @@ def run_full_pipeline(
     if cli_flags is None:
         cli_flags = []
 
+    # ── Observability & Billing Quota Check ──────────────────────
+    from observability import tracer, trace_span, metrics
+    from billing import UsageMeter, BillingTracker
+    from memory.pattern_manager import PatternManager
+
+    quota_check = BillingTracker.check_quota(user_id=owner_id, org_id=org_id)
+    if not quota_check.get("allowed", True):
+        print(f"\n❌ [Billing Quota Exceeded] {quota_check.get('error')}")
+        return {
+            "slug": "quota-exceeded",
+            "status": "failed",
+            "estimated_cost": 0.0,
+            "security_issues": 0,
+            "error": quota_check.get("error")
+        }
+
     print("\n" + "=" * 50)
-    print("      Universal AI Agent - Phase 7 (Visualizer Platform)")
+    print("      Universal AI Agent - Phase 12 (Enterprise Platform)")
     print("=" * 50 + "\n")
 
     # ── Instantiate agent classes ────────────────────────────────
@@ -788,6 +804,48 @@ def run_full_pipeline(
         approval_status=approval_status,
         engine=engine_target
     )
+
+    # ── Phase 12 Observability & Usage Attribution ────────────────
+    tokens_est = UsageMeter.estimate_tokens(prompt, generated_code_len=len(dev_result or ""), healing_rounds=retry.current_round)
+    cost_attrib = UsageMeter.compute_cost_attribution(
+        prompt_tokens=tokens_est["prompt_tokens"],
+        completion_tokens=tokens_est["completion_tokens"],
+        model_name=model_name,
+        duration_seconds=run_duration,
+        infra_monthly_cost=total_cost
+    )
+
+    BillingTracker.record_usage(
+        project_slug=slug,
+        prompt_tokens=cost_attrib["prompt_tokens"],
+        completion_tokens=cost_attrib["completion_tokens"],
+        ai_cost=cost_attrib["ai_cost_usd"],
+        compute_seconds=cost_attrib["compute_seconds"],
+        compute_cost=cost_attrib["compute_cost_usd"],
+        infra_monthly_cost=cost_attrib["infra_monthly_projected_usd"],
+        user_id=owner_id,
+        org_id=org_id
+    )
+
+    metrics.record_run(
+        slug=slug,
+        status=final_status,
+        engine=engine_target,
+        duration=run_duration,
+        cost=total_cost,
+        tokens=cost_attrib["total_tokens"],
+        healing_rounds=retry.current_round,
+        security_issues=final_security,
+        user_id=owner_id,
+        org_id=org_id
+    )
+
+    # Reinforce pattern confidence for any applied patterns that succeeded
+    if retry.current_round > 0 and final_status in ("generated", "deployed", "pr_opened", "success"):
+        pm = _get_pattern_manager()
+        if pm:
+            for pat_sub in retry.patterns_applied:
+                pm.record_success(pat_sub)
 
     print("\n" + "=" * 50)
     print("                FINAL AGENT REPORTS")

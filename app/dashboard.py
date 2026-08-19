@@ -745,6 +745,116 @@ async def get_engine_status():
     from tools.engine import EngineFactory
     return EngineFactory.list_available_engines()
 
+# ════════════════════════════════════════════════════════════════════════
+# ── Phase 12: Observability, Executive Analytics & Billing APIs ────────
+# ════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/observability/metrics")
+async def get_metrics(format: Optional[str] = None):
+    from observability import metrics
+    if format == "prometheus":
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(metrics.to_prometheus_format(), media_type="text/plain")
+    return metrics.get_summary()
+
+@app.get("/api/analytics/executive")
+async def get_executive_analytics(org_id: Optional[int] = None, user=Depends(get_current_user)):
+    from observability import AnalyticsEngine
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if not user_role:
+            raise HTTPException(status_code=403, detail="Access denied: Not a member of this organization")
+        return AnalyticsEngine.get_executive_kpis(org_id=org_id)
+    return AnalyticsEngine.get_executive_kpis(user_id=user.id)
+
+@app.get("/api/billing/usage")
+async def get_billing_usage(org_id: Optional[int] = None, user=Depends(get_current_user)):
+    from billing import BillingTracker
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if not user_role:
+            raise HTTPException(status_code=403, detail="Access denied: Not a member of this organization")
+        return BillingTracker.get_usage_summary(org_id=org_id)
+    return BillingTracker.get_usage_summary(user_id=user.id)
+
+@app.get("/api/billing/subscription")
+async def get_billing_subscription(org_id: Optional[int] = None, user=Depends(get_current_user)):
+    from billing import BillingTracker, StripeBillingService, InvoiceGenerator
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if not user_role:
+            raise HTTPException(status_code=403, detail="Access denied: Not a member of this organization")
+        sub = BillingTracker.get_or_create_subscription(org_id=org_id)
+        statement = InvoiceGenerator.generate_monthly_statement(org_id=org_id)
+    else:
+        sub = BillingTracker.get_or_create_subscription(user_id=user.id)
+        statement = InvoiceGenerator.generate_monthly_statement(user_id=user.id)
+
+    return {
+        "subscription": sub,
+        "plans": StripeBillingService.list_plans(),
+        "current_statement": statement
+    }
+
+@app.post("/api/billing/upgrade")
+async def upgrade_subscription(request: Request, user=Depends(get_current_user)):
+    from billing import StripeBillingService
+    data = await request.json()
+    plan_id = data.get("plan")
+    org_id = data.get("org_id")
+
+    if not plan_id:
+        raise HTTPException(status_code=400, detail="Plan identifier is required")
+
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role not in ("owner", "admin"):
+            raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can upgrade the organization subscription")
+        result = StripeBillingService.create_checkout_session(plan_id=plan_id, org_id=org_id)
+    else:
+        result = StripeBillingService.create_checkout_session(plan_id=plan_id, user_id=user.id)
+
+    return result
+
+@app.get("/api/compliance/export")
+async def export_compliance_package(org_id: Optional[int] = None, format: str = "json", user=Depends(get_current_user)):
+    from fastapi.responses import JSONResponse, PlainTextResponse
+    from datetime import datetime
+    import csv
+    import io
+
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if not user_role:
+            raise HTTPException(status_code=403, detail="Access denied: Not a member of this organization")
+        logs = AuditTracker.get_logs(org_id=org_id, limit=500)
+        projects = ProjectTracker.load_all(org_id=org_id)
+    else:
+        logs = AuditTracker.get_logs(limit=500)
+        projects = ProjectTracker.load_all(owner_id=user.id)
+
+    if format.lower() == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Timestamp", "Username", "Action", "Resource Slug", "Details"])
+        for l in logs:
+            writer.writerow([l.get("created_at"), l.get("username"), l.get("action"), l.get("resource_slug"), l.get("details")])
+        
+        headers = {"Content-Disposition": "attachment; filename=soc2_compliance_audit_trail.csv"}
+        return PlainTextResponse(output.getvalue(), media_type="text/csv", headers=headers)
+
+    package = {
+        "export_metadata": {
+            "title": "Enterprise SOC2 & Regulatory Compliance Audit Package",
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "exported_by": user.username,
+            "organization_scope": org_id or "Personal Workspace"
+        },
+        "audit_trail_events": logs,
+        "workspaces_inventory": projects
+    }
+    return JSONResponse(package)
+
 
 if __name__ == "__main__":
     import uvicorn

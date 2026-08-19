@@ -160,6 +160,27 @@ class PatternManager:
             
         self._persist()
 
+    def record_success(self, error_substring: str) -> None:
+        """Reinforce pattern confidence on successful fix."""
+        from datetime import datetime
+        existing = next(
+            (p for p in self._patterns if p["error_substring"].lower() == error_substring.lower()),
+            None
+        )
+        if existing:
+            existing["success_count"] = existing.get("success_count", 0) + 1
+            current_conf = existing.get("confidence", 0.8)
+            existing["confidence"] = round(min(1.0, current_conf + 0.05), 2)
+            existing["last_used"] = datetime.utcnow().isoformat() + "Z"
+            if existing["success_count"] >= 3:
+                existing["status"] = "trusted"
+            self._persist()
+            print(f"[PatternManager] Reinforced pattern '{error_substring}' confidence={existing['confidence']} (success_count={existing['success_count']})")
+
+    def record_failure(self, error_substring: str) -> None:
+        """Alias for decay_pattern."""
+        self.decay_pattern(error_substring)
+
     def decay_pattern(self, error_substring: str) -> None:
         """Decay the confidence of a pattern because it failed to resolve the issue."""
         from datetime import datetime

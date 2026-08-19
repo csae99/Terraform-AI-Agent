@@ -1,9 +1,16 @@
-# 🤖 Universal Terraform AI Agent (Phase 11: Enterprise GitOps & PR Automation)
+# 🤖 Universal Terraform AI Agent (Phase 12: Enterprise Observability & SaaS Billing)
 
-A powerful, interactive, and modular AI system designed to generate enterprise-grade Terraform infrastructure. Built to be **Universal**, it can be powered by cloud LLMs (Gemini, Groq, Mistral, OpenAI, ZenMux) or run entirely locally via **Ollama**. Features **GitHub & GitLab Pull Request Automation**, **Enterprise Team Approval Gates**, **Audit Trails**, and **Multi-Organization Workspaces** with Role-Based Access Control (RBAC).
+A powerful, interactive, and modular AI system designed to generate enterprise-grade Terraform infrastructure. Built to be **Universal**, it can be powered by cloud LLMs (Gemini, Groq, Mistral, OpenAI, ZenMux) or run entirely locally via **Ollama**. Features **OpenTelemetry Observability**, **Usage Metering & Multi-Dimensional Cost Attribution**, **Tiered Subscriptions (Free/Pro/Enterprise)**, **SOC2 Compliance Exports**, **GitHub & GitLab Pull Request Automation**, **Enterprise Team Approval Gates**, and **Multi-Organization Workspaces** with Role-Based Access Control (RBAC).
 
 ---
 
+## 🚀 Key Features
+
+- **Enterprise Observability & OpenTelemetry Tracing** *(Phase 12)*: Distributed tracing (`observability/tracing.py`) tracking agent execution, tool calls, and self-healing cycles. Real-time metrics collector (`observability/metrics.py`) providing Prometheus text exposition and JSON summaries.
+- **Multi-Dimensional Usage Metering & Cost Attribution** *(Phase 12)*: Tracks 3-way cost attribution across **AI LLM Tokens** (prompt/completion rates per model), **Platform Compute Duration** (worker execution time), and **Cloud Infrastructure Spend** (Infracost monthly projections).
+- **Subscription Plans & Tier Quotas** *(Phase 12)*: Tiered subscription management with **Free Tier** (5 runs/month), **Pro Developer** (100 runs/month, OpenTofu & GitOps), and **Enterprise Team** (unlimited runs, RBAC, approval gates, audit export). Includes Stripe checkout and simulation.
+- **Pattern Memory Confidence Scoring** *(Phase 12)*: Machine learning-style confidence scoring and reinforcement (`confidence`, `success_count`, `failure_count`, `last_used`) for failure patterns, automatically promoting verified fixes to "trusted" status.
+- **Executive Analytics & Compliance Package Export** *(Phase 12)*: High-level KPI widgets (success rate trend, engineering hours saved, cost savings, failure taxonomy breakdown) and one-click **SOC2 Regulatory Compliance Package** export (JSON / CSV).
 - **IaC Engine Abstraction Layer & OpenTofu Integration** *(Phase 12)*: Universal runtime abstraction layer supporting both **HashiCorp Terraform** (`terraform`) and **Linux Foundation OpenTofu** (`tofu`). Execute formatting, validation, planning, application, drift detection, and state tracking seamlessly across either engine with automatic discovery and intelligent fallback.
 - **Enterprise GitOps & PR Automation** *(Phase 11)*: Automated feature branch creation (`ai/{slug}-{timestamp}`), deterministic file staging, commit generation, and GitHub/GitLab Pull Request synthesis with rich Markdown templates containing visual Mermaid diagrams, Infracost breakdowns, and Checkov security reports.
 - **Team Approval Gates & Audit Trails** *(Phase 11)*: Multi-tier approval workflow where Pull Requests require sign-off by Organization Owners or Admins prior to live cloud mutation. Comprehensive immutable audit logging (`AuditTracker`) captures every event (`gitops_pr_created`, `gitops_pr_approved`, `gitops_pr_merged_and_deployed`) across teams.
