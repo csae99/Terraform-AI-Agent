@@ -1117,27 +1117,155 @@ async function loadBillingInfo() {
     }
 }
 
+let currentPaymentGateway = 'razorpay';
+
+function selectPaymentGateway(gw) {
+    currentPaymentGateway = gw;
+    const rzpBtn = document.getElementById('gateway-btn-razorpay');
+    const strBtn = document.getElementById('gateway-btn-stripe');
+    if (gw === 'razorpay') {
+        if (rzpBtn) {
+            rzpBtn.style.background = 'rgba(59, 130, 246, 0.2)';
+            rzpBtn.style.borderColor = '#3b82f6';
+            rzpBtn.style.color = '#93c5fd';
+        }
+        if (strBtn) {
+            strBtn.style.background = 'rgba(255, 255, 255, 0.05)';
+            strBtn.style.borderColor = 'var(--border-color)';
+            strBtn.style.color = '#ccc';
+        }
+    } else {
+        if (strBtn) {
+            strBtn.style.background = 'rgba(99, 102, 241, 0.2)';
+            strBtn.style.borderColor = '#6366f1';
+            strBtn.style.color = '#a5b4fc';
+        }
+        if (rzpBtn) {
+            rzpBtn.style.background = 'rgba(255, 255, 255, 0.05)';
+            rzpBtn.style.borderColor = 'var(--border-color)';
+            rzpBtn.style.color = '#ccc';
+        }
+    }
+}
+
 function openUpgradeModal() {
     const modal = document.getElementById('modal-upgrade-plan');
     if (modal) modal.style.display = 'flex';
 }
 
 async function upgradeSubscription(planId) {
-    try {
-        const payload = { plan: planId };
-        if (activeOrgId) payload.org_id = activeOrgId;
-        const res = await apiFetch('/api/billing/upgrade', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || "Upgrade request failed");
+    if (planId === 'free') {
+        try {
+            const payload = { plan: 'free', gateway: currentPaymentGateway };
+            if (activeOrgId) payload.org_id = activeOrgId;
+            const res = await apiFetch('/api/billing/upgrade', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            showToast("Subscribed to Free Tier", "success");
+            closeModal('modal-upgrade-plan');
+            await loadBillingInfo();
+        } catch (e) {
+            showToast(e.message, "error");
+        }
+        return;
+    }
 
-        showToast(data.message || `Successfully upgraded to ${planId.toUpperCase()} tier!`, "success");
-        closeModal('modal-upgrade-plan');
-        await loadBillingInfo();
-    } catch (e) {
-        showToast(e.message, "error");
+    if (currentPaymentGateway === 'razorpay') {
+        // Razorpay Checkout flow
+        try {
+            const payload = { plan: planId, currency: 'INR' };
+            if (activeOrgId) payload.org_id = activeOrgId;
+            const res = await apiFetch('/api/billing/razorpay/create-order', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            const orderData = await res.json();
+            if (!res.ok) throw new Error(orderData.detail || "Failed to create Razorpay order");
+
+            if (orderData.simulated || typeof Razorpay === 'undefined') {
+                // Verification in simulation / local testing mode
+                const verifyRes = await apiFetch('/api/billing/razorpay/verify', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        razorpay_order_id: orderData.order_id,
+                        razorpay_payment_id: `pay_sim_${Date.now()}`,
+                        razorpay_signature: "simulated_valid_sig",
+                        plan: planId,
+                        org_id: activeOrgId
+                    })
+                });
+                const verifyData = await verifyRes.json();
+                showToast(verifyData.message || `Upgraded to ${planId.toUpperCase()}!`, "success");
+                closeModal('modal-upgrade-plan');
+                await loadBillingInfo();
+                return;
+            }
+
+            // Live Razorpay standard modal
+            const options = {
+                key: orderData.key_id,
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: "Terraform AI Agent",
+                description: `Upgrade to ${orderData.plan_name}`,
+                order_id: orderData.order_id,
+                handler: async function (response) {
+                    try {
+                        const verifyRes = await apiFetch('/api/billing/razorpay/verify', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature,
+                                plan: planId,
+                                org_id: activeOrgId
+                            })
+                        });
+                        const verifyData = await verifyRes.json();
+                        showToast(verifyData.message || "Payment Successful & Verified!", "success");
+                        closeModal('modal-upgrade-plan');
+                        await loadBillingInfo();
+                    } catch (err) {
+                        showToast(err.message || "Payment verification failed", "error");
+                    }
+                },
+                prefill: {
+                    name: currentUser ? currentUser.username : "Developer",
+                    email: currentUser ? currentUser.email : "user@example.com"
+                },
+                theme: {
+                    color: "#6366f1"
+                }
+            };
+            const rzp = new Razorpay(options);
+            rzp.open();
+        } catch (e) {
+            showToast(e.message, "error");
+        }
+    } else {
+        // Stripe flow
+        try {
+            const payload = { plan: planId, gateway: 'stripe' };
+            if (activeOrgId) payload.org_id = activeOrgId;
+            const res = await apiFetch('/api/billing/upgrade', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Upgrade request failed");
+
+            if (data.checkout_url && !data.simulated) {
+                window.location.href = data.checkout_url;
+            } else {
+                showToast(data.message || `Successfully upgraded to ${planId.toUpperCase()} tier!`, "success");
+                closeModal('modal-upgrade-plan');
+                await loadBillingInfo();
+            }
+        } catch (e) {
+            showToast(e.message, "error");
+        }
     }
 }
 

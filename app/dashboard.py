@@ -798,10 +798,11 @@ async def get_billing_subscription(org_id: Optional[int] = None, user=Depends(ge
 
 @app.post("/api/billing/upgrade")
 async def upgrade_subscription(request: Request, user=Depends(get_current_user)):
-    from billing import StripeBillingService
+    from billing import StripeBillingService, RazorpayBillingService
     data = await request.json()
     plan_id = data.get("plan")
     org_id = data.get("org_id")
+    gateway = (data.get("gateway") or os.environ.get("DEFAULT_PAYMENT_GATEWAY") or "razorpay").lower()
 
     if not plan_id:
         raise HTTPException(status_code=400, detail="Plan identifier is required")
@@ -810,9 +811,58 @@ async def upgrade_subscription(request: Request, user=Depends(get_current_user))
         user_role = OrgTracker.get_user_role(org_id, user.id)
         if user_role not in ("owner", "admin"):
             raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can upgrade the organization subscription")
-        result = StripeBillingService.create_checkout_session(plan_id=plan_id, org_id=org_id)
+        
+        if gateway == "razorpay":
+            return RazorpayBillingService.create_order(plan_id=plan_id, org_id=org_id)
+        return StripeBillingService.create_checkout_session(plan_id=plan_id, org_id=org_id)
     else:
-        result = StripeBillingService.create_checkout_session(plan_id=plan_id, user_id=user.id)
+        if gateway == "razorpay":
+            return RazorpayBillingService.create_order(plan_id=plan_id, user_id=user.id)
+        return StripeBillingService.create_checkout_session(plan_id=plan_id, user_id=user.id)
+
+@app.post("/api/billing/razorpay/create-order")
+async def razorpay_create_order(request: Request, user=Depends(get_current_user)):
+    from billing import RazorpayBillingService
+    data = await request.json()
+    plan_id = data.get("plan")
+    org_id = data.get("org_id")
+    currency = data.get("currency", "INR")
+
+    if not plan_id:
+        raise HTTPException(status_code=400, detail="Plan identifier is required")
+
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role not in ("owner", "admin"):
+            raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can upgrade")
+        return RazorpayBillingService.create_order(plan_id=plan_id, org_id=org_id, currency=currency)
+
+    return RazorpayBillingService.create_order(plan_id=plan_id, user_id=user.id, currency=currency)
+
+@app.post("/api/billing/razorpay/verify")
+async def razorpay_verify_payment(request: Request, user=Depends(get_current_user)):
+    from billing import RazorpayBillingService
+    data = await request.json()
+    order_id = data.get("razorpay_order_id")
+    payment_id = data.get("razorpay_payment_id")
+    signature = data.get("razorpay_signature")
+    plan_id = data.get("plan")
+    org_id = data.get("org_id")
+
+    if not order_id or not payment_id or not plan_id:
+        raise HTTPException(status_code=400, detail="Missing required payment verification parameters")
+
+    result = RazorpayBillingService.verify_payment_signature(
+        razorpay_order_id=order_id,
+        razorpay_payment_id=payment_id,
+        razorpay_signature=signature or "",
+        plan_id=plan_id,
+        user_id=user.id if not org_id else None,
+        org_id=org_id
+    )
+
+    if not result.get("verified"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Payment verification failed"))
 
     return result
 
