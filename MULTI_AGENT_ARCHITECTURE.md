@@ -58,6 +58,49 @@ Distributed OpenTelemetry tracing, real-time Prometheus metrics collection, and 
 | `metrics.py` | `MetricsCollector` providing Prometheus exposition format, counters, gauges, duration histograms, and JSON metric summaries. |
 | `analytics.py` | `AnalyticsEngine` computing executive KPIs (success rates, cost savings, hours saved), failure taxonomy categorizer, and pattern memory leaderboard. |
 
+### Policy-as-Code & Governance Layer (`policy/`) *(Phase 13)*
+Open Policy Agent (OPA/Rego) evaluator with pre-packaged enterprise compliance rulepacks and organization guardrails.
+
+| Module | Purpose |
+| :--- | :--- |
+| `opa_engine.py` | `OPAEngine` evaluating HCL AST against Rego compliance packs (SOC2, HIPAA, PCI-DSS, CIS Benchmarks). |
+| `guardrails.py` | `EnterpriseGuardrails` enforcing region whitelisting, budget limits, prohibited services, and mandatory tags. |
+| `compliance/*.rego`| Pre-packaged Rego rules enforcing encryption at rest, TLS in transit, and least-privilege networking. |
+
+### Enterprise Identity Federation Layer (`sso/`) *(Phase 13)*
+OAuth2/OIDC and SAML 2.0 Identity Provider federation for enterprise single sign-on.
+
+| Module | Purpose |
+| :--- | :--- |
+| `providers.py` | `SSOProviderConfig` defining IdP metadata for Microsoft Entra ID (Azure AD), Okta, Google Workspace, and Auth0. |
+| `oidc.py` | `OIDCService` managing authorization code redirects, token validation, and automatic database user provisioning. |
+| `saml.py` | `SAMLService` parsing SAML 2.0 XML assertion tokens and claims. |
+
+### Multi-Agent Consensus & Debate Layer (`consensus/`) *(Phase 13)*
+Competitive architectural debate and consensus scoring to prevent single-agent hallucinations.
+
+| Module | Purpose |
+| :--- | :--- |
+| `consensus_scorer.py`| `ConsensusScorer` calculating 4-dimensional weighted scores (Security, Cost, Reliability, Simplicity). |
+| `debate_engine.py` | `MultiAgentDebateEngine` orchestrating Developer Agent A (Scale & HA) vs Developer Agent B (Lean Cost) vs Independent Reviewer. |
+
+### Multi-Cloud Architecture Optimization Layer (`cloud_optimizer/`) *(Phase 13)*
+Automated cross-cloud synthesis and cost optimization.
+
+| Module | Purpose |
+| :--- | :--- |
+| `provider_comparator.py` | `ProviderComparator` mapping equivalent services and pricing across AWS, Azure, and GCP. |
+| `multi_cloud.py` | `MultiCloudOptimizer` evaluating requirements against AWS, Azure, and GCP to recommend the optimal cloud provider. |
+
+### AI Operations Center Layer (`aiops/`) *(Phase 13)*
+Real-time AIOps monitoring, incident alerting, and dynamic LLM routing.
+
+| Module | Purpose |
+| :--- | :--- |
+| `monitoring.py` | `AIOpsMonitor` aggregating agent health, failure rates, pattern learning speed, and execution trends. |
+| `alerts.py` | `AIOpsAlertManager` tracking active budget overages, cloud drift incidents, and unhealed retry alerts. |
+| `model_router.py` | `IntelligentModelRouter` dynamically routing tasks to fast/cost-effective or frontier reasoning models based on complexity. |
+
 ### Usage Metering & Billing Layer (`billing/`)
 Multi-dimensional consumption metering, tier quota management, and Stripe subscription service.
 
@@ -66,6 +109,7 @@ Multi-dimensional consumption metering, tier quota management, and Stripe subscr
 | `metering.py` | `UsageMeter` estimating prompt/completion tokens, pricing per LLM model, compute worker duration cost, and 3-way cost attribution. |
 | `usage_tracking.py` | `BillingTracker`, `UsageRecordModel`, and `SubscriptionModel` managing monthly run quotas, usage persistence, and account tier upgrades. |
 | `stripe_service.py` | `StripeBillingService` defining Free, Pro, and Enterprise tiers with mock and live Stripe checkout session integration. |
+| `razorpay_service.py` | `RazorpayBillingService` handling Indian Rupee (INR), UPI, NetBanking, and credit/debit card orders. |
 | `invoicing.py` | `InvoiceGenerator` synthesizing cost attribution statements and monthly invoice summaries. |
 
 ### IaC Engine Abstraction Layer (`tools/engine/`)

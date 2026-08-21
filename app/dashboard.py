@@ -6,7 +6,7 @@ import io
 import asyncio
 import logging
 import traceback
-from fastapi import FastAPI, HTTPException, Request, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -918,6 +918,132 @@ async def semantic_search_patterns(error_query: str, user=Depends(get_current_us
     if not error_query:
         return []
     return VectorKnowledgeEngine.search_similar_patterns(query_error=error_query, top_k=5)
+
+# ════════════════════════════════════════════════════════════════════════
+# ── Phase 13: Enterprise Policy, SSO, Consensus & AIOps APIs ────────────
+# ════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/policy/evaluate")
+async def evaluate_policy_compliance(request: Request, user=Depends(get_current_user)):
+    from policy.opa_engine import OPAEngine
+    data = await request.json()
+    hcl = data.get("hcl_code", "")
+    slug = data.get("slug")
+    pack = data.get("pack", "soc2").lower()
+
+    if slug and not hcl:
+        output_path = os.path.join("output", slug)
+        if os.path.exists(output_path):
+            return OPAEngine.evaluate_compliance(output_path, pack=pack)
+
+    return OPAEngine.evaluate_compliance(hcl, pack=pack)
+
+@app.post("/api/policy/guardrails")
+async def evaluate_organization_guardrails(request: Request, user=Depends(get_current_user)):
+    from policy.guardrails import EnterpriseGuardrails
+    data = await request.json()
+    hcl = data.get("hcl_code", "")
+    budget = float(data.get("budget", 100.0))
+    allowed_regions = data.get("allowed_regions")
+    max_budget_cap = float(data.get("max_budget_cap", 1000.0))
+
+    return EnterpriseGuardrails.evaluate_guardrails(
+        hcl_code=hcl,
+        budget=budget,
+        allowed_regions=allowed_regions,
+        max_budget_cap=max_budget_cap
+    )
+
+@app.get("/api/auth/sso/providers")
+async def list_sso_providers():
+    from sso.providers import SSOProviderConfig
+    return SSOProviderConfig.get_providers()
+
+@app.get("/api/auth/sso/login/{provider}")
+async def sso_login_redirect(provider: str, redirect_uri: str = "http://localhost:5000/api/auth/sso/callback"):
+    from sso.oidc import OIDCService
+    try:
+        url = OIDCService.build_auth_url(provider=provider, redirect_uri=redirect_uri)
+        return {"auth_url": url, "provider": provider}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/auth/sso/callback/{provider}")
+async def sso_callback(provider: str, request: Request, response: Response):
+    from sso.oidc import OIDCService
+    data = await request.json()
+    code = data.get("code", "mock_auth_code_123")
+    redirect_uri = data.get("redirect_uri", "http://localhost:5000/api/auth/sso/callback")
+    simulated_user = data.get("simulated_user")
+
+    result = OIDCService.exchange_code_and_provision(
+        provider=provider,
+        code=code,
+        redirect_uri=redirect_uri,
+        simulated_user=simulated_user
+    )
+
+    token = create_jwt_token(result["user_id"])
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        httponly=True,
+        max_age=86400 * 7,
+        samesite="lax",
+        secure=False
+    )
+    return result
+
+@app.post("/api/consensus/debate")
+async def run_agent_debate(request: Request, user=Depends(get_current_user)):
+    from consensus.debate_engine import MultiAgentDebateEngine
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    budget = float(data.get("budget", 100.0))
+    provider = data.get("provider", "AWS")
+    engine = data.get("engine", "terraform")
+
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required for debate")
+
+    return MultiAgentDebateEngine.conduct_debate(
+        prompt=prompt,
+        budget=budget,
+        provider=provider,
+        engine=engine
+    )
+
+@app.post("/api/cloud-optimizer/compare")
+async def compare_multi_cloud(request: Request, user=Depends(get_current_user)):
+    from cloud_optimizer.multi_cloud import MultiCloudOptimizer
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    budget = float(data.get("budget", 100.0))
+
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required for cloud comparison")
+
+    return MultiCloudOptimizer.compare_clouds_for_prompt(prompt=prompt, budget=budget)
+
+@app.get("/api/aiops/status")
+async def get_aiops_status(org_id: Optional[int] = None, user=Depends(get_current_user)):
+    from aiops.monitoring import AIOpsMonitor
+    return AIOpsMonitor.get_system_health(org_id=org_id)
+
+@app.get("/api/aiops/alerts")
+async def get_aiops_alerts(org_id: Optional[int] = None, user=Depends(get_current_user)):
+    from aiops.alerts import AIOpsAlertManager
+    return AIOpsAlertManager.get_active_alerts(org_id=org_id)
+
+@app.post("/api/aiops/route-model")
+async def route_intelligent_model(request: Request, user=Depends(get_current_user)):
+    from aiops.model_router import IntelligentModelRouter
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    task_type = data.get("task_type", "general")
+
+    return IntelligentModelRouter.route_task(prompt=prompt, task_type=task_type)
+
 
 
 if __name__ == "__main__":

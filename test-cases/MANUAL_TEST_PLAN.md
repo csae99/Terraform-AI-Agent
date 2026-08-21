@@ -123,3 +123,36 @@ This document outlines the steps to manually verify the entire platform lifecycl
     - [ ] Browser downloads `soc2_compliance_package.json` with metadata, workspace inventory, and full audit logs.
     - [ ] Browser downloads `soc2_compliance_audit_trail.csv` with comma-separated activity logs.
 
+## 15. Policy-as-Code & OPA Rego Evaluation (Phase 13)
+- **Action**:
+    1. Send a request to evaluate HCL code against the **SOC2**, **HIPAA**, or **PCI-DSS** compliance pack:
+       `POST /api/policy/evaluate {"hcl_code": "...", "pack": "soc2"}`.
+- **Expectation**:
+    - [ ] Non-compliant resources (e.g. unencrypted S3 buckets, open 0.0.0.0/0 ports) are rejected with explicit Rego rule violation explanations.
+    - [ ] Compliant resources receive `allow: true` and 100% compliance scores.
+
+## 16. Enterprise Identity Federation & SSO (Phase 13)
+- **Action**:
+    1. Request available SSO identity providers via `GET /api/auth/sso/providers`.
+    2. Trigger OIDC authentication via `GET /api/auth/sso/login/azure_ad` or `okta`.
+- **Expectation**:
+    - [ ] Endpoint returns configured IdP metadata for Entra ID, Okta, Google, and Auth0.
+    - [ ] SSO callback auto-provisions the authenticated enterprise user into the database and issues a secure session JWT.
+
+## 17. Multi-Agent Consensus & Debate Engine (Phase 13)
+- **Action**:
+    1. Trigger an architectural consensus debate:
+       `POST /api/consensus/debate {"prompt": "scalable kubernetes microservices", "budget": 150}`.
+- **Expectation**:
+    - [ ] Developer Agent A (Enterprise Scale & HA) and Developer Agent B (Lean Cost-Optimized) propose competing designs.
+    - [ ] 4-dimensional weighted scoring matrix (Security, Cost, Reliability, Simplicity) determines and ratifies the winning blueprint.
+
+## 18. Multi-Cloud Architecture Optimization & AIOps (Phase 13)
+- **Action**:
+    1. Request multi-cloud comparison: `POST /api/cloud-optimizer/compare {"prompt": "PostgreSQL database and container cluster", "budget": 100}`.
+    2. Query AIOps system telemetry: `GET /api/aiops/status` and `GET /api/aiops/alerts`.
+- **Expectation**:
+    - [ ] Returns side-by-side cost projections and HA SLAs for AWS, Azure, and GCP, recommending the optimal cloud.
+    - [ ] AIOps returns real-time agent health, self-healing success metrics, and active governance alerts.
+
+
