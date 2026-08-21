@@ -8,21 +8,53 @@ lookup functionality for agents during self-healing loops.
 import os
 import json
 from typing import List, Dict, Optional
+from tools.project.tracker import SessionLocal, PatternMemoryModel
+from memory.vector_knowledge import VectorKnowledgeEngine
 
 
 _PATTERNS_FILE = os.path.join(os.path.dirname(__file__), "failure_patterns.json")
 
 
 class PatternManager:
-    """Manages a knowledge base of known Terraform failure patterns and fixes."""
+    """Manages a knowledge base of known Terraform failure patterns and fixes with DB & Vector backing."""
 
     def __init__(self, patterns_file: str = _PATTERNS_FILE):
         self.patterns_file = patterns_file
         self._patterns: List[Dict] = []
+        VectorKnowledgeEngine.ensure_seeded()
         self._load(self.patterns_file)
 
     def _load(self, path: str) -> None:
-        """Load patterns from the JSON catalog."""
+        """Load patterns from the Database (with JSON catalog fallback)."""
+        session = SessionLocal()
+        try:
+            db_patterns = session.query(PatternMemoryModel).all()
+            if db_patterns:
+                self._patterns = [
+                    {
+                        "id": p.id,
+                        "signature": p.signature or p.error_substring,
+                        "error_substring": p.error_substring,
+                        "category": p.category,
+                        "severity": p.severity,
+                        "description": p.description,
+                        "fix": p.fix,
+                        "success_count": p.success_count,
+                        "failure_count": p.failure_count,
+                        "confidence": p.confidence,
+                        "status": p.status,
+                        "last_used": p.last_used.isoformat() + "Z" if p.last_used else ""
+                    }
+                    for p in db_patterns
+                ]
+                print(f"[PatternManager] Loaded {len(self._patterns)} failure patterns from database.")
+                return
+        except Exception as e:
+            print(f"[PatternManager] DB load note: {e}")
+        finally:
+            session.close()
+
+        # Fallback to JSON file if DB query failed
         if not os.path.exists(path):
             print(f"[PatternManager] Warning: patterns file not found at {path}")
             return
@@ -31,39 +63,52 @@ class PatternManager:
             data = json.load(f)
 
         self._patterns = data.get("patterns", [])
-        # Ensure status field exists on all loaded patterns
         for p in self._patterns:
             if "status" not in p:
                 if p.get("success_count", 0) >= 1 or p.get("confidence", 0.0) >= 1.0:
                     p["status"] = "trusted"
                 else:
                     p["status"] = "candidate"
-        print(f"[PatternManager] Loaded {len(self._patterns)} failure patterns.")
+        print(f"[PatternManager] Loaded {len(self._patterns)} failure patterns from JSON fallback.")
 
     # ── Lookup ───────────────────────────────────────────────────────
 
     def match(self, error_text: str) -> List[Dict]:
-        """Return all patterns whose error_substring appears in *error_text*.
+        """Return all patterns whose error_substring appears in *error_text* or matches semantically.
 
         Args:
             error_text: The raw error output from Terraform CLI or cloud API.
 
         Returns:
-            A list of matching pattern dicts, sorted by severity (CRITICAL first).
+            A list of matching pattern dicts, sorted by exact match first then similarity.
         """
-        # Reload dynamically to pick up live updates
-        self._load(self.patterns_file)
         if not error_text:
             return []
 
-        matches = [
+        # 1. Exact substring matches
+        exact_matches = [
             p for p in self._patterns
             if p["error_substring"].lower() in error_text.lower()
         ]
 
+        # 2. Semantic vector matches via VectorKnowledgeEngine
+        semantic_matches = VectorKnowledgeEngine.search_similar_patterns(error_text, top_k=3, min_similarity=0.20)
+        
+        # Merge results, avoiding duplicates
+        seen = set(p["error_substring"].lower() for p in exact_matches)
+        combined = list(exact_matches)
+        for sm in semantic_matches:
+            if sm["error_substring"].lower() not in seen:
+                combined.append(sm)
+                seen.add(sm["error_substring"].lower())
+
         severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
-        matches.sort(key=lambda p: severity_order.get(p.get("severity", "LOW"), 4))
-        return matches
+        combined.sort(key=lambda p: severity_order.get(p.get("severity", "LOW"), 4))
+        return combined
+
+    def semantic_match(self, error_text: str, top_k: int = 3) -> List[Dict]:
+        """Direct vector semantic search for failure patterns."""
+        return VectorKnowledgeEngine.search_similar_patterns(error_text, top_k=top_k)
 
     def match_first(self, error_text: str) -> Optional[Dict]:
         """Return the highest-severity matching pattern, or None."""
@@ -297,10 +342,52 @@ Return the output strictly in the following JSON format:
             print(f"[PatternManager] Warning: failed to learn from run: {e}")
 
     def _persist(self) -> None:
-        """Write the current patterns back to disk."""
+        """Write the current patterns back to disk and database."""
+        # 1. Update JSON file
         data = {"patterns": self._patterns}
         with open(_PATTERNS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+
+        # 2. Synchronize to database
+        session = SessionLocal()
+        try:
+            for p in self._patterns:
+                sub = p.get("error_substring")
+                if not sub:
+                    continue
+                db_item = session.query(PatternMemoryModel).filter(PatternMemoryModel.error_substring == sub).first()
+                emb = VectorKnowledgeEngine.get_embedding(f"{sub} {p.get('description', '')}")
+                if db_item:
+                    db_item.success_count = p.get("success_count", db_item.success_count)
+                    db_item.failure_count = p.get("failure_count", db_item.failure_count)
+                    db_item.confidence = p.get("confidence", db_item.confidence)
+                    db_item.status = p.get("status", db_item.status)
+                    db_item.description = p.get("description", db_item.description)
+                    db_item.fix = p.get("fix", db_item.fix)
+                    db_item.embedding = json.dumps(emb)
+                    db_item.last_used = datetime.utcnow()
+                else:
+                    new_item = PatternMemoryModel(
+                        signature=p.get("signature") or sub,
+                        error_substring=sub,
+                        category=p.get("category", "general"),
+                        severity=p.get("severity", "MEDIUM"),
+                        description=p.get("description", ""),
+                        fix=p.get("fix", ""),
+                        success_count=p.get("success_count", 1),
+                        failure_count=p.get("failure_count", 0),
+                        confidence=p.get("confidence", 0.8),
+                        status=p.get("status", "candidate"),
+                        embedding=json.dumps(emb),
+                        last_used=datetime.utcnow()
+                    )
+                    session.add(new_item)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            print(f"[PatternManager] DB sync note: {e}")
+        finally:
+            session.close()
 
     # ── Stats ────────────────────────────────────────────────────────
 

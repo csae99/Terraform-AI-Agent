@@ -228,4 +228,48 @@ docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
 ```
 
 ---
-*Last Updated: 2026-08-05*
+
+## 🩺 Troubleshooting & Frequently Asked Questions (FAQ)
+
+### 1. 🟣 Terraform / 🧅 OpenTofu Binary Missing on PATH
+* **Symptom**: `FileNotFoundError: 'terraform' / 'tofu' executable not found on PATH.`
+* **Solution**:
+  - Windows: Run `winget install HashiCorp.Terraform` or `winget install LinuxFoundation.OpenTofu`, then restart your terminal.
+  - Linux / macOS: Install via package manager (`brew install opentofu` or `apt install terraform`).
+  - Fallback: The platform automatically verifies binary availability upon boot. You can switch between engines on the Web Dashboard Build tab or via `.env` (`DEFAULT_IAC_ENGINE=terraform` or `DEFAULT_IAC_ENGINE=opentofu`).
+
+### 2. ⚡ Redis Connection Refused / Task Queue Fallback
+* **Symptom**: `redis.exceptions.ConnectionError: Error 10061 connecting to localhost:6379.`
+* **Solution**:
+  - The dashboard automatically detects when Redis is offline and logs: `[Dashboard] Redis is not reachable. Falling back to synchronous thread execution.`
+  - To enable asynchronous Celery workers, start Redis via Docker: `docker run -d -p 6379:6379 --name terraform-redis redis:7-alpine`.
+
+### 3. 🐘 PostgreSQL & `pgvector` Initialization
+* **Symptom**: `relation "pattern_memory" does not exist` or `extension "vector" is not available.`
+* **Solution**:
+  - If running in Docker: `docker-compose.yml` uses `pgvector/pgvector:pg15`, which has the `vector` extension pre-installed.
+  - If running in Local Python (SQLite): The platform automatically uses an in-memory dense vector cosine similarity engine with zero configuration required.
+
+### 4. 🔀 GitHub Token (PAT) & GitOps PR Permissions
+* **Symptom**: `GitHub API 403 / 401 Bad credentials` or `Resource not accessible by personal access token`.
+* **Solution**:
+  - Ensure your GitHub Personal Access Token (PAT) has the following scopes enabled:
+    - `repo` (Full control of private repositories)
+    - `workflow` (Update GitHub Action workflows)
+    - `read:org` (Read organization data)
+  - Verify that the target repository URL in the GitOps form ends with `.git` and is accessible by your account.
+
+### 5. 🐳 Docker Socket Permissions (`/var/run/docker.sock`)
+* **Symptom**: `permission denied while trying to connect to the Docker daemon socket.`
+* **Solution**:
+  - Linux / WSL2: Add your current user to the docker group: `sudo usermod -aG docker $USER` and log back in.
+  - Docker Compose: Ensure the volume mount `- /var/run/docker.sock:/var/run/docker.sock` is present in `docker-compose.yml`.
+
+### 6. 🤖 LLM Rate Limits (HTTP 429 / Quota Exhausted)
+* **Symptom**: `Rate limit reached for model gemini-2.0-flash (429 Too Many Requests).`
+* **Solution**:
+  - The agent orchestrator has a built-in exponential backoff retry loop with automatic jitter that pauses and retries failed tasks.
+  - You can configure custom BYOK API keys or switch providers in `.env` (Google Gemini, ZenMux AI, OpenAI, Anthropic Claude, Groq, Mistral, OpenRouter).
+
+---
+*Last Updated: 2026-08-21 (Phase 12 Enterprise Platform & Vector Knowledge Release)*

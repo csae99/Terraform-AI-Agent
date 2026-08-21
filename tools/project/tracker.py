@@ -152,6 +152,39 @@ class AuditLogModel(Base):
     organization = relationship("OrganizationModel")
 
 
+class PatternMemoryModel(Base):
+    """Database-backed failure pattern and self-healing memory."""
+    __tablename__ = "pattern_memory"
+    
+    id = Column(Integer, primary_key=True)
+    signature = Column(String, index=True)
+    error_substring = Column(String, index=True)
+    category = Column(String, default="general")
+    severity = Column(String, default="MEDIUM")
+    description = Column(Text, default="")
+    fix = Column(Text, default="")
+    success_count = Column(Integer, default=0)
+    failure_count = Column(Integer, default=0)
+    confidence = Column(Float, default=0.8)
+    status = Column(String, default="candidate")  # trusted, candidate
+    embedding = Column(Text, nullable=True)       # JSON string of vector embedding
+    last_used = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class KnowledgeDocumentModel(Base):
+    """Vector knowledge layer documents for Terraform, OpenTofu, and Cloud Runbooks."""
+    __tablename__ = "knowledge_documents"
+    
+    id = Column(Integer, primary_key=True)
+    doc_type = Column(String, index=True)  # terraform_doc, opentofu_doc, aws_runbook, azure_runbook, security_policy
+    title = Column(String, index=True)
+    content = Column(Text, default="")
+    tags = Column(String, default="")
+    embedding = Column(Text, nullable=True)  # JSON string of vector embedding
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Create tables
 Base.metadata.create_all(bind=engine)
 

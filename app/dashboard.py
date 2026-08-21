@@ -905,6 +905,20 @@ async def export_compliance_package(org_id: Optional[int] = None, format: str = 
     }
     return JSONResponse(package)
 
+@app.get("/api/knowledge/search")
+async def search_knowledge(q: str, doc_type: Optional[str] = None, user=Depends(get_current_user)):
+    from memory.vector_knowledge import VectorKnowledgeEngine
+    if not q:
+        return []
+    return VectorKnowledgeEngine.search_documentation(query=q, doc_type=doc_type, top_k=5)
+
+@app.get("/api/knowledge/patterns/semantic")
+async def semantic_search_patterns(error_query: str, user=Depends(get_current_user)):
+    from memory.vector_knowledge import VectorKnowledgeEngine
+    if not error_query:
+        return []
+    return VectorKnowledgeEngine.search_similar_patterns(query_error=error_query, top_k=5)
+
 
 if __name__ == "__main__":
     import uvicorn

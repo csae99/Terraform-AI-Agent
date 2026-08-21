@@ -35,10 +35,37 @@ class RetryContext:
         self.best_backup: Optional[str] = None
         self.decision_trace: list = []
 
-    def record_decision(self, decision: str) -> None:
-        """Log a high-level self-healing or validation decision to the trace."""
-        self.decision_trace.append(decision)
-        print(f"[Decision Trace] Logged: '{decision}'")
+    def record_decision(self, decision, agent: Optional[str] = None, reason: Optional[str] = None, action: Optional[str] = None, stage: Optional[str] = None) -> None:
+        """Log a structured agent decision or high-level self-healing event to the trace."""
+        from datetime import datetime
+        if isinstance(decision, dict):
+            entry = dict(decision)
+            if "timestamp" not in entry:
+                entry["timestamp"] = datetime.utcnow().isoformat() + "Z"
+            self.decision_trace.append(entry)
+            print(f"[Decision Trace] [{entry.get('agent', 'System')}] {entry.get('action', entry.get('decision', ''))} (Reason: {entry.get('reason', 'N/A')})")
+        elif agent or reason or action:
+            entry = {
+                "decision": str(decision),
+                "agent": agent or "System",
+                "stage": stage or "Pipeline",
+                "reason": reason or "",
+                "action": action or str(decision),
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+            self.decision_trace.append(entry)
+            print(f"[Decision Trace] [{entry['agent']}] {entry['action']} (Reason: {entry['reason']})")
+        else:
+            entry = {
+                "decision": str(decision),
+                "agent": "System",
+                "stage": "Pipeline",
+                "action": str(decision),
+                "reason": "",
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+            self.decision_trace.append(entry)
+            print(f"[Decision Trace] Logged: '{decision}'")
 
     @property
     def has_retries_left(self) -> bool:

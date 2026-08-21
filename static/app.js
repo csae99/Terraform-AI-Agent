@@ -418,44 +418,57 @@ async function switchModalTab(tabId) {
         if (trace.length === 0) {
             traceContainer.innerHTML = '<p class="text-muted">No trace records available.</p>';
         } else {
-            let traceHtml = '<div class="decision-trace-flow">';
+            let traceHtml = '<div class="decision-trace-flow" style="display: flex; flex-direction: column; gap: 0.75rem;">';
             trace.forEach((step, idx) => {
-                let badgeClass = 'badge-default';
-                let stepLabel = step.replace(/_/g, ' ').toUpperCase();
-                let icon = '⚙️';
-                
-                if (step.includes('started')) {
-                    badgeClass = 'badge-started';
-                    icon = '🚀';
-                } else if (step.includes('failed')) {
-                    badgeClass = 'badge-failed';
-                    icon = '❌';
-                } else if (step.includes('succeeded') || step.includes('success')) {
-                    badgeClass = 'badge-success';
-                    icon = '✅';
-                } else if (step.includes('reflection')) {
-                    badgeClass = 'badge-reflection';
-                    icon = '🧠';
-                } else if (step.includes('search')) {
-                    badgeClass = 'badge-search';
-                    icon = '🔍';
-                } else if (step.includes('pattern')) {
-                    badgeClass = 'badge-pattern';
-                    icon = '📚';
-                } else if (step.includes('apply') || step.includes('applied')) {
-                    badgeClass = 'badge-apply';
-                    icon = '🔧';
-                }
-                
-                traceHtml += `
-                    <div class="trace-step-badge ${badgeClass}">
-                        <span>${icon}</span>
-                        <span>${stepLabel}</span>
-                    </div>
-                `;
-                if (idx < trace.length - 1) {
+                if (typeof step === 'object' && step !== null) {
+                    const agent = step.agent || 'System';
+                    const stage = step.stage || 'Pipeline';
+                    const action = step.action || step.decision || 'Action';
+                    const reason = step.reason || '';
+                    const time = step.timestamp ? new Date(step.timestamp).toLocaleTimeString() : '';
+
+                    const agentColors = {
+                        'ArchitectAgent': '#818cf8',
+                        'DeveloperAgent': '#38bdf8',
+                        'SecurityReviewer': '#f87171',
+                        'FinOpsSpecialist': '#34d399',
+                        'TestingAgent': '#fbbf24',
+                        'GitOpsCoordinator': '#c084fc',
+                        'SelfHealingOrchestrator': '#f472b6',
+                        'System': '#94a3b8'
+                    };
+                    const color = agentColors[agent] || '#a5b4fc';
+
                     traceHtml += `
-                        <span class="trace-arrow"><i class="fas fa-arrow-right"></i></span>
+                        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-left: 4px solid ${color}; border-radius: var(--radius-sm); padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                    <span style="background: rgba(255,255,255,0.08); color: ${color}; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase;">${agent}</span>
+                                    <span style="font-size: 0.75rem; color: #888;">[${stage}]</span>
+                                    <strong style="color: #fff; font-size: 0.9rem;">${action}</strong>
+                                </div>
+                                ${reason ? `<p style="margin: 0; font-size: 0.8rem; color: #cbd5e1;">${reason}</p>` : ''}
+                            </div>
+                            ${time ? `<span style="font-size: 0.75rem; color: #64748b; font-family: monospace; white-space: nowrap;">${time}</span>` : ''}
+                        </div>
+                    `;
+                } else {
+                    let badgeClass = 'badge-default';
+                    let stepLabel = String(step).replace(/_/g, ' ').toUpperCase();
+                    let icon = '⚙️';
+                    if (String(step).includes('started')) { badgeClass = 'badge-started'; icon = '🚀'; }
+                    else if (String(step).includes('failed')) { badgeClass = 'badge-failed'; icon = '❌'; }
+                    else if (String(step).includes('succeeded') || String(step).includes('success')) { badgeClass = 'badge-success'; icon = '✅'; }
+                    else if (String(step).includes('reflection')) { badgeClass = 'badge-reflection'; icon = '🧠'; }
+                    else if (String(step).includes('search')) { badgeClass = 'badge-search'; icon = '🔍'; }
+                    else if (String(step).includes('pattern')) { badgeClass = 'badge-pattern'; icon = '📚'; }
+                    else if (String(step).includes('apply') || String(step).includes('applied')) { badgeClass = 'badge-apply'; icon = '🔧'; }
+
+                    traceHtml += `
+                        <div class="trace-step-badge ${badgeClass}" style="display: inline-flex; margin-right: 0.5rem;">
+                            <span>${icon}</span>
+                            <span>${stepLabel}</span>
+                        </div>
                     `;
                 }
             });
