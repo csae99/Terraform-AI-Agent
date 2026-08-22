@@ -1,158 +1,327 @@
-# 🛠️ Terraform AI Agent: Manual E2E Test Plan
+# 🛠️ Autonomous Infrastructure Platform: Complete Manual E2E Test Plan (Phases 1 – 13)
 
-This document outlines the steps to manually verify the entire platform lifecycle.
+This document provides a comprehensive, step-by-step testing roadmap to verify every capability of the **Autonomous Infrastructure Platform** from **Phase 1 through Phase 13**.
 
-## 1. AI Infrastructure Generation
-- **Input**: "Create an AWS S3 bucket named `test-audit-bucket` with versioning enabled and a lifecycle rule to transition to Glacier after 30 days."
-- **Budget**: $50
-- **Expectation**: 
-    - [ ] Architect generates a Mermaid diagram.
-    - [ ] Specialist generates valid `main.tf`.
-    - [ ] Security Specialist finds no critical issues (or fixes them).
-    - [ ] Financial Analyst estimates cost < $50.
+> [!TIP]
+> **Optimized for Google Gemini Free Tier**: The test prompts and configurations below use lightweight, cost-effective infrastructure prompts designed to execute smoothly within standard Gemini API rate limits (`gemini-2.0-flash`).
 
-## 2. Visual Topology & Evolution
-- **Action**: Open the project in the Dashboard.
-- **Expectation**:
-    - [ ] **Visual Topology** tab renders a diagram of the S3 bucket and lifecycle rule.
-    - [ ] **Evolution History** shows at least one snapshot (Round 1).
+---
 
-## 3. Multi-Cloud Deployment (Live)
-- **Action**: Provide AWS Credentials in the UI and toggle "Live Deploy".
-- **Expectation**:
-    - [ ] Live Console shows `terraform init` and `terraform apply`.
-    - [ ] Status badge changes to `deployed`.
+## ⚙️ Environment Setup & Prerequisites
 
-## 4. Drift Detection (The "Snooper" Test)
+Before beginning tests, ensure your local environment is configured:
+
+1. **Verify your `.env` file**:
+   ```env
+   # Active Model (Gemini Free Tier recommended)
+   DEFAULT_MODEL=gemini/gemini-2.0-flash
+   GEMINI_API_KEY=your_gemini_api_key_here
+
+   # Default IaC Engine ('terraform' or 'opentofu')
+   DEFAULT_IAC_ENGINE=terraform
+
+   # Local Emulation (Floci) & Database
+   TEST_LOCAL=true
+   DATABASE_URL=sqlite:///terraform_agent.db
+   REDIS_URL=redis://localhost:6379/0
+
+   # Payment Gateways (Simulation Mode)
+   DEFAULT_PAYMENT_GATEWAY=razorpay
+   RAZORPAY_KEY_ID=rzp_test_mock
+   RAZORPAY_KEY_SECRET=mock_secret
+   STRIPE_PUBLISHABLE_KEY=pk_test_mock
+   STRIPE_SECRET_KEY=sk_test_mock
+   ```
+
+2. **Launch the Dashboard**:
+   ```powershell
+   # In terminal:
+   python app/dashboard.py
+   # Open browser at: http://localhost:5000
+   ```
+
+3. **Default Test Accounts**:
+   - Register or login with: `username: testuser1`, `password: test1234`
+
+---
+
+## 📋 Comprehensive Test Matrix
+
+---
+
+### 1. 🏗️ Core Infrastructure Generation & Code Viewer (Phases 1 & 2)
+- **Objective**: Verify that the multi-agent system architects, codes, audits, and estimates costs for a standard infrastructure requirement without hitting rate limits.
 - **Action**:
-    1. Manually go to the AWS Console and change a tag on the bucket.
-    2. Click **🔍 Scan for Drift** in the dashboard.
-* **Expectation**:
-    - [ ] Dashboard alert shows: `⚠️ DRIFT DETECTED`.
-    - [ ] Status badge changes to `drifted`.
-
-## 5. Persistence Recovery
-- **Action**: Run `docker-compose restart`.
+  1. Open the **Build** tab on `http://localhost:5000`.
+  2. In **Infrastructure Requirement**, enter:
+     ```text
+     Create an AWS S3 bucket named test-vault-storage with versioning enabled and a lifecycle rule to transition objects to Glacier after 30 days.
+     ```
+  3. Set **Budget (USD)** to `50`.
+  4. Ensure **Live Deploy** is unchecked. Keep **New Workspace** checked.
+  5. Click **Generate**.
 - **Expectation**:
-    - [ ] Refresh dashboard. All projects and logs must still be present (retrieved from PostgreSQL/SQLite).
+  - [ ] Agent Live Stream modal opens and logs the execution sequence (Architect $\rightarrow$ Developer $\rightarrow$ Security $\rightarrow$ FinOps).
+  - [ ] Notification toast displays *"Generation Complete!"*.
+  - [ ] Project modal automatically opens showing the **Terraform Code** tab with syntax-highlighted `main.tf`, `variables.tf`, and `outputs.tf`.
+  - [ ] The **Visual Topology** tab displays an interactive Mermaid diagram with the S3 bucket node connected to the Glacier transition rule.
+  - [ ] The **FinOps Report** tab shows projected cost compliant with the $50 budget (`STATUS: WITHIN BUDGET`).
 
-## 6. Multi-Tenant Organization Workspaces
+---
+
+### 2. 🗺️ Visual Topology, File Explorer & Evolution History (Phase 2 & 3)
+- **Objective**: Verify project navigation, multi-file inspection, and version-controlled snapshot diffs.
 - **Action**:
-    1. Click the **+ New Org** button in the header.
-    2. Enter an organization name (e.g. `DevOps Engineering`) and submit.
+  1. In the open project modal, switch between the code file tabs (`main.tf`, `modules/...`).
+  2. Click the **🕒 Evolution History** tab.
+  3. Click **Round 1 (Initial)** and compare changes in the diff viewer.
 - **Expectation**:
-    - [ ] Organization is created and user is assigned the `OWNER` role.
-    - [ ] Workspace selector automatically switches to `🏢 DevOps Engineering (OWNER)`.
-    - [ ] "Team Members" button appears next to the workspace selector.
-    - [ ] Projects list displays 0 projects (scoped to new org).
+  - [ ] Code viewer switches files instantly without rendering lag.
+  - [ ] Evolution history renders green additions (`+`) and red deletions (`-`) representing changes across agent rounds.
 
-## 7. Team Invitation & RBAC Enforcement
+---
+
+### 3. 🔍 Cloud Drift Detection ("The Snooper Test") (Phase 4)
+- **Objective**: Verify that the platform can detect divergence between the live infrastructure state and the declarative Terraform definition.
 - **Action**:
-    1. Click **👥 Team Members** in the org workspace context.
-    2. Invite another registered user with role `Viewer`.
-    3. Log in as the invited `Viewer` user and switch to the organization workspace.
-    4. Attempt to generate new infrastructure.
+  1. Open any generated workspace in the dashboard.
+  2. In the project header, click **🔍 Scan for Drift**.
 - **Expectation**:
-    - [ ] Viewer can view existing org projects and stats.
-    - [ ] Generation request is blocked by server-side RBAC with a 403 Forbidden alert.
-    - [ ] Switching back to `👤 Personal Workspace` restores personal projects and full generation rights.
+  - [ ] The drift status badge shows `⏳ Scanning...`.
+  - [ ] Drift scanner completes and updates status badge to `in_sync` (or `drifted` with detailed attribute diffs).
 
-## 8. GitOps Pull Request Automation
+---
+
+### 4. 🏢 Multi-Tenant Organizations & RBAC Permissions (Phase 10)
+- **Objective**: Verify multi-tenant workspace isolation and role-based access control (`Owner`, `Admin`, `Member`, `Viewer`).
 - **Action**:
-    1. In the Build tab, toggle **GitOps Mode**.
-    2. Provide Git repository URL (e.g. `https://github.com/my-org/terraform-repo.git`), target branch `main`, and GitHub PAT.
-    3. Click **Generate**.
+  1. In the header dropdown, click **+ New Org**.
+  2. Enter organization name: `Acme Cloud Team` and click **Create Org**.
+  3. Notice header switches to `🏢 Acme Cloud Team (OWNER)`.
+  4. Click the **👥 Team Members** modal (accessible via header).
+  5. Invite a second registered user (e.g. `testuser2`) with the **Viewer** role.
+  6. In an Incognito window, log in as `testuser2` and switch to `Acme Cloud Team`.
+  7. As `testuser2` (Viewer), attempt to click **Generate** on the Build tab.
 - **Expectation**:
-    - [ ] Agent creates an isolated branch `ai/{slug}-{timestamp}` and commits all generated `.tf` code.
-    - [ ] Agent opens a Pull Request on GitHub with visual Mermaid topology diagram, Infracost table, and Checkov findings.
-    - [ ] Project status is set to `pr_opened` and `approval_status` is `pending`.
+  - [ ] Organization is created and isolated from personal workspaces.
+  - [ ] `testuser2` (Viewer) can view projects and statistics but is **blocked from generating or deleting infrastructure** with a `403 Forbidden` alert.
+  - [ ] Switching back to `👤 Personal Workspace` restores personal ownership and full permissions.
 
-## 9. Enterprise Approval Gate & Merge
+---
+
+### 5. 🔀 GitOps Pull Request Automation & Approval Gate (Phase 11)
+- **Objective**: Test automated Git branch synthesis, Pull Request generation, and Organization Owner approval gates.
 - **Action**:
-    1. Open the project in the dashboard and navigate to the **🔀 GitOps & PR** tab.
-    2. Log in as a Member -> verify that the **Approve PR** button triggers a 403 Forbidden error.
-    3. Log in as an Organization Owner or Admin -> click **Approve PR**.
-    4. Click **Merge & Deploy**.
+  1. On the **Build** tab, check **GitOps Mode**.
+  2. Expand the **🔀 GitOps & Pull Request Automation** section.
+  3. Provide a test Git repo URL (e.g. `https://github.com/my-org/cloud-infra.git`), branch `main`, and your GitHub PAT (or leave default for simulation).
+  4. Enter prompt: `Create a secure private subnet with an AWS security group for web traffic`.
+  5. Click **Generate**.
+  6. Open the created project and navigate to the **🔀 GitOps & PR** tab.
+  7. As a standard **Member**, verify that clicking **Approve PR** is disabled or rejected.
+  8. As the **Organization Owner**, click **Approve PR**, then click **Merge & Deploy**.
 - **Expectation**:
-    - [ ] Status updates to `✅ Approved` with approver's username.
-    - [ ] Merge triggers automated squash merge on GitHub and marks project `deployed`.
+  - [ ] Agent generates isolated branch `ai/{slug}-{timestamp}` with staged `.tf` files.
+  - [ ] Pull Request status updates to `⏳ Pending Approval`.
+  - [ ] Organization Owner approval transitions status to `✅ Approved` with approver's name.
+  - [ ] Clicking **Merge & Deploy** marks the release as `🚀 Merged`.
 
-## 10. Enterprise Audit Trail
+---
+
+### 6. 📜 Enterprise Audit Trail & SOC2 Log Export (Phase 11 & 12)
+- **Objective**: Verify immutable audit logging and compliance export.
 - **Action**:
-    1. Click the **Audit Trail** tab in the main navigation.
+  1. Click the **Audit Trail** tab in the main top navigation.
+  2. Review the chronological events table.
+  3. Click **Export JSON** and **Export CSV**.
 - **Expectation**:
-    - [ ] Immutable audit table displays chronological activity feed.
-    - [ ] Actions `gitops_pr_created`, `gitops_pr_approved`, and `gitops_pr_merged_and_deployed` are visible with timestamps and user identifiers.
+  - [ ] Audit trail table records all user actions (`gitops_pr_created`, `gitops_pr_approved`, `org_created`, `member_added`) with exact timestamps and user tags.
+  - [ ] `soc2_compliance_package.json` downloads with complete metadata, workspace inventory, and signed audit records.
+  - [ ] `soc2_compliance_audit_trail.csv` downloads as a valid CSV spreadsheet.
 
-## 11. Dual IaC Engine Selection (Terraform & OpenTofu)
+---
+
+### 7. 🟣 Dual IaC Engine Selection (Terraform & OpenTofu) (Phase 11.5)
+- **Objective**: Verify that the platform seamlessly executes and tracks infrastructure targeting both HashiCorp Terraform and Linux Foundation OpenTofu.
 - **Action**:
-    1. In the Build tab, select **OpenTofu** from the IaC Engine dropdown.
-    2. Click **Generate** and inspect the terminal output.
+  1. On the **Build** tab, locate the **IaC Engine** selector.
+  2. Select **🧅 OpenTofu**.
+  3. Enter prompt: `Create a private S3 bucket with server-side encryption`.
+  4. Click **Generate**.
 - **Expectation**:
-    - [ ] Execution log indicates engine selected: `opentofu` (or falls back gracefully if `tofu` is not on PATH).
-    - [ ] Project metadata displays the engine badge (`opentofu`).
+  - [ ] Project builds successfully targeting OpenTofu.
+  - [ ] Project header displays the purple **`🧅 OpenTofu`** badge.
+  - [ ] Fallback mechanism smoothly handles environments without `tofu` installed by falling back to `terraform` with informative logging.
 
-## 12. Executive Analytics & Observability
+---
+
+### 8. 📊 Executive Observability & Prometheus Metrics (Phase 12)
+- **Objective**: Verify OpenTelemetry tracing, Prometheus exposition, and executive analytics.
 - **Action**:
-    1. Navigate to the **Analytics & Observability** tab in the top navigation.
-    2. Review KPI metric cards, failure taxonomy bars, and pattern confidence leaderboard.
-    3. Click the **Prometheus Metrics** link.
+  1. Click the **Analytics & Observability** tab in the top navigation.
+  2. Inspect the KPI cards: **Success Rate**, **Financial Savings**, **Monthly Infra Spend**, **Self-Healing Rounds**.
+  3. Review the **Failure Taxonomy Breakdown** chart.
+  4. Click the **Prometheus Metrics** link (opens `/api/observability/metrics?format=prometheus`).
 - **Expectation**:
-    - [ ] Success rate, monthly spend, self-healing rounds, and financial savings are displayed.
-    - [ ] Failure taxonomy categorizes errors into clear buckets (e.g. IAM, Naming Conflict, Syntax).
-    - [ ] Pattern memory displays confidence percentages and trusted status badges.
-    - [ ] Prometheus metrics open in raw text format (`terraform_agent_runs_total`, etc.).
+  - [ ] KPIs compute accurate real-time values from the database.
+  - [ ] Failure taxonomy categorizes errors into clear buckets (`IAM`, `Naming Conflict`, `Syntax`).
+  - [ ] Prometheus metrics page displays raw text metrics (`terraform_agent_runs_total`, `terraform_agent_tokens_total`, etc.).
 
-## 13. Usage Metering & Dual Payment Gateways (Razorpay & Stripe)
+---
+
+### 9. 💳 Usage Metering & Dual Payment Gateways (Razorpay & Stripe) (Phase 12)
+- **Objective**: Verify 3-way cost attribution metering and subscription upgrades using Razorpay or Stripe.
 - **Action**:
-    1. Navigate to the **Billing & Plans** tab.
-    2. Verify monthly quota progress bar (e.g. `0 / 5 Runs Used`).
-    3. Click **Upgrade Plan** to open the subscription modal.
-    4. Toggle between **Razorpay (UPI / Cards / NetBanking)** and **Stripe (Global Cards)**.
-    5. Select **Upgrade to Pro** or **Enterprise**.
+  1. Click the **Billing & Plans** tab.
+  2. Review the **Monthly Execution Quota** progress bar (e.g. `0 / 5 Runs Used` on Free tier).
+  3. Review the **3-Way Cost Attribution** cards:
+     - *Total LLM Tokens* (Prompt + Completion token cost)
+     - *Worker Compute Seconds* (Platform compute fee)
+     - *Projected Cloud Spend* (Infracost estimate)
+  4. Click **Upgrade Plan**.
+  5. Toggle between **Razorpay (UPI / Cards / NetBanking)** and **Stripe (Global Cards)**.
+  6. Click **Upgrade to Pro** ($29/mo).
 - **Expectation**:
-    - [ ] Choosing Razorpay triggers the Razorpay Checkout popup (or instant verified upgrade in dev mode).
-    - [ ] Subscription plan updates to `PRO` (100 runs/month) or `ENTERPRISE` (unlimited).
-    - [ ] Cost attribution meters update with AI tokens, worker compute duration, and projected cloud costs.
+  - [ ] Dual gateway buttons toggle active styles.
+  - [ ] Upgrade request succeeds and updates subscription tier to **PRO DEVELOPER** (100 runs/month quota).
+  - [ ] Quota bar recalculates percentage against the new tier limit.
 
-## 14. One-Click SOC2 Compliance Package Export
+---
+
+### 10. 🧠 pgvector Knowledge Layer & Semantic Pattern Matching (Phase 12 & 13)
+- **Objective**: Verify database-backed pattern memory and semantic vector search (RAG).
 - **Action**:
-    1. Navigate to the **Audit Trail** tab.
-    2. Click **Export JSON** and **Export CSV**.
+  1. Open a terminal or test script to trigger a semantic failure query:
+     ```python
+     # Via Python or curl
+     import requests
+     res = requests.get("http://localhost:5000/api/knowledge/patterns/semantic?error_query=AWS refused bucket creation because name is taken")
+     print(res.json())
+     ```
+  2. Query documentation search:
+     ```python
+     res = requests.get("http://localhost:5000/api/knowledge/search?q=opentofu state encryption")
+     print(res.json())
+     ```
 - **Expectation**:
-    - [ ] Browser downloads `soc2_compliance_package.json` with metadata, workspace inventory, and full audit logs.
-    - [ ] Browser downloads `soc2_compliance_audit_trail.csv` with comma-separated activity logs.
+  - [ ] Semantic search returns `BucketAlreadyExists` pattern even though the error phrasing differed from exact substring.
+  - [ ] Documentation search returns relevant OpenTofu and AWS S3 encryption runbooks.
 
-## 15. Policy-as-Code & OPA Rego Evaluation (Phase 13)
+---
+
+### 11. 🛡️ Policy-as-Code & OPA Rego Evaluation (Phase 13)
+- **Objective**: Verify Open Policy Agent (OPA) compliance packs (SOC2, HIPAA, PCI-DSS, CIS Benchmarks) and Organization Guardrails.
 - **Action**:
-    1. Send a request to evaluate HCL code against the **SOC2**, **HIPAA**, or **PCI-DSS** compliance pack:
-       `POST /api/policy/evaluate {"hcl_code": "...", "pack": "soc2"}`.
+  1. Test non-compliant HCL against SOC2:
+     ```bash
+     curl -X POST http://localhost:5000/api/policy/evaluate \
+       -H "Content-Type: application/json" \
+       -d "{\"hcl_code\": \"resource \\\"aws_s3_bucket\\\" \\\"data\\\" {}\", \"pack\": \"soc2\"}"
+     ```
+  2. Test compliant HCL against SOC2:
+     ```bash
+     curl -X POST http://localhost:5000/api/policy/evaluate \
+       -H "Content-Type: application/json" \
+       -d "{\"hcl_code\": \"resource \\\"aws_s3_bucket\\\" \\\"data\\\" { block_public_acls = true encrypted = true } resource \\\"aws_s3_bucket_public_access_block\\\" \\\"data\\\" { bucket = \\\"data\\\" block_public_acls = true block_public_policy = true } resource \\\"aws_s3_bucket_server_side_encryption_configuration\\\" \\\"data\\\" { bucket = \\\"data\\\" }\", \"pack\": \"soc2\"}"
+     ```
+  3. Test Organization Guardrails (Region & Budget whitelist):
+     ```bash
+     curl -X POST http://localhost:5000/api/policy/guardrails \
+       -H "Content-Type: application/json" \
+       -d "{\"hcl_code\": \"provider \\\"aws\\\" { region = \\\"ap-south-1\\\" }\", \"budget\": 250, \"allowed_regions\": [\"us-east-1\", \"us-west-2\"], \"max_budget_cap\": 100}"
+     ```
 - **Expectation**:
-    - [ ] Non-compliant resources (e.g. unencrypted S3 buckets, open 0.0.0.0/0 ports) are rejected with explicit Rego rule violation explanations.
-    - [ ] Compliant resources receive `allow: true` and 100% compliance scores.
+  - [ ] Non-compliant HCL returns `allow: false` with specific violation descriptions (missing public access block / encryption).
+  - [ ] Compliant HCL returns `allow: true` and `compliance_score_percent: 100.0`.
+  - [ ] Guardrails correctly flags unauthorized region (`ap-south-1`) and budget exceeding cap ($250 > $100).
 
-## 16. Enterprise Identity Federation & SSO (Phase 13)
+---
+
+### 12. 🔐 Enterprise SSO & Identity Federation (Phase 13)
+- **Objective**: Verify OAuth2/OIDC discovery and user auto-provisioning for Microsoft Entra ID, Okta, Google Workspace, and Auth0.
 - **Action**:
-    1. Request available SSO identity providers via `GET /api/auth/sso/providers`.
-    2. Trigger OIDC authentication via `GET /api/auth/sso/login/azure_ad` or `okta`.
+  1. Query supported SSO providers:
+     ```bash
+     curl http://localhost:5000/api/auth/sso/providers
+     ```
+  2. Request SSO redirect URL for Okta:
+     ```bash
+     curl http://localhost:5000/api/auth/sso/login/okta
+     ```
+  3. Simulate SSO callback & auto-provisioning:
+     ```bash
+     curl -X POST http://localhost:5000/api/auth/sso/callback/okta \
+       -H "Content-Type: application/json" \
+       -d "{\"code\": \"mock_code_123\", \"simulated_user\": {\"email\": \"alex.cloud@enterprise.com\", \"name\": \"Alex Cloud\"}}"
+     ```
 - **Expectation**:
-    - [ ] Endpoint returns configured IdP metadata for Entra ID, Okta, Google, and Auth0.
-    - [ ] SSO callback auto-provisions the authenticated enterprise user into the database and issues a secure session JWT.
+  - [ ] Provider list returns `google`, `azure_ad`, `okta`, and `auth0`.
+  - [ ] SSO callback auto-provisions `alex.cloud` in the database, returns active session payload, and sets the secure authentication cookie.
 
-## 17. Multi-Agent Consensus & Debate Engine (Phase 13)
+---
+
+### 13. 🤖 Multi-Agent Consensus & Debate Engine (Phase 13)
+- **Objective**: Verify multi-agent competitive architectural debate between Developer Agent A (Enterprise Scale), Developer Agent B (Lean Cost), and the Reviewer.
 - **Action**:
-    1. Trigger an architectural consensus debate:
-       `POST /api/consensus/debate {"prompt": "scalable kubernetes microservices", "budget": 150}`.
+  1. Execute an architectural debate request:
+     ```bash
+     curl -X POST http://localhost:5000/api/consensus/debate \
+       -H "Content-Type: application/json" \
+       -d "{\"prompt\": \"Design high-throughput payment transaction queue\", \"budget\": 100, \"provider\": \"AWS\"}"
+     ```
 - **Expectation**:
-    - [ ] Developer Agent A (Enterprise Scale & HA) and Developer Agent B (Lean Cost-Optimized) propose competing designs.
-    - [ ] 4-dimensional weighted scoring matrix (Security, Cost, Reliability, Simplicity) determines and ratifies the winning blueprint.
+  - [ ] Response contains proposals from Developer A (Scale & HA) and Developer B (Lean Serverless).
+  - [ ] 4-dimensional weighted consensus matrix scores both proposals (Security 35%, Cost 25%, Reliability 25%, Simplicity 15%).
+  - [ ] Reviewer outputs decision summary ratifying the winning blueprint with composite score.
 
-## 18. Multi-Cloud Architecture Optimization & AIOps (Phase 13)
+---
+
+### 14. ☁️ Multi-Cloud Architecture Optimization (Phase 13)
+- **Objective**: Verify automated cross-cloud comparison between AWS, Azure, and GCP.
 - **Action**:
-    1. Request multi-cloud comparison: `POST /api/cloud-optimizer/compare {"prompt": "PostgreSQL database and container cluster", "budget": 100}`.
-    2. Query AIOps system telemetry: `GET /api/aiops/status` and `GET /api/aiops/alerts`.
+  1. Compare cloud providers for an application stack:
+     ```bash
+     curl -X POST http://localhost:5000/api/cloud-optimizer/compare \
+       -H "Content-Type: application/json" \
+       -d "{\"prompt\": \"Deploy containerized web app with PostgreSQL database and object storage\", \"budget\": 100}"
+     ```
 - **Expectation**:
-    - [ ] Returns side-by-side cost projections and HA SLAs for AWS, Azure, and GCP, recommending the optimal cloud.
-    - [ ] AIOps returns real-time agent health, self-healing success metrics, and active governance alerts.
+  - [ ] Returns side-by-side cost projections, primary services, and HA SLAs for AWS, Azure, and GCP.
+  - [ ] Selects and explains the recommended cloud provider based on pricing and SLA guarantees.
 
+---
 
+### 15. 📈 AI Operations Center (AIOps) & Model Routing (Phase 13)
+- **Objective**: Verify real-time AIOps telemetry, active governance alerts, and task-complexity model routing.
+- **Action**:
+  1. Query AIOps system health: `curl http://localhost:5000/api/aiops/status`
+  2. Query active governance alerts: `curl http://localhost:5000/api/aiops/alerts`
+  3. Test model routing for a simple task:
+     ```bash
+     curl -X POST http://localhost:5000/api/aiops/route-model \
+       -H "Content-Type: application/json" \
+       -d "{\"prompt\": \"Create simple S3 bucket\", \"task_type\": \"general\"}"
+     ```
+  4. Test model routing for a complex task:
+     ```bash
+     curl -X POST http://localhost:5000/api/aiops/route-model \
+       -H "Content-Type: application/json" \
+       -d "{\"prompt\": \"Design HIPAA compliant Multi-AZ Kubernetes cluster with Vault KMS encryption\", \"task_type\": \"debate\"}"
+     ```
+- **Expectation**:
+  - [ ] `AIOps status` reports health (`OPTIMAL`), workspace counts, self-healed runs, and pattern bank metrics.
+  - [ ] Simple task routes to `fast_lean` tier (`gemini-2.0-flash`).
+  - [ ] Security-critical / debate task routes to `frontier_expert` tier (`gpt-4o` / `gemini-1.5-pro`).
+
+---
+
+## ⚡ Quick Automated Sanity Script
+
+To run all backend unit and integration tests at once:
+```powershell
+.\venv313\Scripts\python.exe scratch/test_phase13.py
+.\venv313\Scripts\python.exe scratch/test_vector_knowledge.py
+.\venv313\Scripts\python.exe scratch/test_observability.py
+.\venv313\Scripts\python.exe scratch/test_billing.py
+```
+*Expected Result: All test suites output `🎉 ALL TESTS PASSED SUCCESSFULLY!` with 0 errors.*
