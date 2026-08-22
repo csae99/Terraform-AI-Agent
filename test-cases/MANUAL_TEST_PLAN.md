@@ -3,7 +3,7 @@
 This document provides a comprehensive, step-by-step testing roadmap to verify every capability of the **Autonomous Infrastructure Platform** from **Phase 1 through Phase 13**.
 
 > [!TIP]
-> **Optimized for Google Gemini Free Tier**: The test prompts and configurations below use lightweight, cost-effective infrastructure prompts designed to execute smoothly within standard Gemini API rate limits (`gemini-2.0-flash`).
+> **Optimized for Google Gemini Free Tier**: The test prompts and configurations below use lightweight, cost-effective infrastructure prompts designed to execute smoothly within standard Gemini API rate limits (`gemini-3.1-flash-lite`).
 
 ---
 
@@ -14,7 +14,7 @@ Before beginning tests, ensure your local environment is configured:
 1. **Verify your `.env` file**:
    ```env
    # Active Model (Gemini Free Tier recommended)
-   DEFAULT_MODEL=gemini/gemini-2.0-flash
+   DEFAULT_MODEL=gemini/gemini-3.1-flash-lite
    GEMINI_API_KEY=your_gemini_api_key_here
 
    # Default IaC Engine ('terraform' or 'opentofu')
