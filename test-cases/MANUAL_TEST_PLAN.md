@@ -315,13 +315,85 @@ Before beginning tests, ensure your local environment is configured:
 
 ---
 
+### 16. 🧩 Agent Marketplace & Plugin SDK (Phase 14)
+- **Objective**: Verify discovery and installation of specialized marketplace agents and custom plugins.
+- **Action**:
+  1. List available marketplace catalog: `curl http://localhost:5000/api/marketplace/catalog`
+  2. Install the FinOps Cost Hawk agent:
+     ```bash
+     curl -X POST http://localhost:5000/api/marketplace/install \
+       -H "Content-Type: application/json" \
+       -d "{\"plugin_id\": \"finops-cost-hawk\", \"org_id\": \"my-team-org\"}"
+     ```
+  3. List installed plugins for the organization: `curl "http://localhost:5000/api/marketplace/installed?org_id=my-team-org"`
+- **Expectation**:
+  - [ ] Catalog returns specialized agents (`k8s-operator-expert`, `finops-cost-hawk`, `dr-failover-pilot`, `zero-trust-secops`).
+  - [ ] Installation returns `status: installed` and activates plugin capabilities.
+
+---
+
+### 17. 🎨 DAG Visual Workflow Execution & Golden Path Catalog (Phase 14)
+- **Objective**: Verify multi-step visual DAG workflow execution with dependency graphs and Golden Path templates.
+- **Action**:
+  1. Retrieve Golden Path service templates: `curl http://localhost:5000/api/portal/templates`
+  2. Execute a 2-step CI/CD DAG workflow (Policy Check $\rightarrow$ Approval Gate):
+     ```bash
+     curl -X POST http://localhost:5000/api/portal/workflows/execute \
+       -H "Content-Type: application/json" \
+       -d "{\"workflow\": {\"name\": \"Production Release DAG\", \"steps\": [{\"id\": \"s1\", \"name\": \"Policy Scan\", \"type\": \"policy_check\", \"depends_on\": []}, {\"id\": \"s2\", \"name\": \"Approval Gate\", \"type\": \"approval_gate\", \"depends_on\": [\"s1\"], \"config\": {\"cost_threshold\": 500}}]}, \"context\": {\"estimated_cost\": 150}}"
+     ```
+- **Expectation**:
+  - [ ] Templates endpoint returns pre-architected blueprints (*Microservices K8s Stack*, *Serverless Event Stream*, *Secure ML Vault*).
+  - [ ] Workflow engine resolves dependencies and returns `status: SUCCESS` with per-step execution timings.
+
+---
+
+### 18. 💰 FinOps Right-Sizing & Autonomous Remediation (Phase 14)
+- **Objective**: Verify autonomous cost optimization scanning and self-healing patch remediation.
+- **Action**:
+  1. Run FinOps optimization analysis on an oversized HCL configuration:
+     ```bash
+     curl -X POST http://localhost:5000/api/optimization/analyze \
+       -H "Content-Type: application/json" \
+       -d "{\"hcl_code\": \"resource \\\"aws_instance\\\" \\\"app\\\" { instance_type = \\\"m5.2xlarge\\\" } resource \\\"aws_s3_bucket\\\" \\\"data\\\" { bucket = \\\"data-bucket\\\" }\"}"
+     ```
+  2. Trigger autonomous remediation for an unencrypted bucket:
+     ```bash
+     curl -X POST http://localhost:5000/api/optimization/remediate \
+       -H "Content-Type: application/json" \
+       -d "{\"hcl_code\": \"resource \\\"aws_s3_bucket\\\" \\\"vault\\\" {}\", \"issue\": \"S3 bucket missing server-side encryption and public access block\"}"
+     ```
+- **Expectation**:
+  - [ ] FinOps optimizer identifies compute right-sizing and S3 Glacier lifecycle tiering savings (e.g. `+$63/mo`).
+  - [ ] Autonomous remediation automatically injects encryption and Public Access Block resources, validates with OPA, and marks `remediation_status: AUTO_REMEDIATED`.
+
+---
+
+### 19. 🆘 Disaster Recovery & Automated Regional Failover (Phase 14)
+- **Objective**: Verify multi-region state snapshotting and regional failover orchestration.
+- **Action**:
+  1. Check Disaster Recovery status & RTO/RPO: `curl http://localhost:5000/api/dr/status`
+  2. Trigger regional failover from `us-east-1` to `us-west-2`:
+     ```bash
+     curl -X POST http://localhost:5000/api/dr/failover \
+       -H "Content-Type: application/json" \
+       -d "{\"workspace_slug\": \"finance-core\", \"source_region\": \"us-east-1\", \"target_region\": \"us-west-2\"}"
+     ```
+- **Expectation**:
+  - [ ] DR status reports `HEALTHY_IN_SYNC` with estimated RTO $\le 5$ minutes and RPO $\le 15$ seconds.
+  - [ ] Failover orchestrator executes cutover across 5 verified stages (Outage Confirmed $\rightarrow$ Snapshot Loaded $\rightarrow$ IaC Synthesis $\rightarrow$ DNS Cutover $\rightarrow$ Validation Probe) and updates HCL region to `us-west-2`.
+
+---
+
 ## ⚡ Quick Automated Sanity Script
 
 To run all backend unit and integration tests at once:
 ```powershell
+.\venv313\Scripts\python.exe scratch/test_phase14.py
 .\venv313\Scripts\python.exe scratch/test_phase13.py
 .\venv313\Scripts\python.exe scratch/test_vector_knowledge.py
 .\venv313\Scripts\python.exe scratch/test_observability.py
 .\venv313\Scripts\python.exe scratch/test_billing.py
 ```
 *Expected Result: All test suites output `🎉 ALL TESTS PASSED SUCCESSFULLY!` with 0 errors.*
+

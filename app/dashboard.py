@@ -1045,6 +1045,115 @@ async def route_intelligent_model(request: Request, user=Depends(get_current_use
     return IntelligentModelRouter.route_task(prompt=prompt, task_type=task_type)
 
 
+# ════════════════════════════════════════════════════════════════════════
+# ── Phase 14: Marketplace, Workflows, FinOps & DR APIs ──────────────────
+# ════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/marketplace/catalog")
+async def list_marketplace_catalog(category: Optional[str] = None, user=Depends(get_current_user)):
+    from marketplace.catalog import AgentMarketplaceCatalog
+    return AgentMarketplaceCatalog.list_catalog(category=category)
+
+@app.post("/api/marketplace/install")
+async def install_marketplace_plugin(request: Request, user=Depends(get_current_user)):
+    from marketplace.manager import PluginManager
+    data = await request.json()
+    plugin_id = data.get("plugin_id")
+    org_id = data.get("org_id", "default")
+    config = data.get("config", {})
+    if not plugin_id:
+        raise HTTPException(status_code=400, detail="plugin_id is required")
+    return PluginManager.install_plugin(org_id=org_id, plugin_id=plugin_id, config=config)
+
+@app.get("/api/marketplace/installed")
+async def list_installed_plugins(org_id: Optional[str] = "default", user=Depends(get_current_user)):
+    from marketplace.manager import PluginManager
+    return PluginManager.list_installed(org_id=org_id)
+
+@app.get("/api/portal/templates")
+async def list_portal_templates(user=Depends(get_current_user)):
+    from portal.templates import ServiceCatalogTemplates
+    return ServiceCatalogTemplates.list_templates()
+
+@app.post("/api/portal/workflows/execute")
+async def execute_portal_workflow(request: Request, user=Depends(get_current_user)):
+    from portal.workflow_engine import WorkflowEngine
+    data = await request.json()
+    workflow_def = data.get("workflow", {})
+    context = data.get("context", {})
+    return WorkflowEngine.execute_workflow(workflow_def=workflow_def, initial_context=context)
+
+@app.post("/api/portal/governance/risk")
+async def evaluate_governance_risk(request: Request, user=Depends(get_current_user)):
+    from portal.agent_governance import AgentGovernanceFramework
+    data = await request.json()
+    hcl = data.get("hcl_code", "")
+    cost = float(data.get("estimated_cost", 0.0))
+    return AgentGovernanceFramework.calculate_risk_score(hcl_code=hcl, estimated_cost=cost)
+
+@app.post("/api/portal/approvals/evaluate")
+async def evaluate_approval_rules(request: Request, user=Depends(get_current_user)):
+    from portal.approvals import ApprovalEngine
+    data = await request.json()
+    cost = float(data.get("estimated_cost", 100.0))
+    risk = float(data.get("risk_score", 20.0))
+    env = data.get("environment", "staging")
+    role = data.get("user_role", "Developer")
+    return ApprovalEngine.evaluate_approval_rules(estimated_cost=cost, risk_score=risk, environment=env, user_role=role)
+
+@app.post("/api/optimization/analyze")
+async def analyze_finops_optimizations(request: Request, user=Depends(get_current_user)):
+    from optimization.finops_optimizer import FinOpsOptimizer
+    data = await request.json()
+    hcl = data.get("hcl_code", "")
+    return FinOpsOptimizer.analyze_cost_optimizations(hcl_code=hcl)
+
+@app.post("/api/optimization/remediate")
+async def remediate_infrastructure_issue(request: Request, user=Depends(get_current_user)):
+    from optimization.autonomous_remediation import AutonomousRemediationEngine
+    data = await request.json()
+    hcl = data.get("hcl_code", "")
+    issue = data.get("issue", "S3 bucket missing encryption")
+    return AutonomousRemediationEngine.analyze_and_remediate(current_hcl=hcl, detected_issue=issue)
+
+@app.post("/api/optimization/recommendations")
+async def get_optimization_recommendations(request: Request, user=Depends(get_current_user)):
+    from optimization.recommendations import RecommendationEngine
+    data = await request.json()
+    hcl = data.get("hcl_code", "")
+    cost = float(data.get("current_cost", 100.0))
+    return RecommendationEngine.get_workspace_recommendations(hcl_code=hcl, current_cost=cost)
+
+@app.get("/api/dr/status")
+async def get_dr_status(primary_region: str = "us-east-1", dr_region: str = "us-west-2", user=Depends(get_current_user)):
+    from dr.dr_manager import DisasterRecoveryManager
+    return DisasterRecoveryManager.get_dr_status(primary_region=primary_region, dr_region=dr_region)
+
+@app.post("/api/dr/backup")
+async def create_dr_state_backup(request: Request, user=Depends(get_current_user)):
+    from dr.dr_manager import DisasterRecoveryManager
+    data = await request.json()
+    slug = data.get("workspace_slug", "default-workspace")
+    hcl = data.get("hcl_code", "")
+    return DisasterRecoveryManager.create_state_backup(workspace_slug=slug, hcl_code=hcl)
+
+@app.post("/api/dr/failover")
+async def execute_regional_failover(request: Request, user=Depends(get_current_user)):
+    from dr.failover import RegionalFailoverOrchestrator
+    data = await request.json()
+    slug = data.get("workspace_slug", "prod-app")
+    hcl = data.get("current_hcl", 'provider "aws" { region = "us-east-1" }')
+    source = data.get("source_region", "us-east-1")
+    target = data.get("target_region", "us-west-2")
+    return RegionalFailoverOrchestrator.execute_failover(
+        workspace_slug=slug,
+        current_hcl=hcl,
+        source_region=source,
+        target_region=target
+    )
+
+
+
 
 if __name__ == "__main__":
     import uvicorn

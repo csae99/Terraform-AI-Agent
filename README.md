@@ -1,11 +1,16 @@
-# 🤖 Autonomous Infrastructure Platform (Phase 13: Enterprise Platform Engineering & AI Governance)
+# 🤖 Autonomous Platform Engineering Ecosystem (Phase 14: Marketplace, Workflows & Self-Optimizing Infrastructure)
 
-A powerful, enterprise-grade AI-Native Autonomous Infrastructure Operating System powered by **HashiCorp Terraform** and **Linux Foundation OpenTofu**. Built for enterprise teams with **Policy-as-Code (OPA / Rego)**, **Enterprise SSO (OIDC / SAML 2.0)**, **Multi-Agent Consensus & Debate**, **Multi-Cloud Architecture Optimization (AWS vs Azure vs GCP)**, **Vector Knowledge RAG (pgvector)**, **AIOps Operations Center & Intelligent Model Routing**, **Dual Payment Gateways (Razorpay & Stripe)**, **OpenTelemetry Observability**, **GitOps Pull Request Automation**, and **Role-Based Access Control (RBAC)**.
+An enterprise-grade Autonomous Platform Engineering Ecosystem powered by **HashiCorp Terraform** and **Linux Foundation OpenTofu**. Built for modern engineering organizations with an **Agent Marketplace & Plugin SDK**, **Visual DAG Workflow Builder**, **Golden Path Service Catalog**, **FinOps Right-Sizing & Autonomous Remediation**, **Multi-Region Disaster Recovery (DR) & Automated Regional Failover**, **Policy-as-Code (OPA / Rego)**, **Enterprise SSO (OIDC / SAML 2.0)**, **Multi-Agent Consensus & Debate**, **Dual Payment Gateways (Razorpay & Stripe)**, **OpenTelemetry Observability**, and **Role-Based Access Control (RBAC)**.
 
 ---
 
 ## 🚀 Key Features
 
+- **Agent Marketplace & Plugin SDK** *(Phase 14)*: Organization-scoped agent registry with installable specialist agents (`Kubernetes Specialist`, `FinOps Cost Hawk`, `Disaster Recovery Pilot`, `Zero-Trust SecOps`) and standard `BasePlugin` lifecycle hooks (`pre_plan`, `post_plan`, `validate`).
+- **Visual DAG Workflow Builder & Golden Path Catalog** *(Phase 14)*: Node-based visual execution graph engine with dependency resolution, conditional branching, automated rollbacks, and pre-architected Golden Path service templates (*Microservices K8s Stack*, *Serverless Event Stream*, *Secure ML Vault*).
+- **FinOps Optimization & Autonomous Remediation** *(Phase 14)*: Continuous cost right-sizing (compute right-sizing, spot workloads, S3 Glacier lifecycle tiering) and automated self-healing remediation that synthesizes, validates via OPA, and auto-applies safe infrastructure patches.
+- **Disaster Recovery (DR) & Multi-Region Control Plane** *(Phase 14)*: Automated cross-region state snapshots, RTO/RPO metrics tracking, and one-click regional failover orchestration with DNS cutover simulation.
+- **AI Agent Governance & Risk Scoring Framework** *(Phase 14)*: 0-100 composite risk scoring evaluating destructive statements, open ingress, wildcard IAM policies, and cost impact to enforce safe autonomous execution.
 - **Policy-as-Code & Compliance Packs** *(Phase 13)*: Built-in Open Policy Agent (**OPA / Rego**) evaluator with pre-packaged enterprise compliance rules: **SOC2 Type II**, **HIPAA**, **PCI-DSS v4.0**, and **CIS Cloud Architecture Benchmarks**.
 - **Enterprise Identity Federation & SSO** *(Phase 13)*: Full OAuth2/OIDC and SAML 2.0 authentication support for **Microsoft Entra ID (Azure AD)**, **Okta Enterprise**, **Google Workspace**, and **Auth0** with seamless user auto-provisioning.
 - **Multi-Agent Consensus & Debate Engine** *(Phase 13)*: Eliminates single-agent hallucinations through competitive architectural debates between **Developer Agent A** (Enterprise Scale & HA), **Developer Agent B** (Lean Serverless & Cost Economy), and an **Independent Reviewer** scored via a 4-dimensional weighted consensus matrix.

@@ -49,6 +49,42 @@ graph TD
 
 ## 🧱 Core Architecture Layers
 
+### Agent Marketplace & Plugin SDK Layer (`marketplace/`) *(Phase 14)*
+Curated specialist agent registry and modular Plugin SDK interface.
+
+| Module | Purpose |
+| :--- | :--- |
+| `plugin_sdk.py` | `BasePlugin`, `CustomToolPlugin`, `CustomAgentPlugin` providing lifecycle hooks (`pre_plan`, `post_plan`, `validate`). |
+| `catalog.py` | `AgentMarketplaceCatalog` containing specialist agents (K8s, FinOps, DR, Zero-Trust SecOps). |
+| `manager.py` | `PluginManager` managing tenant installation state, custom configuration, and hook execution. |
+
+### Visual Workflow Engine & Developer Portal Layer (`portal/`) *(Phase 14)*
+DAG execution graph engine, Golden Path service catalog, and risk scoring governance.
+
+| Module | Purpose |
+| :--- | :--- |
+| `workflow_engine.py` | `WorkflowEngine` & `WorkflowNode` executing multi-step DAGs with dependency resolution and conditional branching. |
+| `templates.py` | `ServiceCatalogTemplates` providing Golden Path enterprise infrastructure blueprints. |
+| `approvals.py` | `ApprovalEngine` evaluating environment, cost magnitude, and blast radius risk to enforce sign-off rules. |
+| `agent_governance.py` | `AgentGovernanceFramework` computing 0-100 composite risk scores and managing agent action permissions. |
+
+### Self-Optimizing Infrastructure & FinOps Layer (`optimization/`) *(Phase 14)*
+Continuous FinOps right-sizing and event-driven autonomous remediation.
+
+| Module | Purpose |
+| :--- | :--- |
+| `finops_optimizer.py` | `FinOpsOptimizer` scanning HCL for compute right-sizing, spot workloads, S3 Glacier tiering, and idle gateways. |
+| `autonomous_remediation.py` | `AutonomousRemediationEngine` auto-synthesizing, OPA-validating, and applying surgical self-healing patches. |
+| `recommendations.py` | `RecommendationEngine` generating quantified dollar savings and reliability upgrade cards. |
+
+### Disaster Recovery & Regional Failover Layer (`dr/`) *(Phase 14)*
+Multi-region state backups and automated regional disaster recovery failover.
+
+| Module | Purpose |
+| :--- | :--- |
+| `dr_manager.py` | `DisasterRecoveryManager` tracking cross-region snapshots, replication health, and RTO/RPO metrics. |
+| `failover.py` | `RegionalFailoverOrchestrator` executing automated secondary region cutovers, state migration, and DNS repointing. |
+
 ### Observability Layer (`observability/`)
 Distributed OpenTelemetry tracing, real-time Prometheus metrics collection, and executive failure taxonomy analytics.
 
