@@ -1,16 +1,17 @@
-# Terraform AI Agent - Setup Guide (Phase 12: Enterprise Observability & SaaS Billing)
+# 🛠️ Autonomous Infrastructure Platform - Setup Guide (Phase 14: Platform Engineering Ecosystem)
 
-This guide provides step-by-step instructions for setting up the Universal Terraform AI Agent on both Windows and Linux.
+This guide provides step-by-step instructions for setting up the Universal Autonomous Infrastructure Platform on Windows, Linux, macOS, and Docker.
 
 ## 🛠️ Core Requirements (All Platforms)
 
-1.  **Python 3.9+**: The core engine of the agent.
-2.  **IaC Engines**: **HashiCorp Terraform** (`terraform`) and/or **Linux Foundation OpenTofu** (`tofu`).
-3.  **Git CLI**: Required for branch creation and automated Pull Requests.
-4.  **Docker**: Essential for FinOps (Infracost), Security (Checkov), and local cloud emulation (Floci).
-5.  **AWS / Cloud CLI**: Required for live deployments.
-6.  **Payment Gateways**: Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`) and/or Stripe (`STRIPE_SECRET_KEY`).
-7.  **API Keys**: LLM API key (Gemini/OpenAI/Mistral/ZenMux), Infracost API token, and optional GitHub Personal Access Token (for GitOps PRs).
+1. **Python 3.9+**: The core engine of the agent.
+2. **IaC Engines**: **HashiCorp Terraform** (`terraform`) and/or **Linux Foundation OpenTofu** (`tofu`).
+3. **Git CLI**: Required for branch creation and automated Pull Requests.
+4. **Docker**: Essential for FinOps (Infracost), Security (Checkov), OPA Policy-as-Code, and local cloud emulation (Floci).
+5. **AWS / Azure / GCP Cloud CLI**: Required for live multi-cloud deployments and regional failover.
+6. **Payment Gateways**: Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`) and/or Stripe (`STRIPE_SECRET_KEY`).
+7. **SSO Identity Providers (Optional)**: Microsoft Entra ID, Okta, Google Workspace, or Auth0.
+8. **API Keys**: LLM API key (Google Gemini, OpenAI, Claude, Mistral, Groq, ZenMux), Infracost API token, and optional GitHub Personal Access Token (for GitOps PRs).
 
 ---
 
@@ -266,10 +267,28 @@ docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
   - Docker Compose: Ensure the volume mount `- /var/run/docker.sock:/var/run/docker.sock` is present in `docker-compose.yml`.
 
 ### 6. 🤖 LLM Rate Limits (HTTP 429 / Quota Exhausted)
-* **Symptom**: `Rate limit reached for model gemini-2.0-flash (429 Too Many Requests).`
+* **Symptom**: `Rate limit reached for model gemini-3.1-flash-lite (429 Too Many Requests).`
 * **Solution**:
   - The agent orchestrator has a built-in exponential backoff retry loop with automatic jitter that pauses and retries failed tasks.
   - You can configure custom BYOK API keys or switch providers in `.env` (Google Gemini, ZenMux AI, OpenAI, Anthropic Claude, Groq, Mistral, OpenRouter).
 
+### 7. 🔐 Enterprise SSO & Identity Provider Redirects
+* **Symptom**: `Redirect URI mismatch` or `Invalid OAuth2 state parameter.`
+* **Solution**:
+  - In your IdP portal (Microsoft Entra ID, Okta, Google Cloud Console, Auth0), register `http://localhost:5000/api/auth/sso/callback` (or your domain callback URL) under **Allowed Redirect URIs**.
+  - In local development mode, simulated SSO auto-provisioning is supported out of the box.
+
+### 8. 🛡️ Open Policy Agent (OPA) Evaluation & Rego Packs
+* **Symptom**: `Compliance pack 'custom' not found` or `OPA CLI binary not found.`
+* **Solution**:
+  - The platform includes pure-Python AST evaluation fallbacks for all pre-packaged rulepacks (**SOC2**, **HIPAA**, **PCI-DSS**, **CIS Benchmarks**).
+  - To install the native OPA CLI on Windows: `choco install opa -y` or download from [openpolicyagent.org](https://www.openpolicyagent.org/).
+
+### 9. 🆘 Multi-Region Disaster Recovery & Regional Failover
+* **Symptom**: `Secondary DR region credentials missing or unauthorized.`
+* **Solution**:
+  - Ensure cloud credentials (AWS IAM role / Service Principal) have permissions across both primary (`us-east-1`) and secondary DR regions (`us-west-2`).
+  - Cross-region state replication snapshots are saved automatically in PostgreSQL / SQLite and verified prior to cutover.
+
 ---
-*Last Updated: 2026-08-21 (Phase 12 Enterprise Platform & Vector Knowledge Release)*
+*Last Updated: 2026-08-27 (Phase 14 Platform Engineering Ecosystem & Marketplace Release)*

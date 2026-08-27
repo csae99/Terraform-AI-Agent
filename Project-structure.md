@@ -1,797 +1,197 @@
-Great question — this is exactly the right time to think about **project structure**, because agentic AI systems *can get messy very fast* if they’re not designed cleanly.
+# 📂 Autonomous Platform Engineering Ecosystem: Project Structure & Architecture Reference
 
-Below is a **production‑grade, industry‑aligned project structure** for an **agentic AI application in Python** using tools like **CrewAI**, **LiteLLM**, vector stores, tools, memory, and orchestration. I’ll also explain **why each part exists**, not just what it is.
+This document provides a comprehensive, production-grade reference for the **Autonomous Infrastructure Platform & Platform Engineering Ecosystem (Phases 1 – 14)**.
 
-***
+---
 
-## Core Design Principles (Industry Standards)
-
-Before structure, these principles guide everything:
-
-1.  **Separation of concerns**
-    *   Agents ≠ tools ≠ prompts ≠ orchestration ≠ infrastructure
-2.  **Config-driven, not hardcoded**
-    *   Models, providers, temperatures via config
-3.  **Composable agents**
-    *   Agents should be reusable across workflows
-4.  **Environment-agnostic**
-    *   Same codebase → local, staging, prod
-5.  **Observability-first**
-    *   Logging, tracing, evals baked in
-6.  **Testability**
-    *   Deterministic tools + mockable LLM calls
-
-***
-
-## Recommended High-Level Structure
+## 🏗️ Repository Directory Tree
 
 ```text
-agentic-ai-app/
-├── app/
-│   ├── main.py
-│   ├── bootstrap.py
-│   └── runtime.py
-│
-├── agents/
+c:\Users\User\Music\Terraform-AI-Agent\
+├── agents/                       # Specialized CrewAI Agent definitions
 │   ├── __init__.py
-│   ├── base.py
-│   ├── researcher.py
-│   ├── planner.py
-│   ├── executor.py
-│   └── reviewer.py
+│   ├── architect.py              # System topology & visual Mermaid architect
+│   ├── developer.py              # Core IaC synthesis & modular code developer
+│   ├── security.py               # Security auditor (Checkov & tfsec integration)
+│   ├── finops.py                 # Financial analyst & Infracost cost modeler
+│   ├── deployment.py             # Live cloud deployment specialist (apply/destroy)
+│   ├── testing_agent.py          # Continuous QA & behavior smoke testing agent
+│   └── gitops_coordinator.py     # Git branch, PR generation & commit coordinator
 │
-├── crews/
+├── crews/                        # Multi-agent crew assemblies & task bindings
 │   ├── __init__.py
-│   ├── research_crew.py
-│   ├── execution_crew.py
-│   └── evaluation_crew.py
+│   └── terraform_crew.py         # CrewAI sequential/hierarchical orchestrator
 │
-├── tools/
+├── orchestrator/                 # Central execution pipeline & retry handling
 │   ├── __init__.py
-│   ├── base.py
-│   ├── web_search.py
-│   ├── code_executor.py
-│   ├── vector_search.py
-│   └── file_io.py
+│   ├── pipeline.py               # Authoritative entrypoint (`run_full_pipeline`)
+│   └── retry_handler.py          # Self-healing loop & structured decision tracer
 │
-├── prompts/
-│   ├── agents/
-│   │   ├── researcher.md
-│   │   ├── planner.md
-│   │   └── reviewer.md
-│   ├── system.md
-│   └── tools.md
-│
-├── memory/
+├── workflows/                    # End-to-end task workflows
 │   ├── __init__.py
-│   ├── short_term.py
-│   ├── long_term.py
-│   └── vector_store.py
+│   └── terraform_generation.py   # High-level generation workflow
 │
-├── llm/
+├── tools/                        # Deterministic execution tools & binary wrappers
 │   ├── __init__.py
-│   ├── llm_factory.py
-│   ├── providers.py
-│   └── callbacks.py
+│   ├── base.py                   # Tool base classes
+│   ├── engine/                   # Universal IaC Engine Abstraction Layer
+│   │   ├── __init__.py
+│   │   ├── base.py               # Abstract Base Engine (`IaCEngine`)
+│   │   ├── terraform_engine.py   # HashiCorp Terraform CLI adapter
+│   │   ├── opentofu_engine.py    # Linux Foundation OpenTofu CLI adapter
+│   │   └── factory.py            # Dynamic engine factory with auto-fallback
+│   ├── deployment/               # Cloud deployment & drift scanner
+│   │   ├── __init__.py
+│   │   ├── deployment_tools.py   # Terraform / OpenTofu apply & destroy tool
+│   │   └── drift_detector.py     # Cloud state snooper & drift detection tool
+│   ├── linters/                  # Static analysis & security scanners
+│   │   ├── __init__.py
+│   │   ├── checkov_tool.py       # Deep policy & vulnerability scanner
+│   │   └── tfsec_tool.py         # High-speed binary security scanner
+│   ├── finops/                   # Cost estimation tools
+│   │   ├── __init__.py
+│   │   └── infracost_tool.py     # Infracost monthly budget & breakdown tool
+│   ├── testing/                  # Behavior testing tools
+│   │   ├── __init__.py
+│   │   └── qa_test_tool.py       # Post-apply HTTP & cloud status smoke tester
+│   ├── gitops/                   # Version control & PR automation tools
+│   │   ├── __init__.py
+│   │   ├── git_tools.py          # Git branch, staging & commit manager
+│   │   └── github_pr_tool.py     # GitHub & GitLab PR synthesizer
+│   └── project/                  # Persistence & state tracking
+│       ├── __init__.py
+│       ├── tracker.py            # SQLite / PostgreSQL ORM database models
+│       └── audit_tracker.py      # Immutable enterprise audit logging
 │
-├── config/
-│   ├── settings.py
-│   ├── models.yaml
-│   ├── agents.yaml
-│   ├── tools.yaml
-│   └── logging.yaml
-│
-├── workflows/
+├── memory/                       # Self-learning failure memory & pgvector RAG
 │   ├── __init__.py
-│   ├── research_workflow.py
-│   ├── code_gen_workflow.py
-│   └── analysis_workflow.py
+│   ├── pattern_manager.py        # Database-backed `PatternMemoryModel` manager
+│   ├── vector_knowledge.py       # pgvector & cosine similarity RAG knowledge engine
+│   └── failure_patterns.json     # Initial seed failure pattern bank
 │
-├── api/
+├── policy/                       # Policy-as-Code & Enterprise Guardrails (Phase 13)
 │   ├── __init__.py
-│   ├── routes.py
-│   └── schemas.py
+│   ├── opa_engine.py             # Open Policy Agent (OPA) / Rego AST evaluator
+│   ├── guardrails.py             # Organization region & budget boundary validator
+│   └── compliance/               # Pre-packaged enterprise compliance rulepacks
+│       ├── soc2.rego             # SOC2 Type II compliance pack
+│       ├── hipaa.rego            # HIPAA healthcare data compliance pack
+│       ├── pci_dss.rego          # PCI-DSS v4.0 payment security pack
+│       └── cis_benchmarks.rego   # CIS Cloud Architecture Benchmarks
 │
-├── evaluation/
+├── sso/                          # Enterprise SSO & Identity Federation (Phase 13)
 │   ├── __init__.py
-│   ├── golden_sets/
-│   ├── metrics.py
-│   └── run_eval.py
+│   ├── providers.py              # Entra ID, Okta, Google Workspace, Auth0 config
+│   ├── oidc.py                   # OpenID Connect discovery, auth URL & JWT claims
+│   └── saml.py                   # SAML 2.0 XML assertion token parser
 │
-├── observability/
+├── consensus/                    # Multi-Agent Consensus & Debate Engine (Phase 13)
 │   ├── __init__.py
-│   ├── logging.py
-│   ├── tracing.py
-│   └── cost_tracking.py
+│   ├── debate_engine.py          # Multi-Agent Debate coordinator (Dev A vs B vs Reviewer)
+│   └── consensus_scorer.py       # 4-dimensional weighted consensus matrix
 │
-├── tests/
-│   ├── agents/
-│   ├── tools/
-│   ├── workflows/
-│   └── e2e/
-│
-├── scripts/
-│   ├── seed_memory.py
-│   ├── batch_run.py
-│   └── migrate_vectors.py
-│
-├── .env.example
-├── pyproject.toml
-├── Dockerfile
-├── docker-compose.yml
-├── Makefile
-└── README.md
-```
-
-***
-
-## Key Folders Explained (The “Why”)
-
-***
-
-## `app/` – Application Entry
-
-```text
-app/
-├── main.py
-├── bootstrap.py
-```
-
-**Purpose**
-
-*   Entry point (CLI, API, job runner)
-*   Wiring everything together
-
-**Best practice**
-
-*   `main.py` should be very thin
-*   All logic lives elsewhere
-
-✅ Good:
-
-```python
-def main():
-    app = bootstrap()
-    app.run()
-```
-
-❌ Bad:
-
-*   Defining agents, prompts, LLMs here
-
-***
-
-## `agents/` – Single Responsibility Agents
-
-```text
-agents/
-├── base.py
-├── researcher.py
-├── planner.py
-└── reviewer.py
-```
-
-**Rule**
-
-> One agent = one responsibility
-
-**Agent does:**
-
-*   Has a role
-*   Receives context
-*   Uses tools
-*   Produces structured output
-
-**Agent does NOT:**
-
-*   Call other agents directly
-*   Orchestrate workflow
-*   Hardcode prompts
-
-✅ This maps perfectly to **CrewAI agent abstraction**
-
-***
-
-## `crews/` – Multi-Agent Coordination (CrewAI)
-
-```text
-crews/
-├── research_crew.py
-├── execution_crew.py
-```
-
-**Purpose**
-
-*   Bind agents + tasks + process (sequential / hierarchical)
-
-Example:
-
-```python
-crew = Crew(
-    agents=[planner, executor, reviewer],
-    process=Process.sequential
-)
-```
-
-This keeps **coordination separate from agent intelligence**.
-
-***
-
-## `tools/` – Deterministic Capabilities
-
-```text
-tools/
-├── base.py
-├── web_search.py
-├── vector_search.py
-```
-
-**Industry rule**
-
-> Tools must be deterministic and testable.
-
-✅ Good tools:
-
-*   Search
-*   Retrieval
-*   Code execution
-*   API calls
-
-❌ Bad tools:
-
-*   “Think about X”
-*   Tools that call agents
-
-Each tool should:
-
-*   Have strict input schema
-*   Return structured output
-*   Be mockable in tests
-
-***
-
-## `prompts/` – Versioned Prompt Engineering
-
-```text
-prompts/
-├── agents/
-│   ├── planner.md
-│   ├── reviewer.md
-```
-
-**Why this matters**
-
-*   Prompts are **code**
-*   They must be versioned, reviewed, diffed
-
-**Industry practice**
-
-*   Zero inline prompts in Python files
-*   Load prompts at runtime
-
-***
-
-## `llm/` – LiteLLM Abstraction Layer
-
-```text
-llm/
-├── llm_factory.py
-├── providers.py
-```
-
-**Purpose**
-
-*   Centralize LiteLLM usage
-*   Enable provider switching (OpenAI, Azure, Anthropic, etc.)
-
-Example responsibility:
-
-*   Model routing
-*   Retry logic
-*   Cost tracking hooks
-*   Streaming callbacks
-
-✅ This prevents LLM sprawl across your codebase
-
-***
-
-## `memory/` – Context & Knowledge
-
-```text
-memory/
-├── short_term.py
-├── long_term.py
-├── vector_store.py
-```
-
-**Separation**
-
-*   Short-term (conversation, scratchpad)
-*   Long-term (facts, documents, user data)
-*   Vector store backend (FAISS, Chroma, Qdrant)
-
-Agents should **read/write memory via interfaces**, not directly.
-
-***
-
-## `workflows/` – Business Logic
-
-```text
-workflows/
-├── research_workflow.py
-├── code_gen_workflow.py
-```
-
-**Key idea**
-
-> Workflow = business intent
-
-Example:
-
-*   “Research company X”
-*   “Generate Terraform module”
-*   “Analyze logs”
-
-Workflows:
-
-*   Select crews
-*   Manage inputs/outputs
-*   Handle retries and fallbacks
-
-***
-
-## `evaluation/` – Non-Negotiable for Production
-
-```text
-evaluation/
-├── golden_sets/
-├── metrics.py
-```
-
-Used for:
-
-*   Regression testing
-*   Model comparison
-*   Prompt tuning safety
-
-**Industry trend**
-
-> If you can’t measure it, you can’t ship it.
-
-***
-
-## `observability/` – Tracing, Cost, Logs
-
-```text
-observability/
-├── tracing.py
-├── cost_tracking.py
-```
-
-Tracks:
-
-*   Token usage
-*   Latency
-*   Agent decisions
-*   Tool failures
-
-Can integrate with:
-
-*   OpenTelemetry
-*   LangSmith-like dashboards
-*   Custom logs
-
-***
-
-## `config/` – Everything Config-Driven
-
-```text
-config/
-├── models.yaml
-├── agents.yaml
-```
-
-Example:
-
-```yaml
-planner:
-  model: gpt-4o-mini
-  temperature: 0.3
-```
-
-✅ Enables:
-
-*   Zero-code model swapping
-*   Per-environment changes
-*   Safer deployments
-
-***
-
-## Testing Strategy (Critical)
-
-```text
-tests/
-├── agents/       # Agent output shape tests
-├── tools/        # Deterministic tests
-├── workflows/    # Integration tests
-├── e2e/          # Full runs with mocked LLMs
-```
-
-**Mock LiteLLM everywhere** except E2E.
-
-***
-
-## What This Structure Enables
-
-✅ Replace GPT-4 with Claude without touching agents  
-✅ Add new agent without breaking workflows  
-✅ Run offline evals  
-✅ Scale from CLI → API → background jobs  
-✅ Onboard new engineers quickly
-
-***
-
- How to correct it ? 
-
-heres the solution :
-
-You’re absolutely right — this structure is **very common for “vibe-coded” agent projects**, and the good news is:
-
-> ✅ **Nothing here is bad — it’s just flat and over-coupled.**  
-> ✅ You can refactor this cleanly without rewriting logic.
-
-Below is a **practical, low-risk refactor plan** that:
-
-*   Keeps your existing functionality
-*   Gradually moves you toward **industry‑standard agentic architecture**
-*   Fits well with **CrewAI + LiteLLM + Terraform domain**
-
-***
-
-# 1️⃣ What’s Actually Wrong With the Current Structure?
-
-Your current tree:
-
-```text
-.
-├── agents.py
-├── tasks.py
-├── crew_runner.py
-├── llm_config.py
-├── fallback_generator.py
-├── dashboard.py
-├── tools/
-├── verify_phase4_logic.py
-├── verify_phase5.py
-```
-
-### Key Problems (Very Common)
-
-### 🔴 1. Everything is “global”
-
-*   `agents.py` likely defines many agents
-*   `tasks.py` likely mixes orchestration + business logic
-*   `crew_runner.py` probably does too much
-
-👉 **Hard to test, hard to reuse, hard to extend**
-
-***
-
-### 🔴 2. Tool logic is okay, but unbounded
-
-```text
-tools/
-├── terraform_tools.py
-├── cloud_tools.py
-├── deployment_tools.py
-```
-
-These are **domain tools**, which is GOOD — but:
-
-*   No base tool interface
-*   No clear ownership (agent vs workflow)
-*   Likely calling LLMs from tools (`llm_wrapper.py`) ← ❌ dangerous
-
-***
-
-### 🔴 3. Phases-as-files don’t scale
-
-```text
-verify_phase4_logic.py
-verify_phase5.py
-```
-
-This is a **temporal smell**:
-
-> Phase numbers encode process instead of intent.
-
-When you hit phase 9 or parallel workflows, this breaks down.
-
-***
-
-### 🔴 4. Infra mixed with intelligence
-
-*   `llm_config.py`
-*   `list_models.py`
-*   `fallback_generator.py`
-
-These should be **infrastructure layers**, not core logic files.
-
-***
-
-# 2️⃣ Target Structure (Refactored, Terraform-Focused)
-
-Here’s a **clean structure that keeps your domain intact**:
-
-```text
-terraform-ai-agent/
-├── app/
-│   ├── main.py
-│   ├── bootstrap.py
-│   └── dashboard.py
-│
-├── agents/
+├── cloud_optimizer/              # Multi-Cloud Optimization Engine (Phase 13)
 │   ├── __init__.py
-│   ├── base.py
-│   ├── terraform_architect.py
-│   ├── security_reviewer.py
-│   ├── cost_optimizer.py
-│   └── deployment_planner.py
+│   ├── multi_cloud.py            # Automated AWS vs Azure vs GCP comparative analysis
+│   └── provider_comparator.py    # Service equivalency & pricing comparator
 │
-├── orchestrator/
+├── aiops/                        # AI Operations Center & Model Routing (Phase 13)
 │   ├── __init__.py
-│   ├── pipeline.py
-│   ├── retry_handler.py
-│   └── reflection.py
+│   ├── monitoring.py             # Real-time agent health & error taxonomy telemetry
+│   ├── alerts.py                 # Active governance & budget anomaly alert manager
+│   └── model_router.py           # Task-complexity-based dynamic LLM router
 │
-├── crews/
+├── marketplace/                  # Agent Marketplace & Plugin SDK (Phase 14)
 │   ├── __init__.py
-│   ├── design_crew.py
-│   ├── validate_crew.py
-│   └── deploy_crew.py
+│   ├── plugin_sdk.py             # `BasePlugin`, `CustomToolPlugin`, `CustomAgentPlugin`
+│   ├── catalog.py                # Pre-built agent registry (K8s, FinOps, DR, SecOps)
+│   └── manager.py                # Tenant plugin installation & lifecycle manager
 │
-├── workflows/
+├── portal/                       # Internal Developer Portal & Workflows (Phase 14)
 │   ├── __init__.py
-│   ├── terraform_generation.py
-│   ├── terraform_validation.py
-│   └── terraform_deployment.py
+│   ├── workflow_engine.py        # Visual DAG execution graph engine with branching
+│   ├── templates.py              # Golden Path enterprise service blueprints
+│   ├── approvals.py              # Dynamic risk-weighted approval gate evaluator
+│   └── agent_governance.py       # 0-100 composite risk scoring & agent permissions
 │
-├── tools/
+├── optimization/                 # Self-Optimizing Infrastructure (Phase 14)
 │   ├── __init__.py
-│   ├── base.py
-│   ├── terraform/
-│   │   ├── syntax_tools.py
-│   │   ├── module_tools.py
-│   │   └── state_tools.py
-│   ├── cloud/
-│   │   └── aws_tools.py
-│   ├── security/
-│   │   └── scanning_tools.py
-│   ├── finance/
-│   │   └── cost_estimation.py
-│   └── project/
-│       └── tracker.py
+│   ├── finops_optimizer.py       # Compute right-sizing, spot workloads & S3 tiering
+│   ├── autonomous_remediation.py # Drift/error detection & surgical patch auto-apply
+│   └── recommendations.py        # Actionable quantified dollar savings cards
 │
-├── llm/
+├── dr/                           # Disaster Recovery & Regional Failover (Phase 14)
 │   ├── __init__.py
-│   ├── config.py
-│   ├── factory.py
-│   ├── model_registry.py
-│   └── fallback.py
+│   ├── dr_manager.py             # Cross-region state backups & RTO/RPO tracker
+│   └── failover.py               # Automated regional failover orchestrator
 │
-├── prompts/
-│   ├── agents/
-│   ├── system.md
-│   └── tasks.md
+├── observability/                # OpenTelemetry & Prometheus Observability (Phase 12)
+│   ├── __init__.py
+│   ├── tracing.py                # Distributed OpenTelemetry tracer & span collector
+│   ├── metrics.py                # Prometheus metrics exporter & JSON summaries
+│   └── analytics.py              # Executive KPI analytics & pattern leaderboard
 │
-├── evaluation/
-│   ├── terraform_rules.py
-│   ├── policy_checks.py
-│   └── regression_tests.py
+├── billing/                      # Usage Metering & Dual Payment Gateways (Phase 12)
+│   ├── __init__.py
+│   ├── metering.py               # 3-Way cost attribution (AI Tokens, Compute, Cloud)
+│   ├── usage_tracking.py         # Subscription models, quotas & billing tracker
+│   ├── razorpay_service.py       # Razorpay gateway (INR, UPI, Cards, NetBanking)
+│   ├── stripe_service.py         # Stripe gateway (Global cards, USD subscriptions)
+│   └── invoicing.py              # Monthly statements & invoice generator
 │
-├── static/
-│   └── (unchanged)
+├── app/                          # Application Gateways & Web Server
+│   ├── __init__.py
+│   ├── main.py                   # CLI entrypoint with argparse
+│   └── dashboard.py              # FastAPI Web Gateway with REST & SSE streaming
 │
-├── tests/
-│   ├── agents/
-│   ├── tools/
-│   └── workflows/
+├── static/                       # Web Dashboard Frontend
+│   ├── index.html                # Modern glassmorphism single-page application UI
+│   ├── login.html                # Enterprise login & SSO portal UI
+│   ├── app.js                    # Dynamic reactive state manager & SSE stream reader
+│   └── style.css                 # Custom curated dark-mode CSS design system
 │
-├── Dockerfile
-├── requirements.txt
-├── README.md
-└── docs/
-    ├── MULTI_AGENT_ARCHITECTURE.md
-    └── PROJECT_STRUCTURE.md
+├── test-cases/                   # Test suites & manual verification plans
+│   ├── MANUAL_TEST_PLAN.md       # Complete 19-scenario manual test roadmap
+│   ├── test_backend_integration.py
+│   ├── test_api_endpoints.py
+│   └── test_observability.py
+│
+├── scratch/                      # Automated verification test suites
+│   ├── test_phase14.py           # Phase 14 comprehensive test suite
+│   ├── test_phase13.py           # Phase 13 comprehensive test suite
+│   ├── test_live_e2e.py          # Live REST API end-to-end test suite
+│   ├── test_vector_knowledge.py  # pgvector & knowledge RAG test suite
+│   ├── test_observability.py     # OpenTelemetry & Prometheus test suite
+│   └── test_billing.py           # Billing & dual payment gateway test suite
+│
+├── .env.example                  # Environment configuration template
+├── docker-compose.yml            # Docker stack (App, Redis, PostgreSQL with pgvector)
+├── Dockerfile                    # Container definition
+├── requirements.txt              # Production Python dependencies
+├── setup.md                      # Comprehensive setup & troubleshooting guide
+├── MULTI_AGENT_ARCHITECTURE.md   # Architectural reference guide
+├── phase-13.md                   # Phase 13 requirements specification
+├── phase-14.md                   # Phase 14 requirements specification
+├── co-pilot-review.md            # Co-pilot architecture reviews & audit logs
+└── README.md                     # Main project hub & executive documentation
 ```
 
-***
-
-# 3️⃣ File-by-File Migration Map (Very Important)
-
-This is the **“don’t break stuff” refactor plan** 👇
-
-***
-
-## ✅ `agents.py` → `agents/`
-
-### Before
-
-```text
-agents.py   # everything in one file
-```
-
-### After
-
-```text
-agents/
-├── base.py                 # shared agent logic
-├── terraform_architect.py  # design infra
-├── security_reviewer.py    # checks policies
-├── cost_optimizer.py       # financial analysis
-```
-
-**Rule**
-
-> One file = one role = one responsibility
-
-***
-
-## ✅ `tasks.py` → `workflows/`
-
-### Before
-
-```text
-tasks.py
-```
-
-### After
-
-```text
-workflows/
-├── terraform_generation.py
-├── terraform_validation.py
-```
-
-**Why**
-
-*   Tasks are **business intent**, not agent behavior
-
-***
-
-## ✅ `crew_runner.py` → `crews/`
-
-### Before
-
-```text
-crew_runner.py
-```
-
-### After
-
-```text
-crews/
-├── design_crew.py
-├── validate_crew.py
-```
-
-Crew files:
-
-*   Instantiate agents
-*   Define execution order
-*   No business logic
-
-***
-
-## ✅ `tools/` (You’re actually close here ✅)
-
-### Before
-
-```text
-tools/
-├── terraform_tools.py
-├── cloud_tools.py
-```
-
-### After
-
-```text
-tools/
-├── base.py
-├── terraform/
-│   ├── syntax_tools.py
-│   ├── terraform_tools.py  # keep logic, just relocate
-```
-
-**Important rule**
-
-> Tools MUST NOT call LLMs  
-> Move `llm_wrapper.py` out of `tools/`
-
-***
-
-## ✅ `llm_config.py + list_models.py` → `llm/`
-
-```text
-llm/
-├── config.py        # env vars, defaults
-├── model_registry.py
-├── factory.py       # LiteLLM wrapper
-├── fallback.py      # replaces fallback_generator.py
-```
-
-This gives you:
-
-*   Centralized model switching
-*   Safe retries
-*   Cost tracking (later)
-
-***
-
-## ✅ Phase Verification Files
-
-### Before
-
-```text
-verify_phase4_logic.py
-verify_phase5.py
-```
-
-### After
-
-```text
-evaluation/
-├── terraform_rules.py
-├── policy_checks.py
-├── deployment_guards.py
-```
-
-Name by **intent**, not order.
-
-***
-
-# 4️⃣ Minimum Refactor You Should Do FIRST (1–2 Hours)
-
-If you do only **3 things**, do these:
-
-### ✅ Step 1: Create folders and move files (no logic change)
-
-```bash
-mkdir agents crews workflows llm evaluation docs
-```
-
-### ✅ Step 2: Split `agents.py`
-
-Even one agent per file is a MASSIVE win.
-
-### ✅ Step 3: Remove LLM usage from tools
-
-*   Tools = deterministic
-*   Agents = thinking
-
-This alone makes your system **testable and scalable**.
-
-***
-
-# 5️⃣ Industry Smell Test ✅
-
-After refactor, you should be able to answer YES to:
-
-✅ Can I add a new agent without touching workflows?  
-✅ Can I swap models without editing agents?  
-✅ Can I test tools without an LLM key?  
-✅ Can I reuse agents across crews?
-
-If yes → **you’re doing it right**
-
-***
-
-# 6️⃣ Reassurance (Important)
-
-What you built is **normal** for early agent systems.
-Almost every serious agent platform internally **started exactly like this**.
-
-You’re now at the **“turn prototype into product”** moment.
-
-***
-
+---
+
+## 🏛️ Architectural Bounded Contexts
+
+| Bounded Context | Directory | Primary Responsibilities |
+|:---|:---|:---|
+| **Core Multi-Agent Pipeline** | `agents/`, `crews/`, `orchestrator/` | Multi-agent collaboration, HCL synthesis, security auditing, self-healing retry logic, decision tracing. |
+| **IaC Engine Abstraction** | `tools/engine/` | Universal runtime interface supporting Terraform and OpenTofu transparently. |
+| **Marketplace & Extensions** | `marketplace/` | Agent catalog, Plugin SDK (`BasePlugin`), tenant installation and hook execution. |
+| **Internal Developer Portal** | `portal/` | DAG visual workflow engine, Golden Path blueprints, risk-weighted approval evaluation. |
+| **Autonomous Optimization** | `optimization/` | FinOps compute right-sizing, spot workloads, S3 lifecycle tiering, autonomous remediation. |
+| **Disaster Recovery (DR)** | `dr/` | Cross-region state backups, RTO/RPO metrics, automated regional failover orchestration. |
+| **Policy & Governance** | `policy/` | Open Policy Agent (OPA/Rego) evaluator, compliance packs (SOC2, HIPAA, PCI, CIS), organization guardrails. |
+| **Identity Federation** | `sso/` | OIDC and SAML 2.0 single sign-on (Entra ID, Okta, Google Workspace, Auth0). |
+| **Consensus & Multi-Cloud** | `consensus/`, `cloud_optimizer/` | Multi-agent debate scoring matrix, AWS vs. Azure vs. GCP comparative synthesis. |
+| **AIOps Center** | `aiops/` | Telemetry aggregator, active incident alerting, task-complexity intelligent model router. |
+| **Observability & Metering** | `observability/`, `billing/` | OpenTelemetry distributed tracing, Prometheus metrics, 3-way cost attribution, Razorpay/Stripe billing. |
+| **Storage & Memory** | `memory/`, `tools/project/` | PostgreSQL with `pgvector`, persistent `PatternMemoryModel`, SQLite fallback, immutable audit logs. |
+| **Web Gateway & UI** | `app/`, `static/` | FastAPI REST API, SSE log streaming, responsive dark-mode glassmorphic web dashboard. |

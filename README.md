@@ -44,10 +44,11 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem powered by **Hashi
 
 ## 📖 Documentation
 
-- [Multi-Agent Architecture Guide](MULTI_AGENT_ARCHITECTURE.md) — Agent roles, workflow diagrams, GitOps flow, and self-healing logic.
-- [Project Structure Reference](Project-structure.md) — Industry-aligned project structure and design rationale.
-- [Setup Guide](setup.md) — Step-by-step setup for Windows, Linux, and Docker.
-- [Manual Test Plan](test-cases/MANUAL_TEST_PLAN.md) — End-to-end verification test cases for Phase 11 GitOps & Approval gates.
+- [Multi-Agent Architecture Guide](MULTI_AGENT_ARCHITECTURE.md) — 14-layer platform architecture, agent roles, workflow diagrams, GitOps flow, and self-healing logic.
+- [Project Structure Reference](Project-structure.md) — Production-grade directory tree and bounded context reference.
+- [Setup Guide](setup.md) — Step-by-step setup for Windows, Linux, Docker Compose, and troubleshooting FAQ.
+- [Manual Test Plan](test-cases/MANUAL_TEST_PLAN.md) — Complete 19-scenario end-to-end verification test roadmap for Phases 1–14.
+- [Architecture Review & Evolution Audit](co-pilot-review.md) — Comprehensive architectural evaluation and audit summary across all 14 phases.
 
 ---
 

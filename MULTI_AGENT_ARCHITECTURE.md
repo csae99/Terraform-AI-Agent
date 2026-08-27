@@ -290,35 +290,67 @@ python app/dashboard.py
 
 | Tool Name | Engine | Purpose |
 | :--- | :--- | :--- |
-| `Write Terraform File` | Python/OS | Atomic file creation and directory management. |
-| `Validate Terraform Code` | Terraform CLI | Real-time syntax and init verification. |
-| `Security Audit` | Checkov/tfsec | Deep static analysis (SCA) for 1000+ security policies. |
+| `Write Terraform File` | Python/OS | Atomic file creation and modular directory management. |
+| `Validate Terraform Code` | Terraform / OpenTofu | Real-time syntax and init verification across runtime engines. |
+| `Security Audit` | Checkov / tfsec | Deep static analysis (SCA) for 1000+ security policies. |
+| `OPA Policy Evaluator` | OPA / Rego | Policy-as-code compliance validation for SOC2, HIPAA, PCI-DSS, CIS. |
 | `Cost Estimator` | Infracost | Line-item monthly cost breakdown and budget tracking. |
-| `Append Optimization Recommendations` | Python/LLM | Writes dynamic optimization advice directly to the report. |
-| `Deployment Tools` | Terraform CLI | Execution of Plan/Apply/Destroy with live log capturing. |
-| `Backup/Restore` | Python/shutil | Versioning and crash-recovery for generated code. |
-| `Pattern Manager` | Python/JSON/LLM | Failure pattern matching, fix guidance, and self-learning loop. |
-| `Search Terraform Documentation` | Python/Requests | Online documentation lookup and error resolution search. |
-| `HTTP Endpoint Verification` | Python/requests | QA smoke testing of provisioned API/web URLs. |
-| `AWS S3 Bucket Verification` | Python/boto3 | QA read/write/delete verification on deployed S3 buckets. |
-| `AWS Resource Exists Verification` | Python/boto3 | QA validation of DynamoDB, SQS, EC2, Lambda, or RDS active states. |
+| `FinOps Right-Sizing Engine` | Python / Rule Engine | Automated compute right-sizing, spot workloads & S3 tiering. |
+| `Autonomous Remediation` | Python / OPA / Patch | Closed-loop self-healing patch synthesis and automated apply. |
+| `Deployment Tools` | Terraform / OpenTofu CLI | Execution of Plan/Apply/Destroy with live log capturing. |
+| `Cloud Drift Detector` | IaC Engine + Cloud APIs | Live infrastructure drift snooping and state divergence alerts. |
+| `Regional Failover Orchestrator`| Python / Route53 / IaC | Cross-region state restoration and DNS cutover orchestration. |
+| `Multi-Agent Debate Scorer` | Python / Weighted Matrix | 4D consensus scoring matrix across Security, Cost, Resilience, Simplicity. |
+| `Multi-Cloud Optimizer` | Python / Infracost / SLAs | Side-by-side AWS vs. Azure vs. GCP price & SLA comparative analysis. |
+| `Vector Knowledge RAG Engine` | PostgreSQL / pgvector | Semantic pattern retrieval & vectorized Terraform/OpenTofu runbooks. |
+| `Backup/Restore Manager` | Python / DB Snapshots | Cross-region versioning and crash-recovery for generated code. |
+| `Pattern Manager` | Python / PostgreSQL | Database failure pattern matching, confidence scoring, and self-learning loop. |
+| `Search Terraform Documentation` | Python / Requests | Online documentation lookup and dynamic error resolution search. |
+| `HTTP Endpoint Verification` | Python / requests | QA smoke testing of provisioned API/web URLs. |
+| `AWS S3 Bucket Verification` | Python / boto3 | QA read/write/delete verification on deployed S3 buckets. |
+| `AWS Resource Exists Verification` | Python / boto3 | QA validation of DynamoDB, SQS, EC2, Lambda, or RDS active states. |
 
 ---
 
-## 🏢 Organization & RBAC API
+## 🌐 Enterprise Platform REST API Reference
 
-| Endpoint | Method | Auth | Purpose |
+| Category | Endpoint | Method | Purpose |
 | :--- | :--- | :--- | :--- |
-| `/api/orgs` | GET | User | List all organizations the user belongs to |
-| `/api/orgs` | POST | User | Create a new organization (creator becomes Owner) |
-| `/api/orgs/{id}/members` | GET | Org Member | List all members and their roles |
-| `/api/orgs/{id}/members` | POST | Owner/Admin | Invite a registered user by username with a role |
-| `/api/orgs/{id}/members/{uid}` | PUT | Owner/Admin | Update a member's role |
-| `/api/orgs/{id}/members/{uid}` | DELETE | Owner/Admin | Remove a member from the organization |
-| `/api/projects?org_id=X` | GET | Org Member | List projects scoped to the organization |
-| `/api/stats?org_id=X` | GET | Org Member | Get dashboard metrics for the organization |
-| `/api/generate` | POST (with `org_id`) | Non-Viewer | Generate infrastructure in an organization context |
+| **Auth & SSO** | `/api/auth/login`, `/register` | POST | Standard credentials authentication |
+| **Auth & SSO** | `/api/auth/sso/providers` | GET | List configured enterprise SSO identity providers |
+| **Auth & SSO** | `/api/auth/sso/login/{idp}` | GET | Generate OIDC OAuth2 authorization redirect URL |
+| **Auth & SSO** | `/api/auth/sso/callback/{idp}`| POST | Exchange code, auto-provision user, issue session JWT |
+| **Governance & Policy**| `/api/policy/evaluate` | POST | Evaluate HCL code against OPA Rego compliance packs |
+| **Governance & Policy**| `/api/policy/guardrails` | POST | Validate organization region & budget guardrails |
+| **Marketplace** | `/api/marketplace/catalog` | GET | List available specialized agents and community plugins |
+| **Marketplace** | `/api/marketplace/install` | POST | Install agent/plugin for organization |
+| **Marketplace** | `/api/marketplace/installed` | GET | List installed plugins for organization |
+| **Workflows & Portal**| `/api/portal/templates` | GET | Golden Path enterprise service blueprint catalog |
+| **Workflows & Portal**| `/api/portal/workflows/execute`| POST | Execute visual DAG workflow execution graph |
+| **Workflows & Portal**| `/api/portal/governance/risk` | POST | Calculate 0-100 blast radius risk score |
+| **Workflows & Portal**| `/api/portal/approvals/evaluate`| POST | Evaluate risk-weighted approval gate rules |
+| **FinOps & Remediation**| `/api/optimization/analyze` | POST | Analyze compute right-sizing & spot recommendations |
+| **FinOps & Remediation**| `/api/optimization/remediate` | POST | Synthesize, validate, and apply self-healing patch |
+| **FinOps & Remediation**| `/api/optimization/recommendations`| POST | Actionable savings and reliability insight cards |
+| **Disaster Recovery** | `/api/dr/status` | GET | Multi-region replication health & RTO/RPO metrics |
+| **Disaster Recovery** | `/api/dr/backup` | POST | Create cross-region state snapshot |
+| **Disaster Recovery** | `/api/dr/failover` | POST | Orchestrate regional failover cutover |
+| **Consensus & Multi-Cloud**| `/api/consensus/debate` | POST | Conduct multi-agent competitive architectural debate |
+| **Consensus & Multi-Cloud**| `/api/cloud-optimizer/compare`| POST | Side-by-side AWS vs. Azure vs. GCP cost comparison |
+| **AIOps Center** | `/api/aiops/status` | GET | Real-time agent health telemetry & pattern bank stats |
+| **AIOps Center** | `/api/aiops/alerts` | GET | Active governance and infrastructure drift alerts |
+| **AIOps Center** | `/api/aiops/route-model` | POST | Dynamic task-complexity LLM routing |
+| **Knowledge Base** | `/api/knowledge/search` | GET | Search vectorized Terraform/OpenTofu documentation |
+| **Knowledge Base** | `/api/knowledge/patterns/semantic`| GET | Semantic similarity search across failure patterns |
+| **Observability** | `/api/observability/metrics` | GET | Prometheus exposition format & JSON metric summary |
+| **Observability** | `/api/observability/analytics` | GET | Executive KPIs, savings counter & failure taxonomy |
+| **Billing & Gateways** | `/api/billing/usage` | GET | 3-Way cost attribution (AI Tokens, Compute, Cloud) |
+| **Billing & Gateways** | `/api/billing/upgrade/razorpay`| POST | Create Razorpay order for UPI/NetBanking/Cards |
+| **Billing & Gateways** | `/api/billing/upgrade/stripe` | POST | Create Stripe checkout session for global payments |
+| **Organizations & RBAC**| `/api/orgs` | GET / POST | Manage multi-tenant organization workspaces |
+| **Organizations & RBAC**| `/api/orgs/{id}/members` | GET / POST | Team invitations and role assignment (Owner/Admin/Member/Viewer)|
+| **Compliance Export** | `/api/compliance/export` | GET | 1-Click SOC2 audit package export (JSON / CSV) |
 
 ---
 
-*Last Updated: 2026-08-05*
+*Last Updated: 2026-08-27 (Phase 14 Platform Engineering Ecosystem Release)*
