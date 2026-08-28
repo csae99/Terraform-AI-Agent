@@ -1089,7 +1089,14 @@ async def evaluate_governance_risk(request: Request, user=Depends(get_current_us
     data = await request.json()
     hcl = data.get("hcl_code", "")
     cost = float(data.get("estimated_cost", 0.0))
-    return AgentGovernanceFramework.calculate_risk_score(hcl_code=hcl, estimated_cost=cost)
+    cost_increase = float(data.get("cost_increase_pct", 0.0))
+    env = data.get("environment", "staging")
+    return AgentGovernanceFramework.calculate_risk_score(
+        hcl_code=hcl,
+        estimated_cost=cost,
+        cost_increase_pct=cost_increase,
+        environment=env
+    )
 
 @app.post("/api/portal/approvals/evaluate")
 async def evaluate_approval_rules(request: Request, user=Depends(get_current_user)):
@@ -1097,9 +1104,22 @@ async def evaluate_approval_rules(request: Request, user=Depends(get_current_use
     data = await request.json()
     cost = float(data.get("estimated_cost", 100.0))
     risk = float(data.get("risk_score", 20.0))
+    cost_increase = float(data.get("cost_increase_pct", 0.0))
     env = data.get("environment", "staging")
     role = data.get("user_role", "Developer")
-    return ApprovalEngine.evaluate_approval_rules(estimated_cost=cost, risk_score=risk, environment=env, user_role=role)
+    ws_id = data.get("workspace_id", "default")
+    hard_blocks = bool(data.get("has_hard_blocks", False))
+    dim_scores = data.get("dimensional_scores", {})
+    return ApprovalEngine.evaluate_approval_rules(
+        estimated_cost=cost,
+        risk_score=risk,
+        cost_increase_pct=cost_increase,
+        environment=env,
+        user_role=role,
+        workspace_id=ws_id,
+        has_hard_blocks=hard_blocks,
+        dimensional_scores=dim_scores
+    )
 
 @app.post("/api/optimization/analyze")
 async def analyze_finops_optimizations(request: Request, user=Depends(get_current_user)):
@@ -1114,7 +1134,28 @@ async def remediate_infrastructure_issue(request: Request, user=Depends(get_curr
     data = await request.json()
     hcl = data.get("hcl_code", "")
     issue = data.get("issue", "S3 bucket missing encryption")
-    return AutonomousRemediationEngine.analyze_and_remediate(current_hcl=hcl, detected_issue=issue)
+    issue_type = data.get("issue_type", "security_vulnerability")
+    env = data.get("environment", "staging")
+    gitops_flag = bool(data.get("gitops", False))
+    repo = data.get("git_repo")
+    token = data.get("git_token")
+    branch = data.get("target_branch", "main")
+    slug = data.get("workspace_slug", "remediated-workspace")
+    org_id = data.get("org_id")
+
+    return AutonomousRemediationEngine.analyze_and_remediate(
+        current_hcl=hcl,
+        detected_issue=issue,
+        issue_type=issue_type,
+        environment=env,
+        gitops=gitops_flag,
+        git_repo=repo,
+        git_token=token,
+        target_branch=branch,
+        workspace_slug=slug,
+        org_id=org_id,
+        user_id=getattr(user, "id", None)
+    )
 
 @app.post("/api/optimization/recommendations")
 async def get_optimization_recommendations(request: Request, user=Depends(get_current_user)):

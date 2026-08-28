@@ -140,3 +140,32 @@ class IaCEngine(ABC):
     def show_state(self, cwd: str) -> Dict[str, Any]:
         """Show current state representation."""
         return self._run_cmd(["show", "-no-color"], cwd=cwd, timeout=60)
+
+    @classmethod
+    def generate_tenant_backend_hcl(
+        cls,
+        org_id: Union[str, int],
+        project_slug: str,
+        state_bucket: str = "terraform-ai-state",
+        lock_table: str = "terraform-ai-locks",
+        region: str = "us-east-1",
+        encryption: bool = True
+    ) -> str:
+        """
+        Generates a tenant-isolated S3 + DynamoDB state locking backend block
+        preventing state collisions across organizations and projects.
+        """
+        clean_org = str(org_id).strip() or "default"
+        clean_slug = str(project_slug).strip() or "workspace"
+        
+        return f"""# ── Tenant-Isolated Remote State Backend ({clean_org}/{clean_slug}) ──
+terraform {{
+  backend "s3" {{
+    bucket         = "{state_bucket}"
+    key            = "tenants/{clean_org}/{clean_slug}/terraform.tfstate"
+    region         = "{region}"
+    dynamodb_table = "{lock_table}"
+    encrypt        = {str(encryption).lower()}
+  }}
+}}
+"""
