@@ -1009,6 +1009,17 @@ async function loadExecutiveAnalytics() {
         document.getElementById('analytics-kpi-monthly-spend').innerText = `$${kpis.total_monthly_spend || 0}`;
         document.getElementById('analytics-kpi-healing-rounds').innerText = `${kpis.total_self_healing_rounds || 0} (${kpis.estimated_engineering_hours_saved || 0} hrs saved)`;
 
+        if (kpis.savings_breakdown) {
+            const savingsNote = document.getElementById('analytics-kpi-savings-note');
+            if (savingsNote && kpis.savings_breakdown.formula) {
+                savingsNote.innerText = `${kpis.savings_breakdown.formula}`;
+            }
+            const healingNote = document.getElementById('analytics-kpi-healing-note');
+            if (healingNote && kpis.savings_breakdown.baseline_generation_hours !== undefined) {
+                healingNote.innerText = `${kpis.savings_breakdown.baseline_generation_hours}h gen + ${kpis.savings_breakdown.self_healing_hours}h healing`;
+            }
+        }
+
         // Render Failure Taxonomy
         const taxContainer = document.getElementById('analytics-failure-taxonomy');
         const tax = data.failure_taxonomy || {};

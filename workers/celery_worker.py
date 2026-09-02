@@ -35,6 +35,11 @@ def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None,
         cmd.extend(["--target-branch", target_branch])
     if engine and engine != "terraform":
         cmd.extend(["--engine", engine])
+    if credentials:
+        if credentials.get("owner_id"):
+            cmd.extend(["--owner-id", str(credentials["owner_id"])])
+        if credentials.get("org_id"):
+            cmd.extend(["--org-id", str(credentials["org_id"])])
         
     if ai_config:
         if ai_config.get("model"):

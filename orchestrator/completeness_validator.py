@@ -20,34 +20,34 @@ REQUIRED_MODULE_FILES = ["main.tf"]
 
 
 def _extract_expected_modules_from_arch(arch_result: str) -> List[str]:
-    """Extract module names referenced in the architect's design document.
+    """Extract module folder names referenced in the architect's design document.
 
     Looks for patterns like:
-        - module "vpc" { source = "./modules/vpc" }
-        - modules/aks/main.tf
-        - `modules/nsg`
-        - **Module: vnet**
+        - source = "./modules/storage"
+        - modules/storage/main.tf
+        - `modules/storage`
+        - **Module: storage**
+    Note: We do NOT parse `module "call_label"` because in Terraform, `module "s3_storage"`
+    is an instance call label, while the actual directory is defined in `source = "./modules/storage"`.
     """
     modules = set()
 
-    # Pattern 1: module "name" { source = "./modules/name" }
-    for m in re.finditer(r'module\s+"([^"]+)"', arch_result):
-        modules.add(m.group(1))
-
-    # Pattern 2: source = "./modules/xxx"
-    for m in re.finditer(r'source\s*=\s*"\.?/?modules/([^"]+)"', arch_result):
+    # Pattern 1: source = "./modules/xxx" or "modules/xxx"
+    for m in re.finditer(r'source\s*=\s*"\.?/?modules/([^"/]+)', arch_result):
         modules.add(m.group(1).strip("/"))
 
-    # Pattern 3: modules/xxx/main.tf or modules/xxx
-    for m in re.finditer(r'modules/([a-z0-9_-]+)', arch_result, re.IGNORECASE):
-        modules.add(m.group(1))
+    # Pattern 2: modules/xxx/main.tf or directory tree `modules/xxx/`
+    for m in re.finditer(r'modules/([a-z0-9_-]+)(?:/|[a-z0-9_.-]*\.tf|\b)', arch_result, re.IGNORECASE):
+        mod_name = m.group(1).lower().strip("/.")
+        if mod_name and mod_name not in {"tf", "md", "hcl", "json"}:
+            modules.add(mod_name)
 
-    # Pattern 4: **Module: xxx** or ### Module: xxx
+    # Pattern 3: **Module: xxx** or ### Module: xxx
     for m in re.finditer(r'(?:\*\*|###?\s*)Module[:\s]+([a-z0-9_-]+)', arch_result, re.IGNORECASE):
-        modules.add(m.group(1).lower())
+        modules.add(m.group(1).lower().strip("/"))
 
     # Filter out noise (very short or clearly not module names)
-    modules = {m for m in modules if len(m) > 1 and m not in {"tf", "md", "hcl"}}
+    modules = {m for m in modules if len(m) > 1 and m not in {"tf", "md", "hcl", "json", "output", "modules"}}
 
     return sorted(modules)
 

@@ -22,9 +22,10 @@ class AnalyticsEngine:
         destroyed_count = sum(1 for p in projects if p.get("status") == "destroyed")
         pr_opened_count = sum(1 for p in projects if p.get("status") == "pr_opened" or p.get("pr_url"))
 
-        # Success rate (deployed / (deployed + failed))
-        evaluable_runs = deployed_count + failed_count
-        success_rate = round((deployed_count / evaluable_runs * 100), 1) if evaluable_runs > 0 else 100.0
+        # Success rate (successful outcomes / total evaluable runs)
+        successful_count = deployed_count + generated_count + pr_opened_count
+        evaluable_runs = successful_count + failed_count
+        success_rate = round((successful_count / evaluable_runs * 100), 1) if evaluable_runs > 0 else 100.0
 
         # FinOps Aggregates
         total_monthly_spend = round(sum(p.get("estimated_cost", 0.0) or 0.0 for p in projects), 2)
@@ -33,9 +34,15 @@ class AnalyticsEngine:
         total_duration = round(sum(p.get("run_duration", 0.0) or 0.0 for p in projects), 2)
         avg_run_duration = round(total_duration / total_workspaces, 2) if total_workspaces > 0 else 0.0
 
-        # Estimated cost savings from self-healing (prevented cloud downtime / manual engineering hours: ~$120/hr)
-        estimated_hours_saved = round((total_healing_rounds * 1.5) + (total_workspaces * 2.0), 1)
-        estimated_cost_saved = round(estimated_hours_saved * 120.0, 2)
+        # Estimated cost savings from AI automation & self-healing:
+        # - 2.0 hrs baseline human engineering time saved per AI-generated workspace
+        # - 1.5 hrs senior DevOps debugging time saved per autonomous self-healing round
+        # - $120/hr standard industry blended rate for Senior Cloud / Platform Engineering
+        generation_hours_saved = round(total_workspaces * 2.0, 1)
+        healing_hours_saved = round(total_healing_rounds * 1.5, 1)
+        estimated_hours_saved = round(generation_hours_saved + healing_hours_saved, 1)
+        hourly_rate = 120.0
+        estimated_cost_saved = round(estimated_hours_saved * hourly_rate, 2)
 
         # Failure Taxonomy Analysis
         failure_taxonomy = AnalyticsEngine._categorize_failures(projects)
@@ -60,7 +67,13 @@ class AnalyticsEngine:
                 "total_self_healing_rounds": total_healing_rounds,
                 "avg_run_duration_seconds": avg_run_duration,
                 "estimated_engineering_hours_saved": estimated_hours_saved,
-                "estimated_financial_savings_usd": estimated_cost_saved
+                "estimated_financial_savings_usd": estimated_cost_saved,
+                "savings_breakdown": {
+                    "baseline_generation_hours": generation_hours_saved,
+                    "self_healing_hours": healing_hours_saved,
+                    "hourly_rate_usd": hourly_rate,
+                    "formula": f"({total_workspaces} workspaces × 2.0h) + ({total_healing_rounds} healing rounds × 1.5h) = {estimated_hours_saved}h @ ${int(hourly_rate)}/h"
+                }
             },
             "status_distribution": {
                 "deployed": deployed_count,

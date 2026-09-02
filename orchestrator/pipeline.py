@@ -68,12 +68,35 @@ def get_project_slug(architect_output: str, prompt: str = "") -> str:
 
 
 def extract_mermaid(text: str) -> str:
-    """Extract mermaid code block from text."""
+    """Extract mermaid code block from text and clean up file structure artifacts."""
     pattern = r"```mermaid\s+(.*?)\s+```"
     match = re.search(pattern, text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return ""
+    if not match:
+        return ""
+    
+    diagram = match.group(1).strip()
+
+    # Clean up file-tree relics if LLM accidentally included main.tf or file subgraphs
+    cleaned_lines = []
+    skip_subgraph = False
+    for line in diagram.split("\n"):
+        line_stripped = line.strip()
+        if re.search(r'subgraph\s+(?:Root|root|Files|File_Structure)', line_stripped, re.IGNORECASE):
+            skip_subgraph = True
+            continue
+        if skip_subgraph and line_stripped == "end":
+            skip_subgraph = False
+            continue
+        if skip_subgraph:
+            continue
+        if re.search(r'\[.*?\b(?:main|variables|outputs|versions)\.tf\b.*?\]', line_stripped):
+            continue
+        if re.search(r'\b(?:M|Root)\s*-->\s*', line_stripped):
+            continue
+        cleaned_lines.append(line)
+
+    cleaned_diagram = "\n".join(cleaned_lines).strip()
+    return cleaned_diagram if len(cleaned_diagram) > 10 else diagram
 
 
 def inject_floci_overrides(slug: str):
@@ -806,7 +829,18 @@ def run_full_pipeline(
     )
 
     # ── Phase 12 Observability & Usage Attribution ────────────────
-    tokens_est = UsageMeter.estimate_tokens(prompt, generated_code_len=len(dev_result or ""), healing_rounds=retry.current_round)
+    total_code_len = 0
+    if os.path.exists(output_base):
+        for root_dir, _, files in os.walk(output_base):
+            for file in files:
+                if file.endswith(".tf"):
+                    try:
+                        with open(os.path.join(root_dir, file), "r", encoding="utf-8") as f:
+                            total_code_len += len(f.read())
+                    except Exception:
+                        pass
+
+    tokens_est = UsageMeter.estimate_tokens(prompt, generated_code_len=total_code_len, healing_rounds=retry.current_round)
     cost_attrib = UsageMeter.compute_cost_attribution(
         prompt_tokens=tokens_est["prompt_tokens"],
         completion_tokens=tokens_est["completion_tokens"],
@@ -814,6 +848,20 @@ def run_full_pipeline(
         duration_seconds=run_duration,
         infra_monthly_cost=total_cost
     )
+
+    numeric_owner_id = None
+    if owner_id is not None:
+        try:
+            numeric_owner_id = int(owner_id)
+        except (ValueError, TypeError):
+            numeric_owner_id = None
+
+    numeric_org_id = None
+    if org_id is not None:
+        try:
+            numeric_org_id = int(org_id)
+        except (ValueError, TypeError):
+            numeric_org_id = None
 
     BillingTracker.record_usage(
         project_slug=slug,
@@ -823,8 +871,8 @@ def run_full_pipeline(
         compute_seconds=cost_attrib["compute_seconds"],
         compute_cost=cost_attrib["compute_cost_usd"],
         infra_monthly_cost=cost_attrib["infra_monthly_projected_usd"],
-        user_id=owner_id,
-        org_id=org_id
+        user_id=numeric_owner_id,
+        org_id=numeric_org_id
     )
 
     metrics.record_run(
@@ -836,8 +884,8 @@ def run_full_pipeline(
         tokens=cost_attrib["total_tokens"],
         healing_rounds=retry.current_round,
         security_issues=final_security,
-        user_id=owner_id,
-        org_id=org_id
+        user_id=numeric_owner_id,
+        org_id=numeric_org_id
     )
 
     # Reinforce pattern confidence for any applied patterns that succeeded

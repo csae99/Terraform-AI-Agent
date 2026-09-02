@@ -48,6 +48,8 @@ def main():
     parser.add_argument("--git-token", type=str, help="GitHub Personal Access Token (or GIT_TOKEN env)")
     parser.add_argument("--target-branch", type=str, default="main", help="Target branch for PR (default: main)")
     parser.add_argument("--engine", type=str, default="terraform", choices=["terraform", "opentofu", "tofu"], help="IaC execution engine (terraform, opentofu)")
+    parser.add_argument("--owner-id", type=str, help="User ID owning the workspace")
+    parser.add_argument("--org-id", type=str, help="Organization ID context")
     args = parser.parse_args()
 
     # Handle Destructive Actions
@@ -74,7 +76,14 @@ def main():
     if args.engine and args.engine != "terraform":
         cli_flags.append(f"--engine={args.engine}")
 
-    owner_id = os.getenv("owner_id")
+    owner_id = args.owner_id or os.getenv("owner_id")
+    org_id = None
+    raw_org_id = args.org_id or os.getenv("org_id")
+    if raw_org_id:
+        try:
+            org_id = int(raw_org_id)
+        except (ValueError, TypeError):
+            org_id = None
 
     run_full_pipeline(
         prompt=args.prompt,
@@ -84,6 +93,7 @@ def main():
         model_name=args.model,
         model_key=args.model_key,
         owner_id=owner_id,
+        org_id=org_id,
         new_project=args.new_project,
         cli_flags=cli_flags,
         test_local=args.test_local,

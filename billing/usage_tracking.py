@@ -149,6 +149,17 @@ class BillingTracker:
                      ai_cost: float, compute_seconds: float, compute_cost: float,
                      infra_monthly_cost: float, user_id: Optional[int] = None, org_id: Optional[int] = None):
         """Records a single usage entry and increments monthly run count."""
+        if user_id is not None:
+            try:
+                user_id = int(user_id)
+            except (ValueError, TypeError):
+                user_id = None
+        if org_id is not None:
+            try:
+                org_id = int(org_id)
+            except (ValueError, TypeError):
+                org_id = None
+
         session = SessionLocal()
         try:
             total_tokens = prompt_tokens + completion_tokens
@@ -169,7 +180,7 @@ class BillingTracker:
             )
             session.add(record)
 
-            # Increment runs_this_month on subscription
+            # Increment runs_this_month on subscription (create default Free tier if not exists)
             query = session.query(SubscriptionModel)
             if org_id:
                 sub = query.filter(SubscriptionModel.org_id == org_id).first()
@@ -178,7 +189,19 @@ class BillingTracker:
             else:
                 sub = None
 
-            if sub:
+            if not sub and (user_id or org_id):
+                plan = "enterprise" if org_id else "free"
+                limit = cls.PLAN_LIMITS.get(plan, 5)
+                sub = SubscriptionModel(
+                    user_id=user_id if not org_id else None,
+                    org_id=org_id,
+                    plan=plan,
+                    status="active",
+                    runs_this_month=1,
+                    monthly_limit=limit
+                )
+                session.add(sub)
+            elif sub:
                 sub.runs_this_month = (sub.runs_this_month or 0) + 1
 
             session.commit()

@@ -7,6 +7,7 @@ lookup functionality for agents during self-healing loops.
 
 import os
 import json
+from datetime import datetime
 from typing import List, Dict, Optional
 from tools.project.tracker import SessionLocal, PatternMemoryModel
 from memory.vector_knowledge import VectorKnowledgeEngine
