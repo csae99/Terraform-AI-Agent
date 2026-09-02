@@ -1,0 +1,15 @@
+The issues found after manual testing of Manual-test.md:
+FYI: These tests were done on another machine
+- So I created this infra "Create an AWS S3 bucket named test-vault-storage with versioning enabled and a lifecycle rule to transition objects to Glacier after 30 days
+- You can see it logs at "logs-comphresensive-matrix-1-2-3-4.json"
+- I had set DEFAULT_MODEL=gemini/gemini-2.5-flash-lite in .env
+
+Things I found wrong in it after genration: 
+
+- It created two diffrent storage folders in modules which has same main.tf which should not be happening.
+- also in visual topology it is showing visual topology of project structure I dont think this is how the visual topology be showed about project structure.
+- In Observability & Analytics , the Financial saving is set $600 , there were 2 self healing rounds which shows it saved 5 hrs on what basis it shows 5hrs and success rate is 100% dont know how this works , please care to explain.
+- In Billings and plan , as I created a new account it is a free-tier plan which provides 5 free runs but after this run i did the run count is still 0 and everything in Cost Attribution & Resource Consumption shows as 0 , this function is also not working.
+
+
+These are thing I want you to look into before moving to next phase
