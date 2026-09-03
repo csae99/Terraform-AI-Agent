@@ -792,28 +792,73 @@ async function fetchOrgMembers() {
         const members = await res.json();
         const tbody = document.getElementById('org-members-tbody');
         const currentOrg = userOrgs.find(o => o.id === activeOrgId);
-        const isAdmin = currentOrg && ['owner', 'admin'].includes(currentOrg.role);
+        const currentUserRole = currentOrg ? currentOrg.role : null;
+        const isOwner = currentUserRole === 'owner';
+        const isAdmin = currentUserRole === 'admin';
+        const currentUserId = currentUser ? currentUser.id : null;
+
+        // Configure invite-role options based on caller role
+        const inviteRoleSelect = document.getElementById('invite-role');
+        if (inviteRoleSelect) {
+            if (isOwner) {
+                inviteRoleSelect.innerHTML = `
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                    <option value="viewer">Viewer</option>
+                `;
+            } else {
+                inviteRoleSelect.innerHTML = `
+                    <option value="member">Member</option>
+                    <option value="viewer">Viewer</option>
+                `;
+            }
+        }
 
         if (!members.length) {
             tbody.innerHTML = '<tr><td colspan="4" style="padding:1rem;color:#888;text-align:center;">No members yet.</td></tr>';
             return;
         }
         tbody.innerHTML = members.map(m => {
-            const roleColor = m.role === 'owner' ? '#f59e0b' : m.role === 'admin' ? '#6366f1' : m.role === 'viewer' ? '#94a3b8' : '#22c55e';
-            const roleSelect = isAdmin && m.role !== 'owner'
-                ? `<select onchange="updateMemberRole(${m.user_id}, this.value)" style="background:#0f172a;color:#fff;border:1px solid #334155;border-radius:4px;padding:2px 6px;font-size:0.8rem;">
-                     <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
-                     <option value="member" ${m.role==='member'?'selected':''}>Member</option>
-                     <option value="viewer" ${m.role==='viewer'?'selected':''}>Viewer</option>
-                   </select>`
-                : `<span style="color:${roleColor};font-weight:600;text-transform:uppercase;font-size:0.8rem;">${m.role}</span>`;
+            const isTargetOwner = m.role === 'owner' || (currentOrg && m.user_id === currentOrg.owner_id);
+            const isTargetAdmin = m.role === 'admin';
+            const isSelf = currentUserId && m.user_id === currentUserId;
+            const roleColor = isTargetOwner ? '#f59e0b' : isTargetAdmin ? '#6366f1' : m.role === 'viewer' ? '#94a3b8' : '#22c55e';
 
-            const removeBtn = isAdmin && m.role !== 'owner'
+            // Role editing permissions:
+            // - Owner can edit Admins, Members, Viewers
+            // - Admin can ONLY edit Members and Viewers (cannot edit Owner or peer Admins)
+            // - Self and Owner cannot be edited via dropdown
+            const canEdit = !isTargetOwner && !isSelf && (isOwner || (isAdmin && !isTargetAdmin));
+
+            let roleSelect;
+            if (canEdit) {
+                if (isOwner) {
+                    roleSelect = `<select onchange="updateMemberRole(${m.user_id}, this.value)" style="background:#0f172a;color:#fff;border:1px solid #334155;border-radius:4px;padding:2px 6px;font-size:0.8rem;">
+                         <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
+                         <option value="member" ${m.role==='member'?'selected':''}>Member</option>
+                         <option value="viewer" ${m.role==='viewer'?'selected':''}>Viewer</option>
+                       </select>`;
+                } else {
+                    roleSelect = `<select onchange="updateMemberRole(${m.user_id}, this.value)" style="background:#0f172a;color:#fff;border:1px solid #334155;border-radius:4px;padding:2px 6px;font-size:0.8rem;">
+                         <option value="member" ${m.role==='member'?'selected':''}>Member</option>
+                         <option value="viewer" ${m.role==='viewer'?'selected':''}>Viewer</option>
+                       </select>`;
+                }
+            } else {
+                roleSelect = `<span style="color:${roleColor};font-weight:600;text-transform:uppercase;font-size:0.8rem;">${m.role}${isTargetOwner ? ' 👑' : ''}</span>`;
+            }
+
+            // Member removal permissions:
+            // - Owner cannot be removed
+            // - Admin cannot remove peer Admins or Owner
+            // - Cannot remove self via member list
+            const canRemove = !isTargetOwner && !isSelf && (isOwner || (isAdmin && !isTargetAdmin));
+            const removeBtn = canRemove
                 ? `<button onclick="removeOrgMember(${m.user_id})" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#f87171;border-radius:4px;padding:3px 8px;font-size:0.75rem;cursor:pointer;">Remove</button>`
                 : '';
 
             return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                <td style="padding:0.5rem;">${m.username}</td>
+                <td style="padding:0.5rem;">${m.username} ${isSelf ? '<span style="color:#64748b;font-size:0.75rem;">(You)</span>' : ''}</td>
                 <td style="padding:0.5rem;color:#888;">${m.email || '—'}</td>
                 <td style="padding:0.5rem;">${roleSelect}</td>
                 <td style="padding:0.5rem;text-align:right;">${removeBtn}</td>

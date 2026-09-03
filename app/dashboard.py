@@ -278,11 +278,30 @@ async def add_org_member(org_id: int, request: Request, user=Depends(get_current
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
 
+    # 1. Admins cannot invite users with Admin or Owner privileges
+    if user_role == "admin" and role in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Admins cannot invite users with Admin or Owner privileges. Only Organization Owners can grant administrative privileges."
+        )
+
     target_user = UserTracker.get_by_username(username.strip())
     if not target_user:
         raise HTTPException(status_code=404, detail=f"User '{username}' not found. Ensure they have registered first.")
 
-    OrgTracker.add_member(org_id, target_user.id, role)
+    # 2. Prevent duplicate member / silent role overwrite
+    existing_role = OrgTracker.get_user_role(org_id, target_user.id)
+    if existing_role:
+        raise HTTPException(
+            status_code=409,
+            detail=f"User '{username}' is already a member of this organization with role '{existing_role}'. Use role settings to change their role."
+        )
+
+    added = OrgTracker.add_member(org_id, target_user.id, role, allow_overwrite=False)
+    if not added:
+        raise HTTPException(status_code=409, detail=f"User '{username}' is already a member of this organization.")
+
+    AuditTracker.log_action("member_invited", user_id=user.id, org_id=org_id, details=f"Invited {username} as {role}")
     return {"message": f"Successfully added {username} as {role}", "user_id": target_user.id, "role": role}
 
 @app.put("/api/orgs/{org_id}/members/{target_user_id}")
@@ -291,13 +310,41 @@ async def update_org_member_role(org_id: int, target_user_id: int, request: Requ
     if user_role not in ["owner", "admin"]:
         raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can modify member roles")
     
+    target_role = OrgTracker.get_user_role(org_id, target_user_id)
+    if not target_role:
+        raise HTTPException(status_code=404, detail="Member not found in this organization")
+
+    org = OrgTracker.get_org_by_id(org_id)
+    org_owner_id = org.get("owner_id") if org else None
+
+    # 1. Target is Owner: Admins cannot modify owners under any circumstances
+    if target_role == "owner" or target_user_id == org_owner_id:
+        if user_role != "owner":
+            raise HTTPException(status_code=403, detail="Admins cannot modify the role of an Organization Owner.")
+        if target_user_id == user.id:
+            owner_count = OrgTracker.get_owner_count(org_id)
+            if owner_count <= 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot demote yourself: An organization must have at least one active Owner. Transfer ownership first."
+                )
+
+    # 2. Target is Admin: Admins cannot modify peer Admins
+    if user_role == "admin" and target_role == "admin" and target_user_id != user.id:
+        raise HTTPException(status_code=403, detail="Admins cannot modify the role of other Admins. Only Organization Owners can manage Admin roles.")
+
     data = await request.json()
-    role = data.get("role", "member")
-    if role not in ["admin", "member", "viewer"]:
+    new_role = data.get("role", "member")
+    if new_role not in ["admin", "member", "viewer"]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
 
-    OrgTracker.add_member(org_id, target_user_id, role)
-    return {"message": "Role updated successfully"}
+    # 3. Admins cannot promote anyone to Admin or Owner
+    if user_role == "admin" and new_role in ["owner", "admin"]:
+        raise HTTPException(status_code=403, detail="Admins cannot promote members to Admin or Owner. Only Organization Owners can assign administrative privileges.")
+
+    OrgTracker.update_member_role(org_id, target_user_id, new_role)
+    AuditTracker.log_action("role_updated", user_id=user.id, org_id=org_id, details=f"Changed user {target_user_id} role from {target_role} to {new_role}")
+    return {"message": "Role updated successfully", "target_user_id": target_user_id, "role": new_role}
 
 @app.delete("/api/orgs/{org_id}/members/{target_user_id}")
 async def remove_org_member(org_id: int, target_user_id: int, user=Depends(get_current_user)):
@@ -305,7 +352,29 @@ async def remove_org_member(org_id: int, target_user_id: int, user=Depends(get_c
     if user_role not in ["owner", "admin"]:
         raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can remove members")
     
+    target_role = OrgTracker.get_user_role(org_id, target_user_id)
+    if not target_role:
+        raise HTTPException(status_code=404, detail="Member not found in this organization")
+
+    org = OrgTracker.get_org_by_id(org_id)
+    org_owner_id = org.get("owner_id") if org else None
+
+    # 1. Organization Owner cannot be removed
+    if target_role == "owner" or target_user_id == org_owner_id:
+        raise HTTPException(status_code=403, detail="The Organization Owner cannot be removed from the organization. Transfer ownership or delete the organization.")
+
+    # 2. Admins cannot remove peer Admins
+    if user_role == "admin" and target_role == "admin" and target_user_id != user.id:
+        raise HTTPException(status_code=403, detail="Admins cannot remove other Admins. Only Organization Owners can remove Admins.")
+
+    # 3. Prevent sole owner self-removal
+    if target_user_id == user.id and user_role == "owner":
+        owner_count = OrgTracker.get_owner_count(org_id)
+        if owner_count <= 1:
+            raise HTTPException(status_code=400, detail="The sole Organization Owner cannot leave the organization. Transfer ownership or delete the organization.")
+
     OrgTracker.remove_member(org_id, target_user_id)
+    AuditTracker.log_action("member_removed", user_id=user.id, org_id=org_id, details=f"Removed user {target_user_id} ({target_role}) from organization")
     return {"message": "Member removed successfully"}
 
 def get_active_logs(key: str) -> str:

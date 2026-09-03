@@ -626,7 +626,18 @@ class OrgTracker:
             session.close()
 
     @staticmethod
-    def add_member(org_id, user_id, role="member"):
+    def get_owner_count(org_id):
+        session = SessionLocal()
+        try:
+            return session.query(OrgMemberModel).filter(
+                OrgMemberModel.org_id == org_id,
+                OrgMemberModel.role == "owner"
+            ).count()
+        finally:
+            session.close()
+
+    @staticmethod
+    def add_member(org_id, user_id, role="member", allow_overwrite=False):
         session = SessionLocal()
         try:
             existing = session.query(OrgMemberModel).filter(
@@ -634,10 +645,28 @@ class OrgTracker:
                 OrgMemberModel.user_id == user_id
             ).first()
             if existing:
+                if not allow_overwrite:
+                    return False
                 existing.role = role
             else:
                 member = OrgMemberModel(org_id=org_id, user_id=user_id, role=role)
                 session.add(member)
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    @staticmethod
+    def update_member_role(org_id, user_id, new_role):
+        session = SessionLocal()
+        try:
+            member = session.query(OrgMemberModel).filter(
+                OrgMemberModel.org_id == org_id,
+                OrgMemberModel.user_id == user_id
+            ).first()
+            if not member:
+                return False
+            member.role = new_role
             session.commit()
             return True
         finally:
