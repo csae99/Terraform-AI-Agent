@@ -1,6 +1,6 @@
-# 🛠️ Autonomous Infrastructure Platform - Setup Guide (Phase 14: Platform Engineering Ecosystem)
+# 🛠️ Autonomous Infrastructure Platform - Setup Guide (Phase 15: Kubernetes-Native Control Plane & GitOps)
 
-This guide provides step-by-step instructions for setting up the Universal Autonomous Infrastructure Platform on Windows, Linux, macOS, and Docker.
+This guide provides step-by-step instructions for setting up the Universal Autonomous Infrastructure Platform on Windows, Linux, macOS, Docker, and Kubernetes.
 
 ## 🛠️ Core Requirements (All Platforms)
 
@@ -8,10 +8,11 @@ This guide provides step-by-step instructions for setting up the Universal Auton
 2. **IaC Engines**: **HashiCorp Terraform** (`terraform`) and/or **Linux Foundation OpenTofu** (`tofu`).
 3. **Git CLI**: Required for branch creation and automated Pull Requests.
 4. **Docker**: Essential for FinOps (Infracost), Security (Checkov), OPA Policy-as-Code, and local cloud emulation (Floci).
-5. **AWS / Azure / GCP Cloud CLI**: Required for live multi-cloud deployments and regional failover.
-6. **Payment Gateways**: Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`) and/or Stripe (`STRIPE_SECRET_KEY`).
-7. **SSO Identity Providers (Optional)**: Microsoft Entra ID, Okta, Google Workspace, or Auth0.
-8. **API Keys**: LLM API key (Google Gemini, OpenAI, Claude, Mistral, Groq, ZenMux), Infracost API token, and optional GitHub Personal Access Token (for GitOps PRs).
+5. **Kubernetes & Helm (Phase 15)**: `kubectl` v1.24+ and `helm` v3.8+ for deploying CRDs and the operator controller.
+6. **AWS / Azure / GCP Cloud CLI**: Required for live multi-cloud deployments and regional failover.
+7. **Payment Gateways**: Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`) and/or Stripe (`STRIPE_SECRET_KEY`).
+8. **SSO Identity Providers (Optional)**: Microsoft Entra ID, Okta, Google Workspace, or Auth0.
+9. **API Keys**: LLM API key (Google Gemini, OpenAI, Claude, Mistral, Groq, ZenMux), Infracost API token, and optional GitHub Personal Access Token (for GitOps PRs).
 
 ---
 
@@ -230,6 +231,87 @@ docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
 
 ---
 
+## ☸️ Kubernetes-Native Control Plane Setup (Phase 15)
+
+Phase 15 allows you to run the platform as a Kubernetes Operator that watches and reconciles declarative `TerraformAgent` Custom Resources with continuous drift healing and GitOps integration.
+
+### 1. Install Custom Resource Definitions (CRDs)
+Apply the 4 OpenAPI v3 Custom Resource Definitions to your cluster:
+```bash
+kubectl apply -f k8s/crds/
+```
+Verify CRD registration:
+```bash
+kubectl get crds | grep platform.terraform-ai.io
+# Output:
+# platformprojects.platform.terraform-ai.io
+# policies.platform.terraform-ai.io
+# terraformagents.platform.terraform-ai.io
+# workflows.platform.terraform-ai.io
+```
+
+### 2. Deploy the Operator Controller via Helm 3
+Deploy the `terraform-ai-operator` Helm chart into a dedicated namespace:
+```bash
+helm upgrade --install terraform-ai-operator ./k8s/helm \
+  --namespace terraform-ai-system \
+  --create-namespace \
+  --values ./k8s/helm/values.yaml
+```
+Verify controller deployment:
+```bash
+kubectl get pods -n terraform-ai-system
+```
+
+### 3. Configure ArgoCD Custom Health Check
+Patch the `argocd-cm` ConfigMap to enable native health visualization for `TerraformAgent` resources in the ArgoCD UI:
+```bash
+# Apply health check script patch
+kubectl patch configmap argocd-cm -n argocd --patch-file <(python -c "import yaml; from k8s.gitops.argocd_plugin import generate_argocd_cm_patch; print(yaml.dump(generate_argocd_cm_patch()))")
+```
+
+### 4. Create Your First Declarative Agent Resource
+Create an agent manifest `agent.yaml`:
+```yaml
+apiVersion: platform.terraform-ai.io/v1alpha1
+kind: TerraformAgent
+metadata:
+  name: prod-vpc-fleet
+  namespace: default
+spec:
+  prompt: "Highly available multi-AZ VPC with public and private subnets on AWS"
+  engine: opentofu
+  environment: production
+  governance:
+    maxBudgetMonthlyUSD: 500.0
+    compliancePack: cis_aws_foundations
+    riskThreshold: LOW
+  gitops:
+    targetRepo: "https://github.com/my-org/cloud-infra.git"
+    targetBranch: "main"
+    autoHealDrift: true
+    createPullRequest: true
+  stateBackend:
+    provider: s3
+    stateBucket: "my-org-terraform-states"
+    lockTable: "my-org-terraform-locks"
+    region: "us-east-1"
+```
+
+Apply and inspect the resource:
+```bash
+# Apply declarative manifest
+kubectl apply -f agent.yaml
+
+# Check lifecycle phase, risk score, and monthly cost
+kubectl get terraformagents
+
+# Inspect reconciliation conditions and K8s events
+kubectl describe terraformagent prod-vpc-fleet
+```
+
+---
+
 ## 🩺 Troubleshooting & Frequently Asked Questions (FAQ)
 
 ### 1. 🟣 Terraform / 🧅 OpenTofu Binary Missing on PATH
@@ -290,5 +372,12 @@ docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
   - Ensure cloud credentials (AWS IAM role / Service Principal) have permissions across both primary (`us-east-1`) and secondary DR regions (`us-west-2`).
   - Cross-region state replication snapshots are saved automatically in PostgreSQL / SQLite and verified prior to cutover.
 
+### 10. ☸️ Kubernetes CRD Installation & RBAC Permissions
+* **Symptom**: `error: unable to recognize "k8s/crds/...": no matches for kind "CustomResourceDefinition"` or `403 Forbidden on customresourcedefinitions.apiextensions.k8s.io`.
+* **Solution**:
+  - Ensure your target Kubernetes cluster is version v1.24+ supporting the GA `apiextensions.k8s.io/v1` API.
+  - Applying Custom Resource Definitions requires `cluster-admin` privileges. Ensure your `kubeconfig` context has permissions to create cluster-level resources (`ClusterRole`, `CustomResourceDefinition`).
+  - To test locally, use KinD (`kind create cluster`) or Minikube (`minikube start`) where your user context has full administrative access.
+
 ---
-*Last Updated: 2026-08-27 (Phase 14 Platform Engineering Ecosystem & Marketplace Release)*
+*Last Updated: 2026-09-04 (Phase 15 Kubernetes-Native Control Plane & GitOps Release)*

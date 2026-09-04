@@ -1,0 +1,117 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: platformprojects.platform.terraform-ai.io
+  annotations:
+    description: "Multi-tenant project boundary resource controlling team quotas, allowed clouds, and budgets."
+spec:
+  group: platform.terraform-ai.io
+  names:
+    kind: PlatformProject
+    listKind: PlatformProjectList
+    plural: platformprojects
+    singular: platformproject
+    shortNames:
+      - pproj
+      - tfproject
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Organization
+          type: string
+          jsonPath: .spec.organization
+        - name: Tier
+          type: string
+          jsonPath: .spec.tier
+        - name: MonthlyBudget
+          type: number
+          jsonPath: .spec.monthlyBudgetUSD
+        - name: CurrentSpend
+          type: number
+          jsonPath: .status.currentSpendUSD
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - organization
+              properties:
+                organization:
+                  type: string
+                  description: Organization slug or identifier
+                tier:
+                  type: string
+                  enum:
+                    - free
+                    - starter
+                    - professional
+                    - enterprise
+                  default: professional
+                monthlyBudgetUSD:
+                  type: number
+                  default: 5000.0
+                allowedProviders:
+                  type: array
+                  items:
+                    type: string
+                  default:
+                    - aws
+                    - azure
+                    - gcp
+                allowedRegions:
+                  type: array
+                  items:
+                    type: string
+                  default:
+                    - us-east-1
+                    - us-west-2
+                    - eu-west-1
+                targetNamespace:
+                  type: string
+                  description: Dedicated Kubernetes namespace bound to this project
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Active
+                    - BudgetExceeded
+                    - Suspended
+                  default: Active
+                currentSpendUSD:
+                  type: number
+                  default: 0.0
+                activeWorkspacesCount:
+                  type: integer
+                  default: 0
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string

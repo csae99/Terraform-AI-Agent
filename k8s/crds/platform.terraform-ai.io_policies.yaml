@@ -1,0 +1,96 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: policies.platform.terraform-ai.io
+  annotations:
+    description: "Namespace-scoped compliance policy binding OPA Rego rules, CIS benchmarks, and tagging standards."
+spec:
+  group: platform.terraform-ai.io
+  names:
+    kind: Policy
+    listKind: PolicyList
+    plural: policies
+    singular: policy
+    shortNames:
+      - tfpol
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Severity
+          type: string
+          jsonPath: .spec.severity
+        - name: Enforcement
+          type: string
+          jsonPath: .spec.enforcementAction
+        - name: Violations
+          type: integer
+          jsonPath: .status.violationCount
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - ruleName
+              properties:
+                ruleName:
+                  type: string
+                  description: Unique human-readable rule identifier
+                severity:
+                  type: string
+                  enum:
+                    - LOW
+                    - MEDIUM
+                    - HIGH
+                    - CRITICAL
+                  default: HIGH
+                enforcementAction:
+                  type: string
+                  enum:
+                    - Deny
+                    - Warn
+                    - Audit
+                  default: Deny
+                regoSource:
+                  type: string
+                  description: Optional inline OPA Rego code for custom cluster guardrails
+                requiredTags:
+                  type: array
+                  items:
+                    type: string
+                  default:
+                    - Environment
+                    - Owner
+                    - CostCenter
+                blockedResourceTypes:
+                  type: array
+                  items:
+                    type: string
+                  default: []
+            status:
+              type: object
+              properties:
+                active:
+                  type: boolean
+                  default: true
+                violationCount:
+                  type: integer
+                  default: 0
+                lastEvaluatedAt:
+                  type: string
+                  format: date-time
+                failingResources:
+                  type: array
+                  items:
+                    type: string

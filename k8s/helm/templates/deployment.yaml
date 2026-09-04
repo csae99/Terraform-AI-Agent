@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "terraform-ai-operator.fullname" . | default "terraform-ai-operator" }}
+  labels:
+    app.kubernetes.io/name: terraform-ai-operator
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: controller
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: terraform-ai-operator
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+      labels:
+        app.kubernetes.io/name: terraform-ai-operator
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: operator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - -m
+            - k8s.operator.reconciler
+          env:
+            - name: OPERATOR_LOG_LEVEL
+              value: {{ .Values.operator.logLevel | quote }}
+            - name: DEFAULT_ENGINE
+              value: {{ .Values.operator.defaultEngine | quote }}
+            - name: RECONCILE_INTERVAL_SEC
+              value: {{ .Values.operator.reconcileIntervalSec | quote }}
+            - name: DRIFT_CHECK_ENABLED
+              value: {{ .Values.operator.driftCheckEnabled | quote }}
+          ports:
+            - name: metrics
+              containerPort: 8000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/k8s/operator/status
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/k8s/operator/status
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}

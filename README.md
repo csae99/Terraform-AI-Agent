@@ -1,11 +1,12 @@
-# 🤖 Autonomous Platform Engineering Ecosystem (Phase 14: Marketplace, Workflows & Self-Optimizing Infrastructure)
+# 🤖 Autonomous Platform Engineering Ecosystem & Kubernetes Control Plane (Phases 1 – 15)
 
-An enterprise-grade Autonomous Platform Engineering Ecosystem powered by **HashiCorp Terraform** and **Linux Foundation OpenTofu**. Built for modern engineering organizations with an **Agent Marketplace & Plugin SDK**, **Visual DAG Workflow Builder**, **Golden Path Service Catalog**, **FinOps Right-Sizing & Autonomous Remediation**, **Multi-Region Disaster Recovery (DR) & Automated Regional Failover**, **Policy-as-Code (OPA / Rego)**, **Enterprise SSO (OIDC / SAML 2.0)**, **Multi-Agent Consensus & Debate**, **Dual Payment Gateways (Razorpay & Stripe)**, **OpenTelemetry Observability**, and **Role-Based Access Control (RBAC)**.
+An enterprise-grade Autonomous Platform Engineering Ecosystem and Kubernetes-Native Infrastructure Control Plane powered by **HashiCorp Terraform** and **Linux Foundation OpenTofu**. Built for modern engineering organizations with a **Kubernetes CRD Operator & GitOps Controllers (ArgoCD & Flux)**, **Agent Marketplace & Plugin SDK**, **Visual DAG Workflow Builder**, **Golden Path Service Catalog**, **FinOps Right-Sizing & Autonomous Remediation**, **Multi-Region Disaster Recovery (DR) & Automated Regional Failover**, **Policy-as-Code (OPA / Rego)**, **Enterprise SSO (OIDC / SAML 2.0)**, **Multi-Agent Consensus & Debate**, **Dual Payment Gateways (Razorpay & Stripe)**, **OpenTelemetry Observability**, and **Role-Based Access Control (RBAC)**.
 
 ---
 
 ## 🚀 Key Features
 
+- **Kubernetes-Native Control Plane & CRD Operator** *(Phase 15)*: Manage AI Terraform agents, multi-tenant projects, DAG workflows, and compliance policies as native Kubernetes Custom Resources (`kubectl apply -f agent.yaml`). Features an asynchronous Operator controller reconciliation loop with condition lifecycle, continuous cloud drift watcher with auto-healing, ArgoCD custom Lua health checks, Flux CD webhook synchronizer, Helm 3 deployment charts, and native dashboard REST endpoints.
 - **Agent Marketplace & Plugin SDK** *(Phase 14)*: Organization-scoped agent registry with installable specialist agents (`Kubernetes Specialist`, `FinOps Cost Hawk`, `Disaster Recovery Pilot`, `Zero-Trust SecOps`) and standard `BasePlugin` lifecycle hooks (`pre_plan`, `post_plan`, `validate`).
 - **Visual DAG Workflow Builder & Golden Path Catalog** *(Phase 14)*: Node-based visual execution graph engine with dependency resolution, conditional branching, automated rollbacks, and pre-architected Golden Path service templates (*Microservices K8s Stack*, *Serverless Event Stream*, *Secure ML Vault*).
 - **FinOps Optimization & Autonomous Remediation** *(Phase 14)*: Continuous cost right-sizing (compute right-sizing, spot workloads, S3 Glacier lifecycle tiering) and automated self-healing remediation that synthesizes, validates via OPA, and auto-applies safe infrastructure patches.
@@ -64,15 +65,17 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem powered by **Hashi
 | **OpenTelemetry & Prometheus** | `observability/tracing.py`, `metrics.py` | ✅ **Implemented & Verified** | `scratch/test_observability.py` |
 | **Billing & Dual Gateways** | `billing/metering.py`, `usage_tracking.py` | ✅ **Implemented & Verified** | `scratch/test_billing.py` |
 | **Universal Engine (Terraform/Tofu)**| `tools/engine/factory.py` | ✅ **Implemented & Verified** | `scratch/test_live_e2e.py` |
-| **Kubernetes CRD Control Plane** | `k8s/operator/` *(Phase 15)* | 📋 **Planned (Phase 15)** | `test-cases/` |
+| **Kubernetes CRD Control Plane** | `k8s/operator/`, `k8s/crds/` | ✅ **Implemented & Verified** | `scratch/test_phase15_k8s_control_plane.py` |
+| **GitOps Controllers (ArgoCD/Flux)** | `k8s/gitops/` | ✅ **Implemented & Verified** | `scratch/test_phase15_k8s_control_plane.py` |
 
 ## 📖 Documentation
 
-- [Multi-Agent Architecture Guide](MULTI_AGENT_ARCHITECTURE.md) — 14-layer platform architecture, agent roles, workflow diagrams, GitOps flow, and self-healing logic.
+- [Phase 15 Specification (Kubernetes Control Plane)](phase-15.md) — Declarative CRD Operator, continuous reconciliation, ArgoCD/Flux GitOps, and Helm 3 architecture.
+- [Multi-Agent Architecture Guide](MULTI_AGENT_ARCHITECTURE.md) — 15-layer platform architecture, agent roles, workflow diagrams, GitOps flow, and self-healing logic.
 - [Project Structure Reference](Project-structure.md) — Production-grade directory tree and bounded context reference.
 - [Setup Guide](setup.md) — Step-by-step setup for Windows, Linux, Docker Compose, and troubleshooting FAQ.
-- [Manual Test Plan](test-cases/MANUAL_TEST_PLAN.md) — Complete 19-scenario end-to-end verification test roadmap for Phases 1–14.
-- [Architecture Review & Evolution Audit](co-pilot-review.md) — Comprehensive architectural evaluation and audit summary across all 14 phases.
+- [Manual Test Plan](test-cases/MANUAL_TEST_PLAN.md) — Complete 19-scenario end-to-end verification test roadmap for Phases 1–15.
+- [Architecture Review & Evolution Audit](co-pilot-review.md) — Comprehensive architectural evaluation and audit summary across all phases.
 
 ---
 

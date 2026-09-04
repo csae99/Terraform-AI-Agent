@@ -1263,6 +1263,149 @@ async def execute_regional_failover(request: Request, user=Depends(get_current_u
     )
 
 
+# ==========================================
+# Phase 15: Kubernetes-Native Control Plane Endpoints
+# ==========================================
+
+@app.get("/api/k8s/operator/status")
+async def get_k8s_operator_status(user=Depends(get_current_user_optional)):
+    """Health, status, and registration summary of the Kubernetes Operator."""
+    return {
+        "status": "Healthy",
+        "operatorVersion": "1.0.0",
+        "controlPlane": "Kubernetes-Native",
+        "registeredCRDs": [
+            "terraformagents.platform.terraform-ai.io",
+            "platformprojects.platform.terraform-ai.io",
+            "workflows.platform.terraform-ai.io",
+            "policies.platform.terraform-ai.io"
+        ],
+        "defaultEngine": "opentofu",
+        "reconciliationLoop": "Active",
+        "gitopsSync": {
+            "argocd": "Enabled",
+            "flux": "Enabled"
+        }
+    }
+
+@app.get("/api/k8s/crds")
+async def get_k8s_crds(user=Depends(get_current_user_optional)):
+    """Returns the raw YAML contents of all registered Custom Resource Definitions."""
+    crds_dir = os.path.join(basedir, "k8s", "crds")
+    crd_files = [
+        "platform.terraform-ai.io_terraformagents.yaml",
+        "platform.terraform-ai.io_platformprojects.yaml",
+        "platform.terraform-ai.io_workflows.yaml",
+        "platform.terraform-ai.io_policies.yaml"
+    ]
+    manifests = {}
+    for cf in crd_files:
+        p = os.path.join(crds_dir, cf)
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                manifests[cf] = f.read()
+        else:
+            manifests[cf] = ""
+    return {"crds": manifests, "count": len(manifests)}
+
+@app.post("/api/k8s/manifest/generate")
+async def generate_k8s_manifest(request: Request, user=Depends(get_current_user_optional)):
+    """Generates a ready-to-apply TerraformAgent CustomResource YAML manifest from user parameters."""
+    import yaml
+    data = await request.json()
+    name = data.get("name", "my-infrastructure").lower().replace(" ", "-").replace("_", "-")
+    namespace = data.get("namespace", "default")
+    prompt = data.get("prompt", "High availability web tier on AWS with ALB and AutoScaling")
+    engine = data.get("engine", "opentofu")
+    environment = data.get("environment", "dev")
+    max_budget = float(data.get("maxBudgetMonthlyUSD", 1000.0))
+    target_repo = data.get("targetRepo", "https://github.com/company/infra-fleet.git")
+    auto_heal = bool(data.get("autoHealDrift", False))
+
+    manifest_obj = {
+        "apiVersion": "platform.terraform-ai.io/v1alpha1",
+        "kind": "TerraformAgent",
+        "metadata": {
+            "name": name,
+            "namespace": namespace,
+            "labels": {
+                "app.kubernetes.io/managed-by": "terraform-ai-operator",
+                "environment": environment
+            }
+        },
+        "spec": {
+            "prompt": prompt,
+            "engine": engine,
+            "environment": environment,
+            "governance": {
+                "maxBudgetMonthlyUSD": max_budget,
+                "compliancePack": "cis_aws_foundations",
+                "riskThreshold": "MEDIUM" if environment != "production" else "LOW"
+            },
+            "gitops": {
+                "targetRepo": target_repo,
+                "targetBranch": "main",
+                "autoHealDrift": auto_heal,
+                "createPullRequest": True
+            },
+            "stateBackend": {
+                "provider": "s3",
+                "stateBucket": f"terraform-state-{name}",
+                "lockTable": "terraform-locks",
+                "region": "us-east-1"
+            }
+        }
+    }
+    yaml_str = yaml.dump(manifest_obj, sort_keys=False)
+    return {
+        "manifest": yaml_str,
+        "object": manifest_obj,
+        "filename": f"{name}-terraformagent.yaml"
+    }
+
+@app.post("/api/k8s/reconcile")
+async def reconcile_k8s_resource(request: Request, user=Depends(get_current_user_optional)):
+    """Triggers an on-demand reconciliation of a TerraformAgent resource."""
+    from k8s.operator.crd_schema import TerraformAgentResource
+    from k8s.operator.reconciler import AgentReconciler
+    data = await request.json()
+
+    # If raw manifest YAML string or resource object is passed
+    if "yaml" in data:
+        import yaml
+        resource_dict = yaml.safe_load(data["yaml"])
+    elif "resource" in data:
+        resource_dict = data["resource"]
+    else:
+        # Construct from direct fields
+        resource_dict = {
+            "apiVersion": "platform.terraform-ai.io/v1alpha1",
+            "kind": "TerraformAgent",
+            "metadata": {
+                "name": data.get("name", "agent-infra"),
+                "namespace": data.get("namespace", "default"),
+                "generation": int(data.get("generation", 1))
+            },
+            "spec": {
+                "prompt": data.get("prompt", "Default infra prompt"),
+                "engine": data.get("engine", "opentofu"),
+                "environment": data.get("environment", "dev"),
+                "governance": data.get("governance", {}),
+                "gitops": data.get("gitops", {}),
+                "stateBackend": data.get("stateBackend", {})
+            }
+        }
+
+    resource = TerraformAgentResource.model_validate(resource_dict)
+    reconciler = AgentReconciler()
+    result = reconciler.reconcile(resource)
+
+    return {
+        "success": result["success"],
+        "resource": resource.model_dump(),
+        "events": reconciler.get_events_for(resource.metadata.namespace, resource.metadata.name),
+        "result": result
+    }
 
 
 if __name__ == "__main__":

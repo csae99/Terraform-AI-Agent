@@ -1,6 +1,6 @@
 # 📂 Autonomous Platform Engineering Ecosystem: Project Structure & Architecture Reference
 
-This document provides a comprehensive, production-grade reference for the **Autonomous Infrastructure Platform & Platform Engineering Ecosystem (Phases 1 – 14)**.
+This document provides a comprehensive, production-grade reference for the **Autonomous Infrastructure Platform & Platform Engineering Ecosystem (Phases 1 – 15)**.
 
 ---
 
@@ -144,6 +144,29 @@ c:\Users\User\Music\Terraform-AI-Agent\
 │   ├── main.py                   # CLI entrypoint with argparse
 │   └── dashboard.py              # FastAPI Web Gateway with REST & SSE streaming
 │
+├── k8s/                          # Kubernetes Control Plane & GitOps Operator (Phase 15)
+│   ├── crds/                     # Custom Resource Definitions (OpenAPI v3 schemas)
+│   │   ├── platform.terraform-ai.io_terraformagents.yaml
+│   │   ├── platform.terraform-ai.io_platformprojects.yaml
+│   │   ├── platform.terraform-ai.io_workflows.yaml
+│   │   └── platform.terraform-ai.io_policies.yaml
+│   ├── operator/                 # Operator Controller & Reconciliation Engine
+│   │   ├── __init__.py
+│   │   ├── crd_schema.py         # Pydantic models for CRD schemas
+│   │   ├── reconciler.py         # Declarative reconciliation loop & K8s events
+│   │   ├── status_manager.py     # Condition transitions & timestamp management
+│   │   └── drift_watcher.py      # Background cloud drift watcher & auto-healing
+│   ├── gitops/                   # GitOps Controller Integrations
+│   │   ├── __init__.py
+│   │   ├── argocd_plugin.py      # ArgoCD custom Lua health checks & CM patch
+│   │   └── flux_controller.py    # Flux CD webhook receiver & commit synchronizer
+│   └── helm/                     # Production Helm 3 Chart
+│       ├── Chart.yaml            # Package metadata (v1.0.0)
+│       ├── values.yaml           # Deployment configurations & replicas
+│       └── templates/            # Kubernetes deployment & RBAC manifests
+│           ├── deployment.yaml   # Operator Deployment with health probes
+│           └── rbac.yaml         # ClusterRole, Binding & ServiceAccount
+│
 ├── static/                       # Web Dashboard Frontend
 │   ├── index.html                # Modern glassmorphism single-page application UI
 │   ├── login.html                # Enterprise login & SSO portal UI
@@ -157,6 +180,7 @@ c:\Users\User\Music\Terraform-AI-Agent\
 │   └── test_observability.py
 │
 ├── scratch/                      # Automated verification test suites
+│   ├── test_phase15_k8s_control_plane.py # Phase 15 comprehensive K8s control plane test suite
 │   ├── test_phase14.py           # Phase 14 comprehensive test suite
 │   ├── test_phase13.py           # Phase 13 comprehensive test suite
 │   ├── test_live_e2e.py          # Live REST API end-to-end test suite
@@ -172,6 +196,7 @@ c:\Users\User\Music\Terraform-AI-Agent\
 ├── MULTI_AGENT_ARCHITECTURE.md   # Architectural reference guide
 ├── phase-13.md                   # Phase 13 requirements specification
 ├── phase-14.md                   # Phase 14 requirements specification
+├── phase-15.md                   # Phase 15 requirements specification
 ├── co-pilot-review.md            # Co-pilot architecture reviews & audit logs
 └── README.md                     # Main project hub & executive documentation
 ```
@@ -183,6 +208,7 @@ c:\Users\User\Music\Terraform-AI-Agent\
 | Bounded Context | Directory | Primary Responsibilities |
 |:---|:---|:---|
 | **Core Multi-Agent Pipeline** | `agents/`, `crews/`, `orchestrator/` | Multi-agent collaboration, HCL synthesis, security auditing, self-healing retry logic, decision tracing. |
+| **Kubernetes Control Plane & GitOps** | `k8s/` | Declarative Custom Resource Definitions (CRDs), Operator controller reconciler loop, ArgoCD/Flux GitOps integration, Helm 3 deployment. |
 | **IaC Engine Abstraction** | `tools/engine/` | Universal runtime interface supporting Terraform and OpenTofu transparently. |
 | **Marketplace & Extensions** | `marketplace/` | Agent catalog, Plugin SDK (`BasePlugin`), tenant installation and hook execution. |
 | **Internal Developer Portal** | `portal/` | DAG visual workflow engine, Golden Path blueprints, risk-weighted approval evaluation. |

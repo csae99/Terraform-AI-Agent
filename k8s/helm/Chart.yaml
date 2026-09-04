@@ -1,0 +1,17 @@
+apiVersion: v2
+name: terraform-ai-operator
+description: Enterprise Kubernetes Operator for Declarative Multi-Agent Terraform and OpenTofu Control Plane
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - terraform
+  - opentofu
+  - ai-agents
+  - operator
+  - gitops
+  - argocd
+  - flux
+maintainers:
+  - name: Platform Engineering Team
+    email: platform@terraform-ai.io

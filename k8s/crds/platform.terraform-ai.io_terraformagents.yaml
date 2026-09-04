@@ -1,0 +1,189 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: terraformagents.platform.terraform-ai.io
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+    description: "Declarative AI Terraform Agent resource for managing IaC lifecycle, synthesis, compliance, and drift healing."
+spec:
+  group: platform.terraform-ai.io
+  names:
+    kind: TerraformAgent
+    listKind: TerraformAgentList
+    plural: terraformagents
+    singular: terraformagent
+    shortNames:
+      - tfa
+      - tfagent
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+          description: Current lifecycle phase of the agent
+        - name: Environment
+          type: string
+          jsonPath: .spec.environment
+          description: Target deployment environment
+        - name: Engine
+          type: string
+          jsonPath: .spec.engine
+          description: IaC engine (opentofu or terraform)
+        - name: Risk
+          type: string
+          jsonPath: .status.riskScore
+          description: 5D Composite Risk Score
+        - name: Cost/Mo
+          type: string
+          jsonPath: .status.infracostMonthlyUSD
+          description: Estimated monthly cost in USD
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - prompt
+              properties:
+                prompt:
+                  type: string
+                  description: Natural language infrastructure prompt or architectural intent
+                engine:
+                  type: string
+                  enum:
+                    - opentofu
+                    - terraform
+                  default: opentofu
+                  description: Underlying IaC execution engine
+                environment:
+                  type: string
+                  enum:
+                    - dev
+                    - staging
+                    - production
+                  default: dev
+                  description: Target deployment environment
+                governance:
+                  type: object
+                  properties:
+                    maxBudgetMonthlyUSD:
+                      type: number
+                      description: Monthly spending cap in USD
+                    compliancePack:
+                      type: string
+                      enum:
+                        - cis_aws_foundations
+                        - soc2_type2
+                        - hipaa_security
+                        - standard
+                      default: cis_aws_foundations
+                    riskThreshold:
+                      type: string
+                      enum:
+                        - LOW
+                        - MEDIUM
+                        - HIGH
+                        - CRITICAL
+                      default: MEDIUM
+                gitops:
+                  type: object
+                  properties:
+                    targetRepo:
+                      type: string
+                      description: Git target repository URL (e.g., https://github.com/org/infra.git)
+                    targetBranch:
+                      type: string
+                      default: main
+                    autoHealDrift:
+                      type: boolean
+                      default: false
+                    createPullRequest:
+                      type: boolean
+                      default: true
+                stateBackend:
+                  type: object
+                  properties:
+                    provider:
+                      type: string
+                      enum:
+                        - s3
+                        - azurerm
+                        - gcs
+                        - local
+                      default: s3
+                    stateBucket:
+                      type: string
+                    lockTable:
+                      type: string
+                    region:
+                      type: string
+                      default: us-east-1
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Synthesizing
+                    - Validating
+                    - PendingApproval
+                    - Applying
+                    - Applied
+                    - DriftDetected
+                    - Failed
+                  default: Pending
+                observedGeneration:
+                  type: integer
+                  description: Generation of the spec observed by the controller
+                lastRunDurationSec:
+                  type: number
+                riskScore:
+                  type: string
+                riskLevel:
+                  type: string
+                infracostMonthlyUSD:
+                  type: number
+                activePR:
+                  type: string
+                  description: URL to the active Pull Request
+                activeBranch:
+                  type: string
+                errorMessage:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - lastTransitionTime
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - "Unknown"
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string

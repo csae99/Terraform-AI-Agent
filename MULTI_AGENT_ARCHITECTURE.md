@@ -1,6 +1,6 @@
-# 🤖 Multi-Agent Terraform Orchestration System (Phase 11: Enterprise GitOps)
+# 🤖 Multi-Agent Terraform Orchestration System (Phase 15: Kubernetes Control Plane & GitOps)
 
-This document provides a deep dive into the **Phase 11 Multi-Agent Architecture** of the Terraform AI Agent. This system has evolved from a simple code generator into a full-lifecycle **Orchestrated Self-Healing Deployment Platform** with multi-tenant organization workspaces, enterprise GitOps pull request automation, team approval gates, immutable audit trails, pattern-based failure intelligence, asynchronous execution queues, local cloud emulation, and continuous QA behavior validation.
+This document provides a deep dive into the **Phase 15 Multi-Agent Architecture** of the Terraform AI Agent. This system has evolved from a simple code generator into a full-lifecycle **Kubernetes-Native Autonomous Infrastructure Control Plane** with Custom Resource Definitions (CRDs), continuous operator reconciliation, ArgoCD/Flux GitOps integration, multi-tenant organization workspaces, enterprise GitOps pull request automation, team approval gates, immutable audit trails, pattern-based failure intelligence, asynchronous execution queues, local cloud emulation, and continuous QA behavior validation.
 
 ---
 
@@ -48,6 +48,20 @@ graph TD
 ---
 
 ## 🧱 Core Architecture Layers
+
+### Kubernetes Control Plane & CRD Operator Layer (`k8s/`) *(Phase 15)*
+Declarative Custom Resources, continuous operator reconciler loop, and GitOps engine controllers.
+
+| Module | Purpose |
+| :--- | :--- |
+| `crds/` | OpenAPI v3 Custom Resource Definitions (`TerraformAgent`, `PlatformProject`, `Workflow`, `Policy`). |
+| `operator/crd_schema.py` | Type-safe Pydantic models for CRD spec and status subresources. |
+| `operator/reconciler.py` | `AgentReconciler` event-driven loop executing synthesis, OPA validation, budget gates, and K8s event emission. |
+| `operator/status_manager.py` | `StatusManager` orchestrating standard Kubernetes Condition transitions (`Ready`, `Compliant`, `DriftFree`). |
+| `operator/drift_watcher.py` | `DriftWatcher` background daemon comparing real-world cloud state against desired HCL and triggering `autoHealDrift`. |
+| `gitops/argocd_plugin.py` | ArgoCD custom Lua health check script (`resource.customizations.health`) and `argocd-cm` ConfigMap patch. |
+| `gitops/flux_controller.py` | `FluxController` webhook handler synchronizing Git revisions and notification payloads. |
+| `helm/` | Production Helm 3 chart definitions, Operator Deployment, ServiceAccount, and least-privilege `ClusterRole` RBAC. |
 
 ### Agent Marketplace & Plugin SDK Layer (`marketplace/`) *(Phase 14)*
 Curated specialist agent registry and modular Plugin SDK interface.

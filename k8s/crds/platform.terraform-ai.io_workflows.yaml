@@ -1,0 +1,97 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflows.platform.terraform-ai.io
+  annotations:
+    description: "DAG-based orchestration workflow CustomResource for multi-agent pipeline executions."
+spec:
+  group: platform.terraform-ai.io
+  names:
+    kind: Workflow
+    listKind: WorkflowList
+    plural: workflows
+    singular: workflow
+    shortNames:
+      - tfwf
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: StagesCompleted
+          type: string
+          jsonPath: .status.stagesSummary
+        - name: Duration
+          type: string
+          jsonPath: .status.durationSec
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - targetAgentRef
+              properties:
+                targetAgentRef:
+                  type: string
+                  description: Name of the referenced TerraformAgent resource
+                pipelineMode:
+                  type: string
+                  enum:
+                    - full_reconcile
+                    - plan_only
+                    - security_audit
+                    - drift_heal
+                  default: full_reconcile
+                timeoutMinutes:
+                  type: integer
+                  default: 30
+                concurrencyPolicy:
+                  type: string
+                  enum:
+                    - Allow
+                    - Forbid
+                    - Replace
+                  default: Forbid
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Running
+                    - Succeeded
+                    - Failed
+                    - Cancelled
+                  default: Pending
+                startTime:
+                  type: string
+                  format: date-time
+                completionTime:
+                  type: string
+                  format: date-time
+                durationSec:
+                  type: number
+                stagesSummary:
+                  type: string
+                completedStages:
+                  type: array
+                  items:
+                    type: string
+                currentStage:
+                  type: string
+                error:
+                  type: string
