@@ -17,7 +17,7 @@ class StripeBillingService:
             "monthly_runs": 5,
             "features": [
                 "5 infrastructure runs per month",
-                "Personal workspace",
+                "Personal or Organization workspace (5 shared runs)",
                 "Basic self-healing (up to 2 rounds)",
                 "Standard OpenTelemetry metrics",
                 "HashiCorp Terraform runtime"

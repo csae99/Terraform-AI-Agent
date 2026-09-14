@@ -90,7 +90,7 @@ class BillingTracker:
                 sub = None
 
             if not sub:
-                plan = "enterprise" if org_id else "free"
+                plan = "free"
                 limit = cls.PLAN_LIMITS.get(plan, 5)
                 sub = SubscriptionModel(
                     user_id=user_id if not org_id else None,
@@ -190,7 +190,7 @@ class BillingTracker:
                 sub = None
 
             if not sub and (user_id or org_id):
-                plan = "enterprise" if org_id else "free"
+                plan = "free"
                 limit = cls.PLAN_LIMITS.get(plan, 5)
                 sub = SubscriptionModel(
                     user_id=user_id if not org_id else None,

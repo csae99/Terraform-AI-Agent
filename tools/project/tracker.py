@@ -3,7 +3,7 @@ import json
 import re
 import glob
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Float, Integer, Text, DateTime, JSON, ForeignKey
+from sqlalchemy import create_engine, Column, String, Float, Integer, Text, DateTime, JSON, ForeignKey, Boolean
 from sqlalchemy.orm import relationship, sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
@@ -24,6 +24,8 @@ class UserModel(Base, UserMixin):
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     email = Column(String, nullable=True)
+    is_superuser = Column(Boolean, default=False)
+    status = Column(String, default="active")  # active, suspended
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationship to projects
@@ -243,6 +245,21 @@ def _add_missing_columns():
                 alter_stmt = f"ALTER TABLE organizations ADD COLUMN {col_name} {col_def}"
                 session.execute(text(alter_stmt))
                 print(f"[Tracker DB] Dynamically added missing column to organizations: {col_name}")
+
+        # 3. Check users table
+        user_cols = [c["name"] for c in inspector.get_columns("users")]
+        user_new_cols = {
+            "is_superuser": "BOOLEAN DEFAULT 0",
+            "status": "VARCHAR DEFAULT 'active'"
+        }
+        for col_name, col_def in user_new_cols.items():
+            if col_name not in user_cols:
+                dialect_col_def = col_def
+                if "postgres" in str(db_engine.url) and "BOOLEAN" in col_def:
+                    dialect_col_def = "BOOLEAN DEFAULT FALSE"
+                alter_stmt = f"ALTER TABLE users ADD COLUMN {col_name} {dialect_col_def}"
+                session.execute(text(alter_stmt))
+                print(f"[Tracker DB] Dynamically added missing column to users: {col_name}")
 
         session.commit()
     except Exception as e:
@@ -522,6 +539,51 @@ class UserTracker:
         finally:
             session.close()
 
+    @staticmethod
+    def set_superuser(user_id, is_superuser=True):
+        session = SessionLocal()
+        try:
+            user = session.query(UserModel).filter(UserModel.id == user_id).first()
+            if user:
+                user.is_superuser = is_superuser
+                session.commit()
+                return True
+            return False
+        finally:
+            session.close()
+
+    @staticmethod
+    def set_status(user_id, status="active"):
+        session = SessionLocal()
+        try:
+            user = session.query(UserModel).filter(UserModel.id == user_id).first()
+            if user:
+                user.status = status
+                session.commit()
+                return True
+            return False
+        finally:
+            session.close()
+
+    @staticmethod
+    def list_all():
+        session = SessionLocal()
+        try:
+            users = session.query(UserModel).order_by(UserModel.id.desc()).all()
+            results = []
+            for u in users:
+                results.append({
+                    "id": u.id,
+                    "username": u.username,
+                    "email": u.email,
+                    "is_superuser": bool(u.is_superuser),
+                    "status": getattr(u, "status", "active") or "active",
+                    "created_at": u.created_at.isoformat() if u.created_at else ""
+                })
+            return results
+        finally:
+            session.close()
+
 
 class OrgTracker:
     @staticmethod
@@ -573,6 +635,28 @@ class OrgTracker:
                         "role": m.role,
                         "created_at": org.created_at.isoformat() if org.created_at else ""
                     })
+            return results
+        finally:
+            session.close()
+
+    @staticmethod
+    def list_all_admin():
+        session = SessionLocal()
+        try:
+            orgs = session.query(OrganizationModel).order_by(OrganizationModel.id.desc()).all()
+            results = []
+            for o in orgs:
+                owner = session.query(UserModel).filter(UserModel.id == o.owner_id).first()
+                member_count = session.query(OrgMemberModel).filter(OrgMemberModel.org_id == o.id).count()
+                results.append({
+                    "id": o.id,
+                    "name": o.name,
+                    "slug": o.slug,
+                    "owner_id": o.owner_id,
+                    "owner_name": owner.username if owner else "Unknown",
+                    "member_count": member_count,
+                    "created_at": o.created_at.isoformat() if o.created_at else ""
+                })
             return results
         finally:
             session.close()

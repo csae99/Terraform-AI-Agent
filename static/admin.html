@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terraform AI Agent | Platform Operations Console</title>
+    <meta name="description" content="Super-Admin Platform Operations, Governance, Multi-Tenant Management & Telemetry Console.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%236366f1'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='18' font-weight='bold' fill='white'>A</text></svg>">
+    <link rel="stylesheet" href="/static/style.css?v=11">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .admin-badge {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .admin-nav {
+            display: flex;
+            gap: 0.5rem;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 0.5rem 2rem;
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+        }
+        .admin-tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.6rem 1rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .admin-tab-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .admin-tab-btn.active {
+            color: #fff;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+        }
+        .admin-view {
+            display: none;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .admin-view.active {
+            display: block;
+        }
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.88rem;
+        }
+        .admin-table th {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 0.85rem 1rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+        .admin-table td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: #cbd5e1;
+        }
+        .admin-table tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .vitals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .vital-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .vital-card .vital-val {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #fff;
+            margin-top: 0.25rem;
+        }
+        .action-btn-sm {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.75rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            transition: opacity 0.2s;
+        }
+        .action-btn-sm:hover { opacity: 0.85; }
+        .btn-suspend { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+        .btn-activate { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .btn-plan { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); }
+        .search-bar {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-sm);
+            width: 300px;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Header -->
+    <header>
+        <div class="logo-container">
+            <div class="logo-icon" style="background: linear-gradient(135deg, #ef4444, #8b5cf6);">A</div>
+            <div>
+                <h1 style="font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                    Platform Operations Console <span class="admin-badge">Super-Admin</span>
+                </h1>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <span id="admin-user-pill" style="font-size: 0.85rem; color: #a5b4fc; background: rgba(99, 102, 241, 0.1); padding: 0.3rem 0.75rem; border-radius: 20px; border: 1px solid rgba(99, 102, 241, 0.3);">
+                <i class="fas fa-shield-alt"></i> Loading Admin...
+            </span>
+            <button onclick="refreshAdminData()" class="btn-sm" style="background: rgba(255, 255, 255, 0.08); border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.8rem; border-radius: var(--radius-sm); cursor: pointer;">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <a href="/" class="btn-sm" style="background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #93c5fd; padding: 0.4rem 0.8rem; border-radius: var(--radius-sm); text-decoration: none; font-size: 0.85rem; font-weight: 600;">
+                <i class="fas fa-arrow-left"></i> Exit to Workspace
+            </a>
+        </div>
+    </header>
+
+    <!-- Sub-Navigation -->
+    <nav class="admin-nav">
+        <button class="admin-tab-btn active" id="tab-overview" onclick="switchAdminTab('overview')">
+            <i class="fas fa-tachometer-alt"></i> Mission Control
+        </button>
+        <button class="admin-tab-btn" id="tab-users" onclick="switchAdminTab('users')">
+            <i class="fas fa-users-cog"></i> Users & Tenants
+        </button>
+        <button class="admin-tab-btn" id="tab-orgs" onclick="switchAdminTab('orgs')">
+            <i class="fas fa-building"></i> Organizations & Plans
+        </button>
+        <button class="admin-tab-btn" id="tab-llm" onclick="switchAdminTab('llm')">
+            <i class="fas fa-brain"></i> LLM Economics
+        </button>
+        <button class="admin-tab-btn" id="tab-k8s" onclick="switchAdminTab('k8s')">
+            <i class="fas fa-dharmachakra"></i> K8s & Worker Fleet
+        </button>
+        <button class="admin-tab-btn" id="tab-audit" onclick="switchAdminTab('audit')">
+            <i class="fas fa-history"></i> Global Audit Vault
+        </button>
+    </nav>
+
+    <!-- ═══ 1. OVERVIEW / MISSION CONTROL ═══ -->
+    <div id="view-overview" class="admin-view active">
+        <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 1rem;"><i class="fas fa-heartbeat" style="color: #ef4444;"></i> Platform Vitals & Real-Time Telemetry</h2>
+        <div class="vitals-grid">
+            <div class="vital-card">
+                <span class="meta-label">Total Tenants (Users)</span>
+                <div class="vital-val" id="vital-total-users">0</div>
+                <span style="font-size: 0.8rem; color: #10b981;" id="vital-active-users">0 Active</span>
+            </div>
+            <div class="vital-card">
+                <span class="meta-label">Organizations</span>
+                <div class="vital-val" id="vital-total-orgs">0</div>
+                <span style="font-size: 0.8rem; color: #a5b4fc;">Multi-Tenant Orgs</span>
+            </div>
+            <div class="vital-card">
+                <span class="meta-label">Total Workspaces</span>
+                <div class="vital-val" id="vital-total-projects">0</div>
+                <span style="font-size: 0.8rem; color: #38bdf8;" id="vital-deployed-projects">0 Deployed</span>
+            </div>
+            <div class="vital-card">
+                <span class="meta-label">Estimated MRR</span>
+                <div class="vital-val" id="vital-total-mrr">$0</div>
+                <span style="font-size: 0.8rem; color: #fbbf24;" id="vital-plan-breakdown">0 Pro / 0 Ent</span>
+            </div>
+            <div class="vital-card">
+                <span class="meta-label">Total Token Burn</span>
+                <div class="vital-val" id="vital-total-tokens">0</div>
+                <span style="font-size: 0.8rem; color: #94a3b8;" id="vital-total-ai-cost">Est. Cost: $0.00</span>
+            </div>
+            <div class="vital-card">
+                <span class="meta-label">K8s Operator Status</span>
+                <div class="vital-val" style="color: #10b981; font-size: 1.4rem;" id="vital-k8s-status">Healthy</div>
+                <span style="font-size: 0.8rem; color: #94a3b8;" id="vital-redis-status">Redis: OK</span>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+            <div class="vital-card">
+                <h3 style="margin-top: 0; font-size: 1.1rem; color: #fff;"><i class="fas fa-layer-group" style="color: #8b5cf6;"></i> Subscription Tier Distribution</h3>
+                <div id="plan-distribution-list" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+            <div class="vital-card">
+                <h3 style="margin-top: 0; font-size: 1.1rem; color: #fff;"><i class="fas fa-server" style="color: #3b82f6;"></i> Core Subsystem Readiness</h3>
+                <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.9rem;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.5rem;">
+                        <span>Database Engine (SQLAlchemy)</span>
+                        <span class="status-badge status-deployed">ONLINE</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.5rem;">
+                        <span>Redis Execution Broker</span>
+                        <span id="sys-redis-badge" class="status-badge status-deployed">ONLINE</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.5rem;">
+                        <span>Kubernetes CRD Reconciler</span>
+                        <span class="status-badge status-deployed">READY (Phase 15)</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>IaC Binaries (terraform/tofu/tfsec)</span>
+                        <span class="status-badge status-deployed">DISCOVERED</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ 2. USERS & TENANTS ═══ -->
+    <div id="view-users" class="admin-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 style="font-size: 1.4rem; color: #fff; margin: 0;"><i class="fas fa-users-cog" style="color: #3b82f6;"></i> Tenant Directory</h2>
+            <input type="text" id="search-users" class="search-bar" placeholder="Search by username or email..." oninput="filterUsersTable()">
+        </div>
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Plan</th>
+                        <th>Runs (This Month)</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody">
+                    <!-- Injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ 3. ORGANIZATIONS & PLANS ═══ -->
+    <div id="view-orgs" class="admin-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 style="font-size: 1.4rem; color: #fff; margin: 0;"><i class="fas fa-building" style="color: #a855f7;"></i> Multi-Tenant Organizations</h2>
+            <input type="text" id="search-orgs" class="search-bar" placeholder="Search organization name or slug..." oninput="filterOrgsTable()">
+        </div>
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Organization</th>
+                        <th>Slug</th>
+                        <th>Owner</th>
+                        <th>Members</th>
+                        <th>Current Tier</th>
+                        <th>Quota Usage</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="orgs-tbody">
+                    <!-- Injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ 4. LLM ECONOMICS ═══ -->
+    <div id="view-llm" class="admin-view">
+        <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 1rem;"><i class="fas fa-brain" style="color: #10b981;"></i> LLM Gateway & Token Economics</h2>
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Record ID</th>
+                        <th>Org ID</th>
+                        <th>Tokens Consumed</th>
+                        <th>Infra Projected Spend</th>
+                        <th>Compute Seconds</th>
+                    </tr>
+                </thead>
+                <tbody id="llm-records-tbody">
+                    <!-- Injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ 5. K8S & WORKER FLEET ═══ -->
+    <div id="view-k8s" class="admin-view">
+        <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 1rem;"><i class="fas fa-dharmachakra" style="color: #38bdf8;"></i> Kubernetes Control Plane & CRD Fleet</h2>
+        <div class="vital-card" style="margin-bottom: 1.5rem;">
+            <h3 style="margin-top: 0; font-size: 1.1rem; color: #fff;">Registered Custom Resource Definitions</h3>
+            <div id="k8s-crds-list" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem;">
+                <!-- Injected by JS -->
+            </div>
+        </div>
+
+        <h3 style="font-size: 1.2rem; color: #fff; margin-bottom: 0.75rem;">Recent Operator Reconciliation Events</h3>
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Reason</th>
+                        <th>Namespace / Resource</th>
+                        <th>Message</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody id="k8s-events-tbody">
+                    <!-- Injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ 6. GLOBAL AUDIT VAULT ═══ -->
+    <div id="view-audit" class="admin-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 style="font-size: 1.4rem; color: #fff; margin: 0;"><i class="fas fa-shield-alt" style="color: #f59e0b;"></i> Cross-Tenant Immutable Audit Trail</h2>
+            <input type="text" id="search-audit" class="search-bar" placeholder="Filter by action or details..." oninput="filterAuditTable()">
+        </div>
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Action</th>
+                        <th>User</th>
+                        <th>Org ID</th>
+                        <th>Resource</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="audit-tbody">
+                    <!-- Injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ─── Plan Override Modal ─── -->
+    <div id="modal-override-plan" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 9999;">
+        <div style="background: var(--bg-card, #1e293b); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 420px; color: #fff;">
+            <h3 style="margin-top: 0; font-size: 1.2rem;"><i class="fas fa-tag" style="color: var(--accent-blue);"></i> Override Organization Plan</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary);" id="override-org-name">Modifying Plan</p>
+            <input type="hidden" id="override-org-id">
+            
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.4rem;">Select Subscription Tier</label>
+                <select id="override-plan-select" class="form-input" style="width: 100%; font-weight: 600;">
+                    <option value="free">Free Tier (5 runs/mo)</option>
+                    <option value="pro">Pro Developer ($29/mo, 100 runs)</option>
+                    <option value="enterprise">Enterprise Team ($199/mo, Unlimited)</option>
+                </select>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                <button onclick="closeModal('modal-override-plan')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Cancel</button>
+                <button onclick="submitOrgPlanOverride()" class="btn-sm" style="background: var(--accent-blue, #3b82f6); border: none; color: #fff; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Save Plan</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/admin.js"></script>
+</body>
+</html>

@@ -638,6 +638,12 @@
                 <label class="meta-label" style="display: block; margin-bottom: 0.4rem;">Organization Name</label>
                 <input type="text" id="new-org-name" class="form-input" placeholder="e.g., Acme Cloud Corp" style="width: 100%;">
             </div>
+            <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: var(--radius-sm); padding: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem; color: #cbd5e1; display: flex; align-items: flex-start; gap: 0.5rem;">
+                <i class="fas fa-info-circle" style="color: #818cf8; margin-top: 0.15rem;"></i>
+                <div>
+                    Organizations start on the <strong>Free Tier</strong> (5 shared runs/mo). You can upgrade to Pro or Enterprise anytime in the Billing tab.
+                </div>
+            </div>
             <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
                 <button onclick="closeModal('modal-create-org')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Cancel</button>
                 <button onclick="submitCreateOrg()" class="btn-sm" style="background: var(--primary, #6366f1); border: none; color: #fff; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Create Org</button>

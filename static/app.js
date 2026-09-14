@@ -45,8 +45,14 @@ async function checkAuth() {
 
 function updateHeaderUser() {
     const statusContainer = document.getElementById('connection-status');
+    const adminBadge = (currentUser && currentUser.is_superuser) ? `
+        <a href="/admin" class="btn-sm" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(139, 92, 246, 0.2)); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 0.25rem 0.6rem; border-radius: 4px; text-decoration: none; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem;">
+            <i class="fas fa-shield-alt"></i> Admin Console
+        </a>
+    ` : '';
     statusContainer.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            ${adminBadge}
             <span style="color: var(--text-secondary); font-size: 0.8rem;">Logged in as: <strong style="color: var(--accent-orange)">${currentUser.username}</strong></span>
             <a href="/api/auth/logout" class="status-badge status-failed" style="text-decoration: none; font-size: 0.7rem; padding: 0.2rem 0.5rem;">Logout</a>
             <span class="status-badge status-deployed">System Online</span>

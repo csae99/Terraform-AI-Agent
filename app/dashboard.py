@@ -49,11 +49,33 @@ except Exception as e:
 basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 static_dir = os.path.join(basedir, "static")
 
+import secrets
+
+_session_secret = os.getenv("FLASK_SECRET_KEY")
+if not _session_secret:
+    _secret_file = os.path.join(basedir, ".session_secret")
+    if os.path.exists(_secret_file):
+        try:
+            with open(_secret_file, "r", encoding="utf-8") as _sf:
+                _session_secret = _sf.read().strip()
+        except Exception:
+            _session_secret = None
+    if not _session_secret:
+        _session_secret = secrets.token_hex(32)
+        try:
+            with open(_secret_file, "w", encoding="utf-8") as _sf:
+                _sf.write(_session_secret)
+        except Exception:
+            pass
+
+raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5000,http://127.0.0.1:5000,http://localhost:3000")
+allowed_origins = [orig.strip() for orig in raw_origins.split(",") if orig.strip()]
+
 app = FastAPI(title="Terraform AI Agent Dashboard")
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("FLASK_SECRET_KEY", "super-secret-key"))
+app.add_middleware(SessionMiddleware, secret_key=_session_secret)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,6 +99,13 @@ def get_current_user(request: Request):
     user = UserTracker.get_by_id(int(user_id))
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    if getattr(user, "status", "active") == "suspended":
+        raise HTTPException(status_code=403, detail="Account has been suspended by platform administrator")
+    return user
+
+def require_superadmin(user=Depends(get_current_user)):
+    if not getattr(user, "is_superuser", False):
+        raise HTTPException(status_code=403, detail="Super-Admin privileges required")
     return user
 
 def get_current_user_optional(request: Request):
@@ -84,6 +113,41 @@ def get_current_user_optional(request: Request):
     if user_id:
         return UserTracker.get_by_id(int(user_id))
     return None
+
+def check_project_access(project: dict, user, require_admin: bool = False) -> None:
+    """
+    Enforces authorization on a loaded project.
+    - If project is associated with an Organization:
+        User must be a member of that organization.
+        If require_admin=True, user must have 'owner' or 'admin' role in the organization.
+    - If project is personal (no org_id, has owner_id):
+        User must be the project owner.
+    """
+    org_id = project.get("org_id")
+    owner_id = project.get("owner_id")
+
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if not user_role:
+            raise HTTPException(status_code=403, detail="Access denied: You are not a member of this organization")
+        if require_admin and user_role not in ["owner", "admin"]:
+            raise HTTPException(status_code=403, detail="Access denied: Organization Owner or Admin privileges required")
+    elif owner_id is not None:
+        if owner_id != user.id:
+            raise HTTPException(status_code=403, detail="Access denied: You do not have permission to access this project")
+
+def get_authorized_project(slug: str, user, require_admin: bool = False) -> dict:
+    """Retrieves project metadata and verifies caller permissions, raising 404 or 403 as appropriate."""
+    project = ProjectTracker.load(slug)
+    if not project:
+        project_dir = os.path.join(OUTPUT_DIR, slug)
+        if os.path.isdir(project_dir):
+            project = ProjectTracker._infer_metadata(slug)
+        else:
+            raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+
+    check_project_access(project, user, require_admin=require_admin)
+    return project
 
 def _run_subprocess_sync(cmd, env, cwd, temp_slug):
     import subprocess
@@ -253,6 +317,9 @@ async def create_organization(request: Request, user=Depends(get_current_user)):
     org = OrgTracker.create_organization(name.strip(), user.id)
     if not org:
         raise HTTPException(status_code=400, detail="An organization with this name or slug already exists")
+    
+    from billing import BillingTracker
+    BillingTracker.get_or_create_subscription(org_id=org["id"])
     return org
 
 @app.get("/api/orgs/{org_id}/members")
@@ -454,11 +521,11 @@ async def log_generator(request: Request):
         await asyncio.sleep(0.5)
 
 @app.get("/api/logs/active")
-async def stream_logs(request: Request):
+async def stream_logs(request: Request, user=Depends(get_current_user)):
     return sse_starlette.EventSourceResponse(log_generator(request))
 
 @app.get("/api/test_run")
-async def test_run(background_tasks: BackgroundTasks):
+async def test_run(background_tasks: BackgroundTasks, user=Depends(get_current_user)):
     prompt = "Create a local file named hello.txt with content 'Hello World' using the Terraform local provider"
     ai_config = {
         "provider": "openrouter",
@@ -470,7 +537,7 @@ async def test_run(background_tasks: BackgroundTasks):
     return {"status": "started"}
 
 @app.get("/api/test_logs")
-async def test_logs():
+async def test_logs(user=Depends(get_current_user)):
     return {"logs": active_logs.get("active-run", "")}
 
 
@@ -489,8 +556,10 @@ async def login(request: Request):
     data = await request.json()
     user = UserTracker.get_by_username(data['username'])
     if user and user.check_password(data['password']):
+        if getattr(user, "status", "active") == "suspended":
+            raise HTTPException(status_code=403, detail="Account has been suspended by platform administrator")
         request.session["user_id"] = user.id
-        return {"message": "Login successful", "user": user.username}
+        return {"message": "Login successful", "user": user.username, "is_superuser": bool(getattr(user, "is_superuser", False))}
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @app.get("/api/auth/logout")
@@ -501,16 +570,18 @@ async def logout(request: Request):
 @app.get("/api/auth/me")
 async def get_me(user=Depends(get_current_user_optional)):
     if user:
-        return {"username": user.username, "id": user.id}
+        return {
+            "username": user.username,
+            "id": user.id,
+            "is_superuser": bool(getattr(user, "is_superuser", False)),
+            "status": getattr(user, "status", "active") or "active"
+        }
     raise HTTPException(status_code=401, detail="Not logged in")
 
 @app.delete("/api/projects/{slug}")
 async def delete_project(slug: str, user=Depends(get_current_user)):
     import shutil
-    project = ProjectTracker.load(slug)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
-    
+    project = get_authorized_project(slug, user, require_admin=True)
     ProjectTracker.delete(slug)
     project_dir = os.path.join(OUTPUT_DIR, slug)
     if os.path.isdir(project_dir):
@@ -519,17 +590,11 @@ async def delete_project(slug: str, user=Depends(get_current_user)):
 
 @app.get("/api/projects/{slug}")
 async def get_project(slug: str, user=Depends(get_current_user)):
-    meta = ProjectTracker.load(slug)
-    if not meta:
-        project_dir = os.path.join(OUTPUT_DIR, slug)
-        if os.path.isdir(project_dir):
-            meta = ProjectTracker._infer_metadata(slug)
-        else:
-            raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
-    return meta
+    return get_authorized_project(slug, user, require_admin=False)
 
 @app.get("/api/projects/{slug}/code")
-def get_project_code(slug: str):
+def get_project_code(slug: str, user=Depends(get_current_user)):
+    get_authorized_project(slug, user, require_admin=False)
     project_dir = os.path.join(OUTPUT_DIR, slug)
     os.makedirs(project_dir, exist_ok=True)
 
@@ -612,7 +677,8 @@ def get_project_code(slug: str):
     return tf_files
 
 @app.get("/api/projects/{slug}/snapshots")
-async def get_snapshots(slug: str):
+async def get_snapshots(slug: str, user=Depends(get_current_user)):
+    get_authorized_project(slug, user, require_admin=False)
     project_dir = os.path.join(OUTPUT_DIR, slug)
     backups_dir = os.path.join(project_dir, "backups")
     if not os.path.exists(backups_dir):
@@ -626,12 +692,14 @@ async def get_snapshots(slug: str):
     return snapshots
 
 @app.get("/api/projects/{slug}/diff/{snapshot_id}")
-async def get_snapshot_diff(slug: str, snapshot_id: str):
+async def get_snapshot_diff(slug: str, snapshot_id: str, user=Depends(get_current_user)):
+    get_authorized_project(slug, user, require_admin=False)
     diff = ProjectTracker.get_diff(slug, snapshot_id)
     return {"diff": diff}
 
 @app.get("/api/projects/{slug}/logs/{log_type}")
-async def get_project_logs(slug: str, log_type: str):
+async def get_project_logs(slug: str, log_type: str, user=Depends(get_current_user)):
+    get_authorized_project(slug, user, require_admin=False)
     log_file = os.path.join(OUTPUT_DIR, slug, "logs", f"{log_type}.log")
     if os.path.exists(log_file):
         with open(log_file, "r", encoding="utf-8") as f:
@@ -639,14 +707,16 @@ async def get_project_logs(slug: str, log_type: str):
     return {"content": "No logs available."}
 
 @app.get("/api/projects/{slug}/drift")
-async def check_project_drift(slug: str):
+async def check_project_drift(slug: str, user=Depends(get_current_user)):
+    get_authorized_project(slug, user, require_admin=False)
     import random
     status = "in_sync" if random.random() > 0.5 else "drifted"
     ProjectTracker.save(slug, drift_status=status)
     return {"status": status, "message": "Drift scan complete"}
 
 @app.get("/api/projects/{slug}/report")
-async def get_project_report(slug: str):
+async def get_project_report(slug: str, user=Depends(get_current_user)):
+    meta = get_authorized_project(slug, user, require_admin=False)
     project_dir = os.path.join(OUTPUT_DIR, slug)
     report_path = os.path.join(project_dir, "FINANCIAL_REPORT.md")
     content = ""
@@ -654,12 +724,11 @@ async def get_project_report(slug: str):
         with open(report_path, "r", encoding="utf-8") as f:
             content = f.read()
     
-    meta = ProjectTracker.load(slug)
     trace = meta.get("decision_trace", []) if meta else []
     return {"report": content, "content": content, "decision_trace": trace}
 
 @app.get("/api/read_aks_logs")
-async def read_aks_logs():
+async def read_aks_logs(user=Depends(get_current_user)):
     import json
     logs_path = os.path.join(_project_root, "akslogs.txt")
     if not os.path.exists(logs_path):
@@ -674,38 +743,13 @@ async def read_aks_logs():
         return {"logs_tail": logs[-250000:]}
     except Exception as e:
         return {"error": str(e), "prefix": content[:1000]}
-@app.post("/api/debug")
-async def run_debug_code(request: Request):
-    body = await request.json()
-    code = body.get("code", "")
-    import io, sys
-    stdout = io.StringIO()
-    stderr = io.StringIO()
-    old_out = sys.stdout
-    old_err = sys.stderr
-    sys.stdout = stdout
-    sys.stderr = stderr
-    try:
-        local_vars = {}
-        exec(code, globals(), local_vars)
-        result = stdout.getvalue() + stderr.getvalue()
-        if "result" in local_vars:
-            result += f"\nReturned result: {local_vars['result']}"
-    except Exception as e:
-        result = f"Error: {e}\nStdout:\n{stdout.getvalue()}\nStderr:\n{stderr.getvalue()}"
-    finally:
-        sys.stdout = old_out
-        sys.stderr = old_err
-    return {"output": result}
 
 
 # --- GitOps & Audit Endpoints ---
 
 @app.get("/api/projects/{slug}/gitops")
 async def get_project_gitops(slug: str, user=Depends(get_current_user)):
-    project = ProjectTracker.load(slug)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+    project = get_authorized_project(slug, user, require_admin=False)
     
     # Check live status from GitHub if available
     live_pr_info = None
@@ -735,20 +779,8 @@ async def get_project_gitops(slug: str, user=Depends(get_current_user)):
 
 @app.post("/api/projects/{slug}/approve")
 async def approve_project(slug: str, user=Depends(get_current_user)):
-    project = ProjectTracker.load(slug)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
-
-    # RBAC Check: If project belongs to an org, user must be owner or admin
+    project = get_authorized_project(slug, user, require_admin=True)
     org_id = project.get("org_id")
-    if org_id:
-        user_role = OrgTracker.get_user_role(org_id, user.id)
-        if user_role not in ["owner", "admin"]:
-            raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can approve GitOps pull requests")
-    else:
-        # Personal project: must be owner
-        if project.get("owner_id") and project.get("owner_id") != user.id:
-            raise HTTPException(status_code=403, detail="Only the project owner can approve this request")
 
     ProjectTracker.save(slug, approval_status="approved", approved_by_id=user.id)
     AuditTracker.log_action(
@@ -762,15 +794,8 @@ async def approve_project(slug: str, user=Depends(get_current_user)):
 
 @app.post("/api/projects/{slug}/merge-deploy")
 async def merge_and_deploy(slug: str, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
-    project = ProjectTracker.load(slug)
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
-
+    project = get_authorized_project(slug, user, require_admin=True)
     org_id = project.get("org_id")
-    if org_id:
-        user_role = OrgTracker.get_user_role(org_id, user.id)
-        if user_role not in ["owner", "admin"]:
-            raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can trigger merge and deploy")
 
     if project.get("approval_status") != "approved":
         raise HTTPException(status_code=400, detail="Pull request must be approved prior to merge and deployment")
@@ -1364,7 +1389,7 @@ async def generate_k8s_manifest(request: Request, user=Depends(get_current_user_
     }
 
 @app.post("/api/k8s/reconcile")
-async def reconcile_k8s_resource(request: Request, user=Depends(get_current_user_optional)):
+async def reconcile_k8s_resource(request: Request, user=Depends(get_current_user)):
     """Triggers an on-demand reconciliation of a TerraformAgent resource."""
     from k8s.operator.crd_schema import TerraformAgentResource
     from k8s.operator.reconciler import AgentReconciler
@@ -1406,6 +1431,192 @@ async def reconcile_k8s_resource(request: Request, user=Depends(get_current_user
         "events": reconciler.get_events_for(resource.metadata.namespace, resource.metadata.name),
         "result": result
     }
+
+
+# ─── Super-Admin Operations & Governance Console ────────────────────────
+
+@app.get("/admin")
+async def admin_page(request: Request, user=Depends(get_current_user_optional)):
+    if not user:
+        return RedirectResponse(url="/login?next=/admin")
+    if not getattr(user, "is_superuser", False):
+        raise HTTPException(status_code=403, detail="Super-Admin privileges required to access Platform Operations Console")
+    admin_html_path = os.path.join(static_dir, "admin.html")
+    if os.path.exists(admin_html_path):
+        return FileResponse(admin_html_path)
+    return HTMLResponse("<h2>Admin Console not found</h2>", status_code=404)
+
+@app.get("/api/admin/overview")
+async def admin_get_overview(user=Depends(require_superadmin)):
+    from tools.project.tracker import UserModel, OrganizationModel, ProjectModel, BillingUsageModel, SessionLocal
+    from billing import BillingTracker, SubscriptionModel
+    session = SessionLocal()
+    try:
+        total_users = session.query(UserModel).count()
+        total_orgs = session.query(OrganizationModel).count()
+        active_users = session.query(UserModel).filter(UserModel.status != "suspended").count()
+        total_projects = session.query(ProjectModel).count()
+        deployed_projects = session.query(ProjectModel).filter(ProjectModel.status == "deployed").count()
+        drifted_projects = session.query(ProjectModel).filter(ProjectModel.drift_status == "drifted").count()
+
+        # Token & Cost aggregations
+        usages = session.query(BillingUsageModel).all()
+        total_tokens = sum(u.tokens_used or 0 for u in usages)
+        total_infra_cost = round(sum(u.infra_cost or 0 for u in usages), 2)
+        total_compute_seconds = round(sum(u.run_time_seconds or 0 for u in usages), 1)
+
+        # Plan distribution & MRR estimate
+        subs = session.query(SubscriptionModel).all()
+        plan_counts = {"free": 0, "pro": 0, "enterprise": 0}
+        plan_prices = {"free": 0, "pro": 29, "enterprise": 199}
+        total_mrr = 0
+        for s in subs:
+            p = (s.plan or "free").lower()
+            plan_counts[p] = plan_counts.get(p, 0) + 1
+            total_mrr += plan_prices.get(p, 0)
+
+        # System health indicators
+        redis_status = "connected" if r_client else "standalone-memory"
+        db_status = "connected"
+        k8s_status = "operator-ready"
+
+        return {
+            "vitals": {
+                "redis": redis_status,
+                "database": db_status,
+                "k8s_operator": k8s_status,
+                "python_version": sys.version.split()[0],
+                "active_runs": len(active_logs)
+            },
+            "tenants": {
+                "total_users": total_users,
+                "active_users": active_users,
+                "total_orgs": total_orgs
+            },
+            "workspaces": {
+                "total_projects": total_projects,
+                "deployed_projects": deployed_projects,
+                "drifted_projects": drifted_projects
+            },
+            "economics": {
+                "total_tokens": total_tokens,
+                "total_infra_cost": total_infra_cost,
+                "total_compute_seconds": total_compute_seconds,
+                "estimated_mrr": total_mrr,
+                "plan_distribution": plan_counts
+            }
+        }
+    finally:
+        session.close()
+
+@app.get("/api/admin/tenants/users")
+async def admin_list_users(user=Depends(require_superadmin)):
+    from tools.project.tracker import UserTracker
+    from billing import BillingTracker
+    users = UserTracker.list_all()
+    enriched = []
+    for u in users:
+        sub = BillingTracker.get_or_create_subscription(user_id=u["id"])
+        u_copy = dict(u)
+        u_copy["plan"] = sub.get("plan", "free")
+        u_copy["runs_this_month"] = sub.get("runs_this_month", 0)
+        u_copy["monthly_limit"] = sub.get("monthly_limit", 5)
+        enriched.append(u_copy)
+    return enriched
+
+@app.post("/api/admin/tenants/users/{user_id}/status")
+async def admin_set_user_status(user_id: int, request: Request, user=Depends(require_superadmin)):
+    data = await request.json()
+    new_status = data.get("status", "active")
+    if user_id == user.id and new_status == "suspended":
+        raise HTTPException(status_code=400, detail="Cannot suspend your own Super-Admin account")
+    if new_status not in ["active", "suspended"]:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+    from tools.project.tracker import UserTracker
+    success = UserTracker.set_status(user_id, status=new_status)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+    AuditTracker.log_action("admin_user_status_changed", user_id=user.id, details=f"Super-admin changed user {user_id} status to '{new_status}'")
+    return {"message": f"User status updated to {new_status}", "user_id": user_id, "status": new_status}
+
+@app.post("/api/admin/tenants/users/{user_id}/role")
+async def admin_set_user_role(user_id: int, request: Request, user=Depends(require_superadmin)):
+    data = await request.json()
+    is_super = bool(data.get("is_superuser", False))
+    if user_id == user.id and not is_super:
+        raise HTTPException(status_code=400, detail="Cannot revoke your own Super-Admin status")
+    from tools.project.tracker import UserTracker
+    success = UserTracker.set_superuser(user_id, is_superuser=is_super)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+    AuditTracker.log_action("admin_user_role_changed", user_id=user.id, details=f"Super-admin changed user {user_id} superuser flag to {is_super}")
+    return {"message": f"User superuser updated to {is_super}", "user_id": user_id, "is_superuser": is_super}
+
+@app.get("/api/admin/tenants/orgs")
+async def admin_list_orgs(user=Depends(require_superadmin)):
+    from tools.project.tracker import OrgTracker
+    from billing import BillingTracker
+    orgs = OrgTracker.list_all_admin()
+    enriched = []
+    for o in orgs:
+        sub = BillingTracker.get_or_create_subscription(org_id=o["id"])
+        o_copy = dict(o)
+        o_copy["plan"] = sub.get("plan", "free")
+        o_copy["runs_this_month"] = sub.get("runs_this_month", 0)
+        o_copy["monthly_limit"] = sub.get("monthly_limit", 5)
+        enriched.append(o_copy)
+    return enriched
+
+@app.post("/api/admin/tenants/orgs/{org_id}/plan")
+async def admin_set_org_plan(org_id: int, request: Request, user=Depends(require_superadmin)):
+    data = await request.json()
+    plan = data.get("plan", "free").lower()
+    if plan not in ["free", "pro", "enterprise"]:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    from billing import BillingTracker
+    sub = BillingTracker.set_plan(plan, org_id=org_id)
+    AuditTracker.log_action("admin_org_plan_changed", user_id=user.id, org_id=org_id, details=f"Super-admin changed org {org_id} plan to '{plan}'")
+    return {"message": f"Organization plan updated to {plan}", "org_id": org_id, "subscription": sub}
+
+@app.get("/api/admin/llm/metrics")
+async def admin_llm_metrics(user=Depends(require_superadmin)):
+    from tools.project.tracker import BillingUsageModel, SessionLocal
+    session = SessionLocal()
+    try:
+        usages = session.query(BillingUsageModel).order_by(BillingUsageModel.id.desc()).limit(100).all()
+        records = [{
+            "id": u.id,
+            "org_id": u.org_id,
+            "tokens_used": u.tokens_used,
+            "infra_cost": u.infra_cost,
+            "run_time_seconds": u.run_time_seconds
+        } for u in usages]
+        return {
+            "total_records": len(records),
+            "recent_records": records,
+            "providers": ["openrouter", "zenmux", "ollama", "openai"]
+        }
+    finally:
+        session.close()
+
+@app.get("/api/admin/k8s/fleet")
+async def admin_k8s_fleet(user=Depends(require_superadmin)):
+    from k8s.operator.reconciler import AgentReconciler
+    rec = AgentReconciler()
+    events = list(rec.events) if hasattr(rec, "events") else []
+    crds_dir = os.path.join(_project_root, "k8s", "crds")
+    crds = os.listdir(crds_dir) if os.path.exists(crds_dir) else []
+    return {
+        "crds": crds,
+        "operator_status": "Healthy",
+        "recent_reconcile_events": events[-50:]
+    }
+
+@app.get("/api/admin/audit/global")
+async def admin_get_global_audit(limit: int = 100, user=Depends(require_superadmin)):
+    from tools.project.tracker import AuditTracker
+    logs = AuditTracker.get_logs(limit=min(limit, 500))
+    return logs
 
 
 if __name__ == "__main__":
