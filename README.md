@@ -6,6 +6,7 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem and Kubernetes-Nat
 
 ## 🚀 Key Features
 
+- **Super-Admin Platform Operations Console & CLI Bootstrap**: Dedicated mission control operations dashboard (`/admin`) for platform administrators. Features cross-tenant multi-organization visibility, user lifecycle management (suspend/reactivate users, grant/revoke Super-Admin privileges), organization subscription tier overrides (Free/Pro/Enterprise with quota bypass), global LLM token economics & provider analytics, Kubernetes cluster fleet telemetry, and an immutable platform-wide audit trail. Includes a CLI bootstrap tool (`scripts/create_admin.py`) for automated headless setup.
 - **Kubernetes-Native Control Plane & CRD Operator** *(Phase 15)*: Manage AI Terraform agents, multi-tenant projects, DAG workflows, and compliance policies as native Kubernetes Custom Resources (`kubectl apply -f agent.yaml`). Features an asynchronous Operator controller reconciliation loop with condition lifecycle, continuous cloud drift watcher with auto-healing, ArgoCD custom Lua health checks, Flux CD webhook synchronizer, Helm 3 deployment charts, and native dashboard REST endpoints.
 - **Agent Marketplace & Plugin SDK** *(Phase 14)*: Organization-scoped agent registry with installable specialist agents (`Kubernetes Specialist`, `FinOps Cost Hawk`, `Disaster Recovery Pilot`, `Zero-Trust SecOps`) and standard `BasePlugin` lifecycle hooks (`pre_plan`, `post_plan`, `validate`).
 - **Visual DAG Workflow Builder & Golden Path Catalog** *(Phase 14)*: Node-based visual execution graph engine with dependency resolution, conditional branching, automated rollbacks, and pre-architected Golden Path service templates (*Microservices K8s Stack*, *Serverless Event Stream*, *Secure ML Vault*).
@@ -47,6 +48,8 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem and Kubernetes-Nat
 
 | Capability Area | Specific Module | Status | Automated Test Suite |
 |:---|:---|:---:|:---|
+| **Super-Admin Operations Console** | `app/dashboard.py`, `static/admin.*` | ✅ **Implemented & Verified** | `scratch/test_admin_console.py` |
+| **CLI Admin Bootstrap Utility** | `scripts/create_admin.py` | ✅ **Implemented & Verified** | `scratch/test_admin_console.py` |
 | **Multi-Dimensional Risk Matrix** | `portal/agent_governance.py` | ✅ **Implemented & Verified** | `scratch/test_governance_guardrails.py` |
 | **Hard Block OPA Guardrails** | `policy/guardrails.py` | ✅ **Implemented & Verified** | `scratch/test_governance_guardrails.py` |
 | **Operational Circuit Breakers** | `portal/approvals.py` | ✅ **Implemented & Verified** | `scratch/test_governance_guardrails.py` |
@@ -125,7 +128,7 @@ python app/main.py --apply --test-local --budget 150 "create a private s3 bucket
 python app/main.py --destroy my-project-slug
 ```
 
-### Web Dashboard
+### Web Dashboard & Super-Admin Console
 ```powershell
 python app/dashboard.py
 # Open http://localhost:5000
@@ -137,6 +140,23 @@ The dashboard provides:
 - 📜 **Audit Trail Tab**: Enterprise immutable activity log tracking every generation, PR creation, approval, and deployment event across teams.
 - 🏢 **Organization Workspaces**: Create organizations, invite team members, assign roles (Owner/Admin/Member/Viewer), and switch contexts.
 - 👥 **Team Management**: Manage organization members with role-based permissions — Owners/Admins can invite, promote, demote, or remove members.
+- ⚡ **Super-Admin Operations Console (`/admin`)**: Dedicated platform operations cockpit accessible to super-admins via topbar navigation or `http://localhost:5000/admin`. Manage all tenants, suspend/reactivate accounts, promote/demote administrators, override organization subscription tiers, inspect global LLM token economics & model latency, review Kubernetes cluster health, and export platform-wide audit logs.
+
+### Super-Admin Bootstrap CLI
+Bootstrap and manage platform super-admins from the terminal:
+```powershell
+# Create a new Super-Admin account
+python scripts/create_admin.py --username admin --password "StrongPassword123!" --email admin@platform.io
+
+# Promote an existing registered user to Super-Admin
+python scripts/create_admin.py --promote shubham554
+
+# Demote a Super-Admin back to standard user
+python scripts/create_admin.py --demote shubham554
+
+# List all platform users, roles, and status
+python scripts/create_admin.py --list
+```
 
 ### Workflow Phases
 1. **Architecture**: The Architect designs the blueprint and generates a `project_slug`.
@@ -172,7 +192,11 @@ This spawns:
 terraform-ai-agent/
 ├── app/                    # Application entry-points
 │   ├── main.py             #   CLI (thin wrapper → orchestrator)
-│   └── dashboard.py        #   FastAPI Web Dashboard + Org RBAC & GitOps API
+│   └── dashboard.py        #   FastAPI Web Gateway + Super-Admin Console + Org RBAC
+│
+├── scripts/                # Administrative & bootstrap utilities
+│   ├── create_admin.py     #   CLI Super-Admin account bootstrap & role manager
+│   └── sanity_check.py     #   Platform health & test verification runner
 │
 ├── orchestrator/           # Central pipeline engine
 │   ├── pipeline.py         #   run_full_pipeline() — single entry-point
@@ -188,7 +212,8 @@ terraform-ai-agent/
 │   ├── testing_agent.py
 │   └── gitops_coordinator.py # Phase 11 GitOps & PR Coordinator
 │
-├── tools/                  # Deterministic tool layer
+├── tools/                  # Deterministic tool integrations
+│   ├── engine/             #   Universal IaC Engine Abstraction (Terraform & OpenTofu)
 │   ├── gitops/             #   GitOpsTools (Git CLI, branch, commit, GitHub PR REST API)
 │   ├── project/            #   ProjectTracker, UserTracker, OrgTracker, AuditTracker
 │   ├── terraform/          #   Terraform CLI tools (init, validate, apply, destroy)
@@ -196,9 +221,6 @@ terraform-ai-agent/
 │   ├── finops/             #   Infracost estimation & report builder
 │   ├── testing/            #   QA behavior test execution & HTTP probes
 │   └── cloud/              #   CloudSync & Floci local emulator
-
-│   ├── deployment_planner.py
-│   └── testing_agent.py     #   QA testing / verification agent
 │
 ├── workflows/              # Task definitions for each pipeline phase
 │   ├── terraform_generation.py
@@ -206,36 +228,26 @@ terraform-ai-agent/
 │   ├── terraform_deployment.py
 │   └── terraform_testing.py #   smoke testing workflows
 │
-├── tools/                  # Deterministic tool integrations
-│   ├── terraform/          #   TF CLI: init, validate, plan, apply
-│   ├── security/           #   Checkov & tfsec scanning
-│   ├── finance/            #   Infracost cost estimation
-│   ├── cloud/              #   AWS readiness checks
-│   ├── deployment/         #   Live deployment & testing_tools.py
-│   └── project/            #   ProjectTracker, UserTracker, OrgTracker
-│       └── tracker.py      #     Multi-tenant DB models + RBAC helpers
-│
-├── memory/                 # Failure pattern knowledge base
+├── memory/                 # Failure pattern knowledge base & vector RAG
 │   ├── failure_patterns.json  # 20+ known error→fix mappings
-│   └── pattern_manager.py     # PatternManager class
+│   ├── pattern_manager.py     # PatternManager class
+│   └── vector_knowledge.py    # pgvector & knowledge embeddings
 │
-├── llm/                    # LiteLLM abstraction layer
-│   ├── config.py           #   Global retry/timeout settings
-│   ├── factory.py          #   Agent LLM factory
-│   ├── model_registry.py   #   Provider catalog
-│   └── fallback.py         #   Multi-provider failover
-│
-├── workers/                # Celery async task workers
-│   └── celery_worker.py    #   Background pipeline execution
+├── policy/                 # Policy-as-Code (OPA / Rego) & compliance packs
+├── sso/                    # Enterprise SSO (OIDC / SAML 2.0) providers
+├── billing/                # Metering, Freemium quotas & Stripe/Razorpay gateways
+├── k8s/                    # Kubernetes CRD Operator & GitOps controllers
 │
 ├── static/                 # Dashboard frontend (HTML/CSS/JS)
 │   ├── index.html          #   Main dashboard + Org context switcher
-│   ├── login.html          #   User auth page
-│   ├── app.js              #   Frontend logic + Org management
+│   ├── login.html          #   User auth & SSO page
+│   ├── admin.html          #   Super-Admin Operations Console
+│   ├── admin.js            #   Admin console reactive state & charts
+│   ├── app.js              #   Tenant frontend logic & SSE stream reader
 │   └── style.css           #   Glassmorphic dark theme
 │
-├── evaluation/             # Test cases & policy validation
-├── output/                 # Generated Terraform projects
+├── test-cases/             # Test suites & manual verification plans
+├── scratch/                # Automated verification scripts
 ├── Dockerfile              # Containerized deployment
 └── docker-compose.yml      # Multi-service orchestration
 ```
@@ -245,20 +257,27 @@ terraform-ai-agent/
 ## 🏢 Multi-Tenant Organization & RBAC
 
 ### Database Models
-| Model | Purpose |
-|-------|----------|
-| `UserModel` | User registration, password hashing, session auth |
-| `OrganizationModel` | Org identity with `name`, `slug`, `owner_id` |
-| `OrgMemberModel` | User↔Org membership with role (owner/admin/member/viewer) |
-| `ProjectModel` | Infrastructure projects scoped by `owner_id` (personal) or `org_id` (organization) |
+| Model | Key Fields | Purpose |
+|-------|------------|----------|
+| `UserModel` | `id`, `username`, `password_hash`, `email`, `is_superuser`, `status` | User identity, authentication, platform superuser flag, and account status (`active` / `suspended`) |
+| `OrganizationModel` | `id`, `name`, `slug`, `owner_id`, `created_at` | Org identity and ownership |
+| `OrgMemberModel` | `id`, `org_id`, `user_id`, `role` | User↔Org membership with role (`owner`, `admin`, `member`, `viewer`) |
+| `ProjectModel` | `slug`, `owner_id`, `org_id`, `budget`, `status` | Infrastructure workspaces isolated by user or organization |
+| `AuditModel` | `id`, `org_id`, `user_id`, `action`, `resource_id`, `details` | Immutable tamper-proof platform audit trail |
 
 ### RBAC Permission Matrix
-| Action | Owner | Admin | Member | Viewer |
-|--------|:-----:|:-----:|:------:|:------:|
-| View Projects & Dashboards | ✅ | ✅ | ✅ | ✅ |
-| Generate Infrastructure | ✅ | ✅ | ✅ | ❌ |
-| Invite/Remove Members | ✅ | ✅ | ❌ | ❌ |
-| Change Member Roles | ✅ | ✅ | ❌ | ❌ |
+| Action | Super-Admin | Org Owner | Org Admin | Org Member | Org Viewer |
+|--------|:-----------:|:---------:|:---------:|:----------:|:----------:|
+| Access Platform Operations Console (`/admin`) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Suspend / Reactivate User Accounts | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Override Org Subscription Plans (Free/Pro/Enterprise) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Inspect Global LLM Economics & Token Latencies | ✅ | ❌ | ❌ | ❌ | ❌ |
+| View All Cross-Tenant Workspaces & Global Audits | ✅ | ❌ | ❌ | ❌ | ❌ |
+| View Organization Workspaces & Dashboards | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Generate Infrastructure Workspaces | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Invite / Remove Organization Members | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Modify Organization Member Roles | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Delete Organization Projects | ✅ | ✅ | ✅ | ❌ | ❌ |
 
 ### Organization API Endpoints
 | Endpoint | Method | Description |
@@ -270,6 +289,20 @@ terraform-ai-agent/
 | `/api/orgs/{id}/members/{uid}` | PUT | Update member role |
 | `/api/orgs/{id}/members/{uid}` | DELETE | Remove member |
 
+### Platform Operations Console (Super-Admin) Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin` | GET | Serves the Super-Admin Platform Operations Console UI |
+| `/api/admin/overview` | GET | Global platform telemetry: vitals, tenants, workspaces, and economics |
+| `/api/admin/tenants/users` | GET | Comprehensive list of all registered platform users with status & roles |
+| `/api/admin/tenants/users/{id}/status` | POST | Suspend or reactivate user account (`{"status": "active"|"suspended"}`) |
+| `/api/admin/tenants/users/{id}/role` | POST | Promote or demote Super-Admin privileges (`{"is_superuser": true|false}`) |
+| `/api/admin/tenants/orgs` | GET | List all organizations, owner details, member counts, and current tier |
+| `/api/admin/tenants/orgs/{id}/plan` | POST | Override organization plan tier (`{"plan_tier": "free"|"pro"|"enterprise"}`) |
+| `/api/admin/llm/metrics` | GET | Real-time LLM router metrics: token volume, cost, and provider latency |
+| `/api/admin/k8s/fleet` | GET | Kubernetes control plane fleet status across production clusters |
+| `/api/admin/audit/global` | GET | Platform-wide immutable audit trail across all users and organizations |
+
 ---
 
-*Last Updated: 2026-08-05*
+*Last Updated: 2026-09-14*

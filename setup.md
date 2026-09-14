@@ -118,6 +118,44 @@ TEST_LOCAL=true
 
 ---
 
+## 👑 Super-Admin Account Bootstrap & Operations Console
+
+The platform provides a dedicated, enterprise-grade **Platform Operations Console** (`/admin`) reserved exclusively for Super-Administrators.
+
+### 1. Bootstrap a Super-Admin Account (CLI)
+Before accessing the console for the first time, initialize a Super-Admin account using the CLI utility:
+
+```powershell
+# Create a new Super-Admin account
+python scripts/create_admin.py --username admin --password "StrongPassword123!" --email admin@platform.io
+
+# Or promote an existing user account to Super-Admin
+python scripts/create_admin.py --promote existing_username
+
+# List all users, roles, and status
+python scripts/create_admin.py --list
+```
+
+### 2. Access the Operations Console
+1. Launch the web server:
+   ```powershell
+   python app/dashboard.py
+   ```
+2. Open **[http://localhost:5000/login](http://localhost:5000/login)** (or `http://127.0.0.1:5000/login`) in your browser.
+3. Sign in with your Super-Admin credentials (`admin` / `StrongPassword123!`).
+4. Once authenticated:
+   - Click the glowing purple **⚡ Admin Console** link in the top navigation header, or
+   - Navigate directly to **[http://localhost:5000/admin](http://localhost:5000/admin)**.
+
+### 3. Key Operations in the Console
+- **Tenant & User Management**: View all platform users, suspend malicious/compromised accounts, reactivate accounts, or grant/revoke Super-Admin privileges.
+- **Organization Plan Overrides**: Instantly upgrade or downgrade any organization between **Free**, **Pro**, and **Enterprise** tiers with automated quota bypass.
+- **LLM Economics & Router Health**: Real-time telemetry monitoring token consumption, costs, and response latency across providers (Gemini, OpenAI, Claude, ZenMux, OpenRouter).
+- **Kubernetes Fleet Status**: Inspect health status, node counts, and CRD reconcilers across all registered Kubernetes clusters.
+- **Global Immutable Audit Trail**: Review and filter all platform-wide events (user registrations, project builds, approvals, and plan modifications) with one-click JSON export.
+
+---
+
 ## ☁️ Phase 3: Enterprise Cloud Sync
 
 When you request "Production" or "Enterprise" infrastructure, the agent automatically enables **Remote State Management**.
@@ -379,5 +417,20 @@ kubectl describe terraformagent prod-vpc-fleet
   - Applying Custom Resource Definitions requires `cluster-admin` privileges. Ensure your `kubeconfig` context has permissions to create cluster-level resources (`ClusterRole`, `CustomResourceDefinition`).
   - To test locally, use KinD (`kind create cluster`) or Minikube (`minikube start`) where your user context has full administrative access.
 
+### 11. 🔌 Port 5000 Collision & Dual-Stack IPv4/IPv6 Docker Binding
+* **Symptom**: Logging in at `http://localhost:5000/login` fails with `"Invalid credentials"` even though `scripts/create_admin.py` or user registration reported success, or visiting `/admin` returns 403 or stale data.
+* **Cause**: On Windows, when Docker Desktop / WSL2 is running a container (e.g. `terraform-dashboard`) mapped to port 5000, `wslrelay.exe` or `com.docker.backend.exe` binds to IPv6 `::1:5000`. Browsers resolving `localhost` route traffic to the container instead of the local Python host server on `127.0.0.1:5000`.
+* **Solution**:
+  1. Stop the conflicting Docker container:
+     ```powershell
+     docker stop terraform-dashboard
+     ```
+  2. Alternatively, access your local development server explicitly via IPv4:
+     **`http://127.0.0.1:5000`** instead of `http://localhost:5000`.
+  3. Verify port listeners in PowerShell:
+     ```powershell
+     Get-NetTCPConnection -LocalPort 5000 | Select-Object LocalAddress, LocalPort, State, OwningProcess
+     ```
+
 ---
-*Last Updated: 2026-09-04 (Phase 15 Kubernetes-Native Control Plane & GitOps Release)*
+*Last Updated: 2026-09-14 (Super-Admin Platform Operations Console & RBAC Release)*

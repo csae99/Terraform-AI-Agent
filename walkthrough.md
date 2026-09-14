@@ -1,74 +1,113 @@
-# 🚀 Walkthrough: Phase 11 Enterprise GitOps, PR Automation, Approval Gates & Audit Trails
+# 🚀 Platform Operations, Super-Admin Console & Security Hardening Walkthrough
 
 ## 📋 Executive Overview
 
-In **Phase 11**, the Terraform AI Agent was enhanced from an isolated code generator into an **Enterprise-Ready GitOps Delivery Platform**. Instead of un-reviewed direct cloud mutations, the agent can now automatically isolate infrastructure changes into git feature branches (`ai/{slug}-{timestamp}`), commit modular HCL code, push to remote repositories, and synthesize production-grade Pull Requests with visual Mermaid topologies, Infracost budget tables, and Checkov security reports.
+This document provides a comprehensive walkthrough of the **Super-Admin Platform Operations Console**, **CLI Admin Bootstrap Utility**, **Platform-level RBAC & User Status Lifecycle**, **Freemium Billing & Quota Enforcement**, and **Port Conflict Resolution** implemented across the Autonomous Infrastructure Platform.
 
-Additionally, we implemented **Enterprise Team Approval Gates** and an **Immutable Audit Trail**, requiring sign-offs by Organization Owners or Admins before live deployment.
+All changes have been verified through automated test suites and live API checks. In accordance with platform guidelines, **no Git commits or pushes were executed**; all files remain intact in the local working tree.
 
 ---
 
-## 🛠️ Key Components Delivered
+## 🛠️ Key Capabilities Delivered
 
-### 1. GitOps Tooling Layer (`tools/gitops/gitops_tools.py`)
-- **`init_git_repo(project_dir)`**: Automatically initializes Git repositories inside generated workspace directories if absent.
-- **`create_feature_branch(project_dir, slug, base_branch)`**: Deterministically spins up timestamped feature branches (e.g. `ai/prod-s3-1787075566`).
-- **`commit_files(project_dir, slug, prompt)`**: Atomic staging (`git add -A`) and structured commit messaging.
-- **`push_branch(project_dir, repo_url, branch_name, token)`**: Supports authenticated HTTPS token injection for GitHub/GitLab.
-- **`generate_pr_body(slug, prompt, ...)`**: Constructs Markdown PR bodies containing:
-  - 🗺️ Visual Architecture Topology (Mermaid diagram)
-  - 💰 FinOps & Cost Breakdown (Infracost table)
-  - 🛡️ Security & Compliance Audit (Checkov / tfsec summary)
-  - 🧪 Behavior Validation Test Plan
-- **`create_pull_request(repo_url, branch_name, ...)`**: Interacts with the GitHub REST API (with local fallback simulation for offline/dev modes).
-- **`merge_pull_request(repo_url, pr_number, ...)`**: Executes automated squash merges once approved.
+### 1. ⚡ Super-Admin Platform Operations Console (`/admin`)
+A dedicated, mission-control operations cockpit reserved strictly for platform administrators:
+- **Mission Control Overview (`/api/admin/overview`)**: Live platform vitals, Redis broker health, Celery worker status, Kubernetes operator health, active pipeline runs, total platform tokens burned, and monthly recurring revenue (MRR).
+- **Tenant & User Directory (`/api/admin/tenants/users`)**: Cross-tenant visibility of all registered platform users.
+  - **Account Status Toggle (`/api/admin/tenants/users/{id}/status`)**: Instantly suspend compromised or abusive accounts (`active` $\rightarrow$ `suspended`), or reactivate them.
+  - **Superuser Elevation (`/api/admin/tenants/users/{id}/role`)**: Elevate any standard user to Super-Admin or demote administrators back to standard users.
+- **Organization Governance (`/api/admin/tenants/orgs`)**: Multi-tenant directory displaying organization names, slugs, owner details, member counts, creation dates, and current subscription tiers.
+  - **Plan Override (`/api/admin/tenants/orgs/{id}/plan`)**: Platform administrators can override any organization's subscription tier between **Free**, **Pro**, and **Enterprise** with immediate quota recalculation and zero checkout friction.
+- **LLM Token Economics & Model Latency (`/api/admin/llm/metrics`)**: Real-time telemetry monitoring token consumption, dollar cost attribution, and response latency across AI model providers (Gemini, OpenAI, Claude, ZenMux, OpenRouter).
+- **Kubernetes Fleet Telemetry (`/api/admin/k8s/fleet`)**: Cluster health, node counts, Kubernetes version, and CRD reconciler loop status across all registered production clusters.
+- **Global Immutable Audit Trail (`/api/admin/audit/global`)**: Unified platform-wide audit stream capturing every generation, PR creation, approval, user status update, and plan override with JSON export capability.
 
-### 2. GitOps Coordinator Agent (`agents/gitops_coordinator.py`)
-- Created `GitOpsCoordinator(BaseAgent)` with role **GitOps & Release Coordinator**.
-- Created `GitOpsWorkflowTasks` in `workflows/gitops_workflow.py` for task composition.
+### 2. 🧰 CLI Admin Bootstrap Utility (`scripts/create_admin.py`)
+A command-line interface for headless platform administration and initial bootstrap:
+```powershell
+# 1. Create a brand new Super-Admin account
+python scripts/create_admin.py --username admin --password "StrongPassword123!" --email admin@platform.io
 
-### 3. Database Schema & Audit Logging (`tools/project/tracker.py`)
-- **`ProjectModel` Columns**: Added `git_repo`, `git_branch`, `pr_url`, `pr_number`, `pr_status`, `approval_status`, `approved_by_id`.
-- **`AuditLogModel`**: Stores immutable event records (`id`, `org_id`, `user_id`, `action`, `resource_slug`, `details`, `created_at`).
-- **`AuditTracker`**:
-  - `log_action()` records actions such as `gitops_pr_created`, `gitops_pr_approved`, and `gitops_pr_merged_and_deployed`.
-  - `get_logs()` retrieves chronological, filtered audit feeds for organization compliance.
-- **Dynamic Schema Migration**: `_add_missing_columns()` dynamically adds missing columns to existing SQLite/PostgreSQL databases on startup without manual migration scripts.
+# 2. Promote an existing registered user to Super-Admin
+python scripts/create_admin.py --promote shubham554
 
-### 4. Pipeline & CLI Integration (`orchestrator/pipeline.py` & `app/main.py`)
-- `run_full_pipeline()` accepts `gitops: bool`, `git_repo: str`, `git_token: str`, `target_branch: str`.
-- When GitOps mode is active, the orchestrator routes the final state through feature branch creation, file commits, PR generation, and audit logging, setting status to `pr_opened` with `approval_status="pending"`.
-- Added CLI flags: `--gitops`, `--git-repo`, `--git-token`, `--target-branch`.
+# 3. Demote a Super-Admin back to standard user
+python scripts/create_admin.py --demote shubham554
 
-### 5. API Endpoints (`app/dashboard.py` & `workers/celery_worker.py`)
-- `GET /api/projects/{slug}/gitops`: Fetches PR URL, branch name, approval status, and live GitHub PR state.
-- `POST /api/projects/{slug}/approve`: Validates Org Owner/Admin RBAC permissions, sets `approval_status="approved"`, and logs audit trail.
-- `POST /api/projects/{slug}/merge-deploy`: Validates approval, triggers GitHub squash merge, and applies live cloud mutation.
-- `GET /api/audit-logs`: Retrieves organization-scoped audit logs.
+# 4. List all users and their admin status
+python scripts/create_admin.py --list
+```
 
-### 6. Modern Frontend UI (`static/index.html` & `static/app.js`)
-- **Build Form**: Added "GitOps Mode" checkbox and expandable drawer for Git Repo URL, Target Branch, and GitHub PAT.
-- **Workspaces View**: Added GitHub PR badges (`PR #42 (open)`) to project cards.
-- **Project Detail Modal**: Added **🔀 GitOps & PR** tab with real-time PR badges, branch links, approver metadata, and interactive "Approve PR" and "Merge & Deploy" control buttons.
-- **Audit Trail Tab**: Added top navigation tab rendering a real-time table of enterprise audit events.
+### 3. 🔐 Security Guards & RBAC Architecture
+- **Dependency Guard (`require_superadmin`)**:
+  - Non-authenticated callers attempting to reach `/admin` or `/api/admin/*` receive `HTTP 401 Unauthorized`.
+  - Authenticated standard users attempting to reach `/admin` or `/api/admin/*` receive `HTTP 403 Forbidden` (`{"detail": "Super-Admin privileges required"}`).
+- **Suspension Enforcement**:
+  - Accounts with `status = "suspended"` are strictly blocked at login (`HTTP 403 Account has been suspended by platform administrator`).
+  - Active sessions belonging to suspended accounts are rejected on all subsequent requests via `get_current_user`.
+- **Tenant Header Link**:
+  - The main dashboard navigation dynamically queries `/api/auth/me` and renders a glowing purple **⚡ Admin Console** link only when `user.is_superuser` is `true`.
+
+### 4. 💳 Freemium Default Billing & Quota Enforcement
+- **Default Plan Fix**: Newly created organizations now default to `"free"` tier with a 5-run monthly workspace limit (matching personal accounts) instead of inadvertently assigning an unbilled Enterprise plan.
+- **Quota Warnings**: The Create Organization modal clearly states that organizations begin on the Free Tier and can be upgraded at any time under the Billing tab.
+- **Subscription Lifecycle**: Organizations can upgrade via Stripe/Razorpay or be directly upgraded by Super-Administrators in the Operations Console.
+
+### 5. 🔌 Dual-Stack Docker / Port 5000 Collision Resolution
+- **Issue**: On Windows, when Docker Desktop / WSL2 runs a background container mapped to port 5000, `wslrelay.exe` binds to IPv6 `::1:5000`. Navigating to `http://localhost:5000` routed traffic to the container instead of the local development server.
+- **Resolution**:
+  - Container conflict isolated and stopped via `docker stop terraform-dashboard`.
+  - Local Python application binds cleanly to IPv4 `0.0.0.0:5000` (`127.0.0.1:5000`).
+  - Documented troubleshooting steps in `setup.md` FAQ.
 
 ---
 
 ## 🧪 Verification & Test Results
 
-We executed automated test suites covering all layers:
+### 1. Dedicated Admin Console Test Suite (`scratch/test_admin_console.py`)
+Executed an end-to-end automated test suite verifying all 5 core administrative capabilities:
 
-1. **Git Operations & CLI Test** (`scratch/test_gitops.py`):
-   - ✅ `GitOpsTools.init_git_repo` verified.
-   - ✅ Feature branch creation verified.
-   - ✅ Atomic git commits verified.
-   - ✅ Rich Markdown PR synthesis verified.
-   - ✅ Database persistence across all GitOps columns verified.
-   - ✅ `AuditTracker.log_action` and `get_logs` verified.
+| Test Case | Scenario | Expected | Result |
+|---|---|---|---|
+| **Test 1: Non-Admin Security Lock** | Standard user queries `/admin` and `/api/admin/overview` | `HTTP 403 Forbidden` | ✅ **PASSED** |
+| **Test 2: Super-Admin Access** | Authenticated Super-Admin queries all 9 `/api/admin/*` routes | `HTTP 200 OK` | ✅ **PASSED** |
+| **Test 3: User Suspension Lifecycle** | Suspend user, verify login blocked (403), reactivate user | `HTTP 403` / `200` | ✅ **PASSED** |
+| **Test 4: Organization Plan Override** | Change org plan to `enterprise`, verify DB update | `HTTP 200 OK` | ✅ **PASSED** |
+| **Test 5: Global Audit Stream** | Query `/api/admin/audit/global`, verify chronological feed | `HTTP 200 OK` | ✅ **PASSED** |
 
-2. **FastAPI & RBAC Authorization Test** (`scratch/test_gitops_api.py`):
-   - ✅ Member approval attempt blocked (`403 Forbidden`).
-   - ✅ Organization Owner approval succeeded (`200 OK`).
-   - ✅ GitOps status endpoint returned approver identity (`org_owner_1`).
-   - ✅ Merge & Deploy triggered live transition to `deployed`.
-   - ✅ Audit logs endpoint returned audit trail events (`gitops_pr_approved`, `gitops_pr_merged_and_deployed`).
+```text
+======================================================================
+🎉 ALL 5 SUPER-ADMIN CONSOLE TEST CASES PASSED PERFECTLY!
+======================================================================
+```
+
+### 2. Platform Sanity Assessment (`scripts/sanity_check.py`)
+Run across all 6 platform subsystems:
+1. **Core Environment & Python Dependencies**: PASS (Python 3.13.13)
+2. **Database ORM & RBAC Integrity**: PASS (SessionLocal, User & Org models valid)
+3. **IaC Engine & Binary Discovery**: PASS (terraform, tfsec, infracost)
+4. **Governance, Policy-as-Code & Risk Matrix**: PASS (OPA AST evaluator & risk scorer)
+5. **Kubernetes Control Plane & CRD Readiness**: PASS (4 CRDs valid, Reconciler OK, ArgoCD Healthy)
+6. **Web Gateway & REST API Readiness**: PASS (FastAPI routes & probes responsive)
+
+```text
+======================================================================
+[SUCCESS] ALL SANITY CHECKS PASSED (6/6 checks OK in 4.16s)
+System is sane, stable, and ready for production operations.
+======================================================================
+```
+
+---
+
+## 🚀 How to Access the Admin Console
+
+1. Ensure the web application is running:
+   ```powershell
+   python app/dashboard.py
+   ```
+2. Navigate to **[http://localhost:5000/login](http://localhost:5000/login)** (or `http://127.0.0.1:5000/login`).
+3. Log in with your Super-Admin credentials:
+   - **Username**: `admin`
+   - **Password**: `StrongPassword123!`
+4. After login, click the **⚡ Admin Console** link in the navigation header, or visit:
+   - **[http://localhost:5000/admin](http://localhost:5000/admin)**

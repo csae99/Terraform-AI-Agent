@@ -1,6 +1,6 @@
-# 🛠️ Autonomous Infrastructure Platform: Complete Manual E2E Test Plan (Phases 1 – 13)
+# 🛠️ Autonomous Infrastructure Platform: Complete Manual E2E Test Plan (Phases 1 – 15 & Super-Admin Console)
 
-This document provides a comprehensive, step-by-step testing roadmap to verify every capability of the **Autonomous Infrastructure Platform** from **Phase 1 through Phase 13**.
+This document provides a comprehensive, step-by-step testing roadmap to verify every capability of the **Autonomous Infrastructure Platform** from **Phase 1 through Phase 15 and the Super-Admin Platform Operations Console**.
 
 > [!TIP]
 > **Optimized for Google Gemini Free Tier**: The test prompts and configurations below use lightweight, cost-effective infrastructure prompts designed to execute smoothly within standard Gemini API rate limits (`gemini-3.1-flash-lite`).
@@ -385,10 +385,45 @@ Before beginning tests, ensure your local environment is configured:
 
 ---
 
+### 20. ⚡ Super-Admin Platform Operations Console & CLI Bootstrap
+- **Objective**: Verify end-to-end platform administration, CLI bootstrapping, user status suspension, organization tier overrides, and admin API security guards.
+- **Action**:
+  1. **Bootstrap Super-Admin**:
+     ```powershell
+     python scripts/create_admin.py --username test_ops_admin --password "SuperOps2026!" --email ops@platform.io
+     python scripts/create_admin.py --list
+     ```
+  2. **Security Guard Verification (Non-Admin vs. Admin)**:
+     - As standard user, attempt `GET http://localhost:5000/api/admin/overview` $\rightarrow$ Expect `403 Forbidden` (`Super-Admin privileges required`).
+     - Log in as `test_ops_admin` and access `http://localhost:5000/admin`.
+  3. **User Suspension Lifecycle**:
+     - In the **User Management** section of the console, click **Suspend** on a test account.
+     - Attempt login with suspended account $\rightarrow$ Expect `403 Account has been suspended by platform administrator`.
+     - Click **Reactivate** $\rightarrow$ User is able to log in normally again.
+  4. **Organization Subscription Plan Override**:
+     - In **Organization Management**, locate a Free-tier organization.
+     - Click **Plan** $\rightarrow$ Select **Enterprise** $\rightarrow$ Confirm override.
+     - Organization quota limit (5 workspaces/month) is immediately removed.
+  5. **LLM Economics & Fleet Health**:
+     - Switch to **LLM Economics & Fleet** tab.
+     - Verify real-time cards show token volumes, costs, provider latencies, and cluster agent reconciler statuses.
+  6. **Global Audit Trail**:
+     - Verify that all lifecycle changes (status changes, plan overrides) appear in the immutable global audit stream with timestamp and actor ID.
+- **Expectation**:
+  - [ ] `create_admin.py` successfully hashes password, sets `is_superuser=True`, and displays account in `--list`.
+  - [ ] Unauthenticated / non-admin access to `/admin` and `/api/admin/*` is strictly blocked (HTTP 401/403).
+  - [ ] Super-Admin authenticated user receives HTTP 200 on `/admin` and all 9 `/api/admin/*` endpoints.
+  - [ ] Suspended accounts cannot authenticate or generate infrastructure.
+  - [ ] Plan overrides immediately update organization quota limits across the platform.
+
+---
+
 ## ⚡ Quick Automated Sanity Script
 
 To run all backend unit and integration tests at once:
 ```powershell
+.\venv313\Scripts\python.exe scratch/test_admin_console.py
+.\venv313\Scripts\python.exe scratch/test_phase15_k8s_control_plane.py
 .\venv313\Scripts\python.exe scratch/test_phase14.py
 .\venv313\Scripts\python.exe scratch/test_phase13.py
 .\venv313\Scripts\python.exe scratch/test_vector_knowledge.py

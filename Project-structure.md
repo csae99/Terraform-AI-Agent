@@ -142,7 +142,11 @@ c:\Users\User\Music\Terraform-AI-Agent\
 ├── app/                          # Application Gateways & Web Server
 │   ├── __init__.py
 │   ├── main.py                   # CLI entrypoint with argparse
-│   └── dashboard.py              # FastAPI Web Gateway with REST & SSE streaming
+│   └── dashboard.py              # FastAPI Web Gateway with REST, SSE streaming & Super-Admin APIs
+│
+├── scripts/                      # Platform Administration & Bootstrap Utilities
+│   ├── create_admin.py           # Super-Admin CLI bootstrap, role promotion & user inspection
+│   └── sanity_check.py           # Multi-subsystem platform health check script
 │
 ├── k8s/                          # Kubernetes Control Plane & GitOps Operator (Phase 15)
 │   ├── crds/                     # Custom Resource Definitions (OpenAPI v3 schemas)
@@ -170,16 +174,19 @@ c:\Users\User\Music\Terraform-AI-Agent\
 ├── static/                       # Web Dashboard Frontend
 │   ├── index.html                # Modern glassmorphism single-page application UI
 │   ├── login.html                # Enterprise login & SSO portal UI
+│   ├── admin.html                # Super-Admin Platform Operations Console UI
+│   ├── admin.js                  # Operations console reactive state, charts & controls
 │   ├── app.js                    # Dynamic reactive state manager & SSE stream reader
 │   └── style.css                 # Custom curated dark-mode CSS design system
 │
 ├── test-cases/                   # Test suites & manual verification plans
-│   ├── MANUAL_TEST_PLAN.md       # Complete 19-scenario manual test roadmap
+│   ├── MANUAL_TEST_PLAN.md       # Complete 20-scenario manual test roadmap
 │   ├── test_backend_integration.py
 │   ├── test_api_endpoints.py
 │   └── test_observability.py
 │
 ├── scratch/                      # Automated verification test suites
+│   ├── test_admin_console.py     # Super-Admin operations console verification test suite
 │   ├── test_phase15_k8s_control_plane.py # Phase 15 comprehensive K8s control plane test suite
 │   ├── test_phase14.py           # Phase 14 comprehensive test suite
 │   ├── test_phase13.py           # Phase 13 comprehensive test suite
@@ -207,6 +214,7 @@ c:\Users\User\Music\Terraform-AI-Agent\
 
 | Bounded Context | Directory | Primary Responsibilities |
 |:---|:---|:---|
+| **Platform Operations & Admin Console** | `scripts/`, `app/dashboard.py`, `static/admin.*` | Global Super-Admin cockpit (`/admin`), user suspension/reactivation, organization subscription tier overrides, global LLM token economics & model latency tracking, Kubernetes cluster fleet telemetry, cross-tenant audit logging. |
 | **Core Multi-Agent Pipeline** | `agents/`, `crews/`, `orchestrator/` | Multi-agent collaboration, HCL synthesis, security auditing, self-healing retry logic, decision tracing. |
 | **Kubernetes Control Plane & GitOps** | `k8s/` | Declarative Custom Resource Definitions (CRDs), Operator controller reconciler loop, ArgoCD/Flux GitOps integration, Helm 3 deployment. |
 | **IaC Engine Abstraction** | `tools/engine/` | Universal runtime interface supporting Terraform and OpenTofu transparently. |
