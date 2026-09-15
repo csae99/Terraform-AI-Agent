@@ -3,7 +3,7 @@ import re
 import time
 import subprocess
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, List, Any, Optional
 
 class GitOpsTools:
     """
@@ -92,8 +92,8 @@ class GitOpsTools:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    def generate_pr_body(slug: str, prompt: str, arch_result: str = "", cost_summary: str = "", audit_summary: str = "", mermaid_diagram: str = "") -> str:
-        """Construct a comprehensive, rich Markdown body for the Pull Request."""
+    def generate_pr_body(slug: str, prompt: str, arch_result: str = "", cost_summary: str = "", audit_summary: str = "", mermaid_diagram: str = "", decision_trace: Optional[List[Dict[str, Any]]] = None) -> str:
+        """Construct a comprehensive, rich Markdown body for the Pull Request, including Architectural Decision Records (ADRs)."""
         mermaid_block = ""
         if mermaid_diagram:
             mermaid_block = f"""
@@ -106,6 +106,28 @@ class GitOpsTools:
         cost_section = cost_summary if cost_summary else "Monthly cost projection compliant with project budget guidelines."
         audit_section = audit_summary if audit_summary else "All static security scans (Checkov & tfsec) passed with 0 critical findings."
 
+        # Format Architectural Decision Records (ADRs)
+        adr_block = ""
+        if decision_trace:
+            adrs = [d for d in decision_trace if isinstance(d, dict) and (d.get("is_adr") or d.get("rationale") or d.get("reason"))]
+            if adrs:
+                adr_rows = []
+                for a in adrs[:6]:  # Show top key decisions
+                    title = a.get("title") or a.get("action") or a.get("decision") or "Architectural Choice"
+                    agent = a.get("agent") or "PlatformAgent"
+                    rationale = a.get("rationale") or a.get("reason") or "Standard best practice pattern."
+                    alternatives = a.get("alternatives_considered")
+                    alt_note = f"<br><sub>*Alternatives Considered:* {alternatives}</sub>" if alternatives and alternatives != "Standard default configuration" else ""
+                    adr_rows.append(f"| **{title}** | `{agent}` | {rationale}{alt_note} |")
+                
+                adr_block = f"""
+### 🧠 Architectural Decision Records (Why the Agent Decided This)
+
+| Architectural Decision | Deciding Agent | Rationale & Tradeoffs |
+|:---|:---|:---|
+{chr(10).join(adr_rows)}
+"""
+
         pr_body = f"""## 🤖 Autonomous Infrastructure Deployment Request
 
 ### 📋 Overview
@@ -114,7 +136,7 @@ class GitOpsTools:
 > {prompt}
 
 {mermaid_block}
-
+{adr_block}
 ### 💰 FinOps & Cost Breakdown (Infracost)
 {cost_section}
 

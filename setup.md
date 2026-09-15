@@ -16,6 +16,22 @@ This guide provides step-by-step instructions for setting up the Universal Auton
 
 ---
 
+## 🗺️ Platform Deployment Modes Matrix
+
+The platform is engineered to run in 4 distinct operational modes depending on your scale and infrastructure environment:
+
+| Deployment Mode | Primary Use Case | Database & State | Task Execution | IaC Engine | Launch Command |
+|:---|:---|:---|:---|:---|:---|
+| **Mode 1: Local Developer** | Solo development, rapid testing, and offline sandbox exploration | SQLite (`terraform_agent.db`) + In-Memory Vector Search | Synchronous thread worker pool | Local `terraform.exe` / `tofu.exe` | `python app/dashboard.py` |
+| **Mode 2: Single-Node Docker** | Team staging, CI/CD runners, and integration testing | PostgreSQL 15 + `pgvector` container + Local Floci AWS | Asynchronous Celery workers via Redis | Containerized Terraform / OpenTofu | `docker compose up --build` |
+| **Mode 3: Kubernetes Control Plane** | Enterprise platform engineering teams & cluster GitOps | Kubernetes CRDs + Etcd state storage | Async Operator Reconciler Loop | Ephemeral in-cluster pods / jobs | `kubectl apply -k k8s/` or Helm 3 |
+| **Mode 4: Multi-Tenant Enterprise SaaS** | Production SaaS with SSO, payment gateways & SLA monitoring | Managed RDS PostgreSQL HA + S3 Remote State Locking | Distributed Celery cluster + Redis Sentinel | Dual-engine with automatic fallback | Helm Chart + Ingress + Entra ID/Okta |
+
+> [!TIP]
+> **Quickstart Recommendation**: Start with **Mode 1 (Local Developer)** or **Mode 2 (Single-Node Docker)** to test prompts and verify configurations before deploying to a Kubernetes cluster.
+
+---
+
 ## 🪟 Windows Setup (PowerShell)
 
 ### 1. Basic Environment

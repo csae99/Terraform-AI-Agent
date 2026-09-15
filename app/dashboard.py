@@ -173,7 +173,8 @@ def _run_subprocess_sync(cmd, env, cwd, temp_slug):
 
 # --- Background Task ---
 async def run_agent_workflow(prompt: str, budget: float, apply: bool, credentials: dict = None, ai_config: dict = None, new_project: bool = False,
-                             gitops: bool = False, git_repo: str = None, git_token: str = None, target_branch: str = "main", engine: str = "terraform"):
+                             gitops: bool = False, git_repo: str = None, git_token: str = None, target_branch: str = "main", engine: str = "terraform",
+                             force_consensus: bool = False, plan_tier: str = "free"):
     # Use absolute path to main.py so it works regardless of CWD
     main_script = os.path.join(_project_root, "app", "main.py")
     cmd = [sys.executable, main_script, prompt, "--budget", str(budget), "--auto-fix"]
@@ -191,6 +192,10 @@ async def run_agent_workflow(prompt: str, budget: float, apply: bool, credential
         cmd.extend(["--target-branch", target_branch])
     if engine and engine != "terraform":
         cmd.extend(["--engine", engine])
+    if force_consensus:
+        cmd.append("--consensus")
+    if plan_tier:
+        cmd.extend(["--plan-tier", plan_tier])
     
     if ai_config:
         if ai_config.get("model"):
@@ -482,17 +487,29 @@ async def generate_infrastructure(request: Request, background_tasks: Background
             credentials["org_id"] = org_id
 
         credentials["owner_id"] = user.id
-        logger.info(f"Generate request from user {user.id} (Org: {org_id}): prompt='{prompt[:80]}...' budget={budget} apply={apply} gitops={gitops} engine={engine}")
+        force_consensus = bool(data.get("consensus", False) or data.get("force_consensus", False))
+        plan_tier = "free"
+        if org_id:
+            _org = OrgTracker.get(org_id)
+            if _org and getattr(_org, "plan", None):
+                plan_tier = _org.plan.lower()
+        credentials["plan_tier"] = plan_tier
+        if force_consensus:
+            credentials["force_consensus"] = True
+
+        logger.info(f"Generate request from user {user.id} (Org: {org_id}, Tier: {plan_tier}, Consensus: {force_consensus}): prompt='{prompt[:80]}...' budget={budget} apply={apply} gitops={gitops} engine={engine}")
         
         if r_client:
             r_client.delete("logs:active-run")
             r_client.set("logs:active-run", "🚀 Queueing Celery Job...\n")
             run_agent_pipeline_task.delay(prompt, budget, apply, credentials, ai_config, new_project,
-                                          gitops, git_repo, git_token, target_branch, engine)
+                                          gitops, git_repo, git_token, target_branch, engine,
+                                          force_consensus, plan_tier)
         else:
             active_logs["active-run"] = "🚀 Starting Workflow locally...\n"
             background_tasks.add_task(run_agent_workflow, prompt, budget, apply, credentials, ai_config, new_project,
-                                      gitops, git_repo, git_token, target_branch, engine)
+                                      gitops, git_repo, git_token, target_branch, engine,
+                                      force_consensus, plan_tier)
             
         return {"message": "Workflow started", "status": "processing"}
     except HTTPException:
@@ -1091,20 +1108,37 @@ async def sso_callback(provider: str, request: Request, response: Response):
 @app.post("/api/consensus/debate")
 async def run_agent_debate(request: Request, user=Depends(get_current_user)):
     from consensus.debate_engine import MultiAgentDebateEngine
+    from billing.usage_tracking import BillingTracker
     data = await request.json()
     prompt = data.get("prompt", "")
     budget = float(data.get("budget", 100.0))
     provider = data.get("provider", "AWS")
     engine = data.get("engine", "terraform")
+    force = bool(data.get("force", False))
+    enforce_gating = bool(data.get("enforce_gating", False))
 
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt is required for debate")
+
+    org_id = data.get("org_id")
+    plan_tier = "free"
+    if org_id:
+        sub = BillingTracker.get_subscription(org_id=int(org_id))
+        if sub:
+            plan_tier = sub.plan
+    else:
+        sub = BillingTracker.get_subscription(user_id=user.id)
+        if sub:
+            plan_tier = sub.plan
 
     return MultiAgentDebateEngine.conduct_debate(
         prompt=prompt,
         budget=budget,
         provider=provider,
-        engine=engine
+        engine=engine,
+        plan_tier=plan_tier,
+        force=force,
+        enforce_gating=enforce_gating
     )
 
 @app.post("/api/cloud-optimizer/compare")

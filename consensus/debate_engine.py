@@ -11,16 +11,114 @@ class MultiAgentDebateEngine:
     """
 
     @classmethod
+    def should_trigger_consensus(
+        cls,
+        prompt: str,
+        budget: float = 100.0,
+        plan_tier: str = "free",
+        force_consensus: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Determines whether a multi-agent consensus debate should run based on
+        workload risk, resource blast radius, and subscription tier.
+        Eliminates 3x-5x token spend and latency on low-risk / standard runs.
+        """
+        prompt_lower = (prompt or "").lower()
+
+        # 1. Operator explicit override
+        if force_consensus:
+            return {
+                "should_run": True,
+                "reason": "forced_override",
+                "risk_level": "OVERRIDE",
+                "rationale": "Multi-agent consensus debate explicitly forced by operator flag."
+            }
+
+        # 2. Enterprise Tier with production or high availability scope
+        is_production_keyword = any(kw in prompt_lower for kw in [
+            "prod", "production", "mission-critical", "high availability", "multi-region", "failover", "ha"
+        ])
+        if (plan_tier or "").lower() == "enterprise" and (is_production_keyword or budget >= 250.0):
+            return {
+                "should_run": True,
+                "reason": "enterprise_production",
+                "risk_level": "HIGH",
+                "rationale": f"Enterprise Tier: Production/high-availability workload ratified for multi-agent debate (Budget: ${budget:.2f})."
+            }
+
+        # 3. High-Blast-Radius & Destructive Keywords
+        high_blast_keywords = [
+            "kubernetes", "k8s", "eks", "aks", "gke", "cluster",
+            "aurora", "database cluster", "transit gateway", "direct connect",
+            "multi-az", "destroy", "0.0.0.0/0", "open ingress", "wildcard iam", "administratoraccess"
+        ]
+        detected_triggers = [kw for kw in high_blast_keywords if kw in prompt_lower]
+
+        # Trigger on multiple high risk keywords or high budget with high-risk component
+        if len(detected_triggers) >= 2:
+            return {
+                "should_run": True,
+                "reason": "multiple_high_risk_components",
+                "risk_level": "CRITICAL",
+                "triggers": detected_triggers,
+                "rationale": f"Critical blast radius: Detected high-risk architectural components ({', '.join(detected_triggers[:3])}). Invoking multi-agent consensus debate."
+            }
+
+        if detected_triggers and budget >= 150.0:
+            return {
+                "should_run": True,
+                "reason": "high_risk_with_budget",
+                "risk_level": "HIGH",
+                "triggers": detected_triggers,
+                "rationale": f"High risk workload ({', '.join(detected_triggers)}) with budget ${budget:.2f} exceeds standard single-agent threshold. Invoking debate."
+            }
+
+        if budget >= 400.0:
+            return {
+                "should_run": True,
+                "reason": "high_budget_threshold",
+                "risk_level": "HIGH",
+                "rationale": f"Budget ${budget:.2f} exceeds high-tier threshold ($400.00). Invoking multi-agent architectural debate."
+            }
+
+        # 4. Standard / Low-Risk Workload -> Bypass Consensus for Speed & Cost
+        return {
+            "should_run": False,
+            "reason": "low_risk_bypassed",
+            "risk_level": "LOW",
+            "rationale": f"Standard low-risk workload (Budget: ${budget:.2f}, Tier: {plan_tier}). Consensus debate bypassed for cost and latency optimization."
+        }
+
+    @classmethod
     def conduct_debate(
         cls,
         prompt: str,
         budget: float = 100.0,
         provider: str = "AWS",
-        engine: str = "terraform"
+        engine: str = "terraform",
+        plan_tier: str = "free",
+        force: bool = False,
+        enforce_gating: bool = False
     ) -> Dict[str, Any]:
         """
         Executes multi-agent consensus debate and returns the winning architecture.
+        When enforce_gating=True, bypasses debate if workload is low-risk.
         """
+        gating = cls.should_trigger_consensus(prompt, budget, plan_tier=plan_tier, force_consensus=force)
+
+        if enforce_gating and not gating["should_run"]:
+            return {
+                "consensus_bypassed": True,
+                "gating": gating,
+                "winner": "Standard Single-Agent Generator",
+                "winning_score": 90.0,
+                "runner_up": None,
+                "runner_up_score": 0.0,
+                "decision_summary": f"Consensus debate bypassed: {gating['rationale']}. Proceeding with standard single-agent synthesis to optimize token economy.",
+                "reviewer_notes": "Single-agent fast generation approved under FinOps token optimization guardrails.",
+                "proposals": []
+            }
+
         # 1. Dev A Proposal: High Availability / Enterprise Scale
         proposal_a = cls._generate_dev_a_proposal(prompt, provider)
         
@@ -54,6 +152,8 @@ class MultiAgentDebateEngine:
 
         # 4. Reviewer Synthesis Decision
         synthesis = {
+            "consensus_bypassed": False,
+            "gating": gating,
             "winner": winner["proposal_name"],
             "winning_score": winner["composite_score"],
             "runner_up": runner_up["proposal_name"],

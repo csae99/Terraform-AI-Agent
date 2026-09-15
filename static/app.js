@@ -271,13 +271,16 @@ async function switchModalTab(tabId) {
     if (activeContent) activeContent.style.display = 'block';
 
     document.querySelectorAll('.modal-tab').forEach(btn => {
-        btn.classList.toggle('active', btn.innerText.toLowerCase().includes(tabId.slice(0, 4)));
+        const onclickAttr = btn.getAttribute('onclick') || '';
+        btn.classList.toggle('active', onclickAttr.includes(`'${tabId}'`) || btn.innerText.toLowerCase().includes(tabId));
     });
 
     if (tabId === 'code' && currentProject) {
         const res = await apiFetch(`/api/projects/${currentProject.slug}/code`);
         currentCodeFiles = await res.json();
         renderFileTabs(currentCodeFiles);
+    } else if (tabId === 'adr' && currentProject) {
+        renderAdrTimeline(currentProject);
     } else if (tabId === 'gitops' && currentProject) {
         loadGitOpsDetails(currentProject.slug);
     } else if (tabId === 'visual' && currentProject?.mermaid_diagram) {
@@ -489,7 +492,89 @@ async function switchModalTab(tabId) {
         } else {
             qaContainer.innerHTML = '<p class="text-muted">No QA behavior verification report available. Run was not deployed or verification skipped.</p>';
         }
+
+        // Render Architectural Decision Records (ADRs)
+        renderAdrTimeline(currentProject);
     }
+}
+
+// ─── Architectural Decision Records (ADR) Timeline ─────────────
+function renderAdrTimeline(project) {
+    const container = document.getElementById('modal-adr-timeline');
+    const badge = document.getElementById('adr-count-badge');
+    if (!container) return;
+
+    const trace = project?.decision_trace || [];
+    const adrs = trace.filter(d => typeof d === 'object' && d !== null && (d.is_adr || d.rationale || d.reason || d.action));
+
+    if (badge) badge.innerText = `${adrs.length} Decision${adrs.length === 1 ? '' : 's'}`;
+
+    if (adrs.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed var(--border-color);">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.6;">🧠</div>
+                <h4 style="margin: 0 0 0.25rem 0; color: #cbd5e1;">No Architectural Decision Records Recorded</h4>
+                <p style="margin: 0; font-size: 0.85rem;">Workload was executed under default fast-track generation without branching decision overrides.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const agentColors = {
+        'TerraformArchitect': '#818cf8',
+        'ArchitectAgent': '#818cf8',
+        'DeveloperAgent': '#38bdf8',
+        'SecurityReviewer': '#f87171',
+        'FinOpsSpecialist': '#34d399',
+        'ConsensusReviewer': '#a855f7',
+        'TestingAgent': '#fbbf24',
+        'GitOpsCoordinator': '#c084fc',
+        'System': '#94a3b8'
+    };
+
+    let html = '';
+    adrs.forEach((adr, idx) => {
+        const agent = adr.agent || 'PlatformAgent';
+        const color = agentColors[agent] || '#818cf8';
+        const stage = adr.stage || 'Architecture';
+        const title = adr.title || adr.action || adr.decision || `Architectural Decision #${idx + 1}`;
+        const rationale = adr.rationale || adr.reason || 'Standard operational best practice.';
+        const decisionText = adr.decision || adr.action || '';
+        const alternatives = adr.alternatives_considered || '';
+        const tradeoffs = adr.tradeoffs || '';
+        const timestamp = adr.timestamp ? new Date(adr.timestamp).toLocaleTimeString() : '';
+
+        html += `
+            <div style="background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-left: 4px solid ${color}; border-radius: var(--radius-sm); padding: 1.1rem 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="background: rgba(255,255,255,0.08); color: ${color}; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">${agent}</span>
+                        <span style="font-size: 0.75rem; color: #94a3b8;">[${stage}]</span>
+                    </div>
+                    ${timestamp ? `<span style="font-size: 0.75rem; color: #64748b; font-family: monospace;">${timestamp}</span>` : ''}
+                </div>
+                <h4 style="margin: 0 0 0.5rem 0; color: #fff; font-size: 0.98rem; font-weight: 600;">${title}</h4>
+                ${decisionText && decisionText !== title ? `<p style="margin: 0 0 0.5rem 0; font-size: 0.86rem; color: #cbd5e1;"><strong>Decision:</strong> ${decisionText}</p>` : ''}
+                <div style="background: rgba(99, 102, 241, 0.05); border-left: 3px solid #6366f1; padding: 0.5rem 0.75rem; border-radius: 0 4px 4px 0; margin-bottom: 0.5rem;">
+                    <div style="font-size: 0.84rem; color: #e2e8f0; line-height: 1.4;">
+                        <strong style="color: #a5b4fc;">💡 Why Decided:</strong> ${rationale}
+                    </div>
+                </div>
+                ${alternatives && alternatives !== 'Standard default configuration' ? `
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.35rem;">
+                        <strong style="color: #cbd5e1;">🔄 Alternatives Considered:</strong> ${alternatives}
+                    </div>
+                ` : ''}
+                ${tradeoffs ? `
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem;">
+                        <strong style="color: #cbd5e1;">⚖️ Trade-offs:</strong> ${tradeoffs}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
 }
 
 // ─── File Tabs (Code Viewer) ────────────────────────────────────

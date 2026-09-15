@@ -1,18 +1,22 @@
 {
   "patterns": [
     {
+      "id": 1,
+      "signature": "BucketAlreadyExists",
       "error_substring": "BucketAlreadyExists",
       "category": "naming_conflict",
       "severity": "HIGH",
       "description": "S3 bucket names must be globally unique across all AWS accounts.",
       "fix": "Append a random suffix to the bucket name using the `random_string` resource. Example: resource \"random_string\" \"suffix\" { length = 8; special = false; upper = false } then use \"${var.bucket_name}-${random_string.suffix.result}\".",
-      "success_count": 1,
+      "success_count": 2,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.815955Z"
     },
     {
+      "id": 2,
+      "signature": "BucketAlreadyOwnedByYou",
       "error_substring": "BucketAlreadyOwnedByYou",
       "category": "naming_conflict",
       "severity": "MEDIUM",
@@ -21,10 +25,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.817043Z"
     },
     {
+      "id": 3,
+      "signature": "InvalidParameterValue",
       "error_substring": "InvalidParameterValue",
       "category": "parameter_error",
       "severity": "HIGH",
@@ -33,10 +39,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.818706Z"
     },
     {
+      "id": 4,
+      "signature": "AccessDenied",
       "error_substring": "AccessDenied",
       "category": "iam_permissions",
       "severity": "CRITICAL",
@@ -45,10 +53,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.819871Z"
     },
     {
+      "id": 5,
+      "signature": "UnauthorizedAccess",
       "error_substring": "UnauthorizedAccess",
       "category": "iam_permissions",
       "severity": "CRITICAL",
@@ -57,10 +67,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.820841Z"
     },
     {
+      "id": 6,
+      "signature": "UnsupportedAvailabilityZoneException",
       "error_substring": "UnsupportedAvailabilityZoneException",
       "category": "region_error",
       "severity": "HIGH",
@@ -69,10 +81,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.821903Z"
     },
     {
+      "id": 7,
+      "signature": "ResourceNotFoundException",
       "error_substring": "ResourceNotFoundException",
       "category": "dependency_error",
       "severity": "HIGH",
@@ -81,10 +95,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.823045Z"
     },
     {
+      "id": 8,
+      "signature": "InvalidSubnetID.NotFound",
       "error_substring": "InvalidSubnetID.NotFound",
       "category": "dependency_error",
       "severity": "HIGH",
@@ -93,10 +109,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.824359Z"
     },
     {
+      "id": 9,
+      "signature": "InvalidGroup.NotFound",
       "error_substring": "InvalidGroup.NotFound",
       "category": "dependency_error",
       "severity": "HIGH",
@@ -105,10 +123,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.825800Z"
     },
     {
+      "id": 10,
+      "signature": "DependencyViolation",
       "error_substring": "DependencyViolation",
       "category": "lifecycle_error",
       "severity": "HIGH",
@@ -117,10 +137,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.827104Z"
     },
     {
+      "id": 11,
+      "signature": "EntityAlreadyExists",
       "error_substring": "EntityAlreadyExists",
       "category": "naming_conflict",
       "severity": "MEDIUM",
@@ -129,10 +151,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.828333Z"
     },
     {
+      "id": 12,
+      "signature": "LimitExceededException",
       "error_substring": "LimitExceededException",
       "category": "quota_error",
       "severity": "HIGH",
@@ -141,10 +165,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.829606Z"
     },
     {
+      "id": 13,
+      "signature": "Error: Reference to undeclared resource",
       "error_substring": "Error: Reference to undeclared resource",
       "category": "terraform_syntax",
       "severity": "HIGH",
@@ -153,10 +179,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.830831Z"
     },
     {
+      "id": 14,
+      "signature": "Error: Unsupported block type",
       "error_substring": "Error: Unsupported block type",
       "category": "terraform_syntax",
       "severity": "HIGH",
@@ -165,10 +193,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.832098Z"
     },
     {
+      "id": 15,
+      "signature": "Error: Missing required argument",
       "error_substring": "Error: Missing required argument",
       "category": "terraform_syntax",
       "severity": "HIGH",
@@ -177,10 +207,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.833400Z"
     },
     {
+      "id": 16,
+      "signature": "Error: Unsupported argument",
       "error_substring": "Error: Unsupported argument",
       "category": "terraform_syntax",
       "severity": "MEDIUM",
@@ -189,10 +221,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.835892Z"
     },
     {
+      "id": 17,
+      "signature": "Error: Invalid provider configuration",
       "error_substring": "Error: Invalid provider configuration",
       "category": "provider_error",
       "severity": "CRITICAL",
@@ -201,10 +235,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.837344Z"
     },
     {
+      "id": 18,
+      "signature": "No valid credential sources found",
       "error_substring": "No valid credential sources found",
       "category": "credentials_error",
       "severity": "CRITICAL",
@@ -213,10 +249,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.838716Z"
     },
     {
+      "id": 19,
+      "signature": "Error: Cycle",
       "error_substring": "Error: Cycle",
       "category": "terraform_syntax",
       "severity": "HIGH",
@@ -225,10 +263,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.840142Z"
     },
     {
+      "id": 20,
+      "signature": "timeout while waiting",
       "error_substring": "timeout while waiting",
       "category": "timeout_error",
       "severity": "MEDIUM",
@@ -237,10 +277,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.841493Z"
     },
     {
+      "id": 21,
+      "signature": "The \";\" character is not valid",
       "error_substring": "The \";\" character is not valid",
       "category": "hcl_formatting",
       "severity": "CRITICAL",
@@ -249,10 +291,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.842809Z"
     },
     {
+      "id": 22,
+      "signature": "A single-line block definition must end with a closing brace",
       "error_substring": "A single-line block definition must end with a closing brace",
       "category": "hcl_formatting",
       "severity": "CRITICAL",
@@ -261,10 +305,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.844388Z"
     },
     {
+      "id": 23,
+      "signature": "Missing newline after argument",
       "error_substring": "Missing newline after argument",
       "category": "hcl_formatting",
       "severity": "CRITICAL",
@@ -273,10 +319,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.845858Z"
     },
     {
+      "id": 24,
+      "signature": "At least two subnets in different Availability Zones",
       "error_substring": "At least two subnets in different Availability Zones",
       "category": "eks_configuration",
       "severity": "CRITICAL",
@@ -285,10 +333,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-05-31T18:53:27Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.847100Z"
     },
     {
+      "id": 25,
+      "signature": "MockError123",
       "error_substring": "MockError123",
       "category": "mock",
       "severity": "LOW",
@@ -297,10 +347,12 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 0.8,
-      "last_used": "2026-06-18T17:44:16.013984Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.848432Z"
     },
     {
+      "id": 26,
+      "signature": "disable_bgp_route_propagation",
       "error_substring": "disable_bgp_route_propagation",
       "category": "azurerm_v4_compatibility",
       "severity": "HIGH",
@@ -309,8 +361,20 @@
       "success_count": 1,
       "failure_count": 0,
       "confidence": 1.0,
-      "last_used": "2026-08-02T06:20:00Z",
-      "status": "trusted"
+      "status": "trusted",
+      "last_used": "2026-09-15T17:38:24.849603Z"
+    },
+    {
+      "error_substring": "test_err_simulation_unique_key_999",
+      "category": "test",
+      "severity": "LOW",
+      "description": "Simulated test error for DB lifecycle verification",
+      "fix": "Apply mock fix for simulation",
+      "success_count": 2,
+      "failure_count": 1,
+      "confidence": 0.45,
+      "status": "candidate",
+      "last_used": "2026-09-15T18:31:20.952081Z"
     }
   ]
 }

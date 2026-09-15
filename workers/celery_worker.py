@@ -15,7 +15,8 @@ r_client = redis.from_url(redis_url)
 
 @celery_app.task(name="tasks.run_agent_pipeline")
 def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None, ai_config=None, new_project=False,
-                            gitops=False, git_repo=None, git_token=None, target_branch="main", engine="terraform"):
+                            gitops=False, git_repo=None, git_token=None, target_branch="main", engine="terraform",
+                            force_consensus=False, plan_tier="free"):
     # Construct the command exactly like app/dashboard.py
     project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
     main_script = os.path.join(project_root, "app", "main.py")
@@ -35,6 +36,11 @@ def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None,
         cmd.extend(["--target-branch", target_branch])
     if engine and engine != "terraform":
         cmd.extend(["--engine", engine])
+    if force_consensus or (credentials and credentials.get("force_consensus")):
+        cmd.append("--consensus")
+    tier_val = plan_tier or (credentials.get("plan_tier") if credentials else None)
+    if tier_val:
+        cmd.extend(["--plan-tier", tier_val])
     if credentials:
         if credentials.get("owner_id"):
             cmd.extend(["--owner-id", str(credentials["owner_id"])])

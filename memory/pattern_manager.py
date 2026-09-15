@@ -23,10 +23,59 @@ class PatternManager:
         self.patterns_file = patterns_file
         self._patterns: List[Dict] = []
         VectorKnowledgeEngine.ensure_seeded()
+        self.ensure_seeded(self.patterns_file)
         self._load(self.patterns_file)
 
+    @classmethod
+    def ensure_seeded(cls, seed_file: str = _PATTERNS_FILE) -> int:
+        """Ensure seed patterns from JSON are migrated into Database/Vector memory."""
+        if not os.path.exists(seed_file):
+            return 0
+
+        session = SessionLocal()
+        added_count = 0
+        try:
+            with open(seed_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            patterns = data.get("patterns", [])
+
+            for p in patterns:
+                sub = p.get("error_substring")
+                if not sub:
+                    continue
+                existing = session.query(PatternMemoryModel).filter(
+                    PatternMemoryModel.error_substring == sub
+                ).first()
+                if not existing:
+                    emb = VectorKnowledgeEngine.get_embedding(f"{sub} {p.get('description', '')}")
+                    new_item = PatternMemoryModel(
+                        signature=p.get("signature") or sub,
+                        error_substring=sub,
+                        category=p.get("category", "general"),
+                        severity=p.get("severity", "MEDIUM"),
+                        description=p.get("description", ""),
+                        fix=p.get("fix", ""),
+                        success_count=p.get("success_count", 1),
+                        failure_count=p.get("failure_count", 0),
+                        confidence=p.get("confidence", 1.0),
+                        status=p.get("status", "trusted"),
+                        embedding=json.dumps(emb),
+                        last_used=datetime.utcnow()
+                    )
+                    session.add(new_item)
+                    added_count += 1
+            if added_count > 0:
+                session.commit()
+                print(f"[PatternManager] Seeded {added_count} failure patterns into database.")
+        except Exception as e:
+            session.rollback()
+            print(f"[PatternManager] Warning: Pattern seed migration failed: {e}")
+        finally:
+            session.close()
+        return added_count
+
     def _load(self, path: str) -> None:
-        """Load patterns from the Database (with JSON catalog fallback)."""
+        """Load patterns from the Database as authoritative source of truth."""
         session = SessionLocal()
         try:
             db_patterns = session.query(PatternMemoryModel).all()
@@ -343,11 +392,14 @@ Return the output strictly in the following JSON format:
             print(f"[PatternManager] Warning: failed to learn from run: {e}")
 
     def _persist(self) -> None:
-        """Write the current patterns back to disk and database."""
-        # 1. Update JSON file
-        data = {"patterns": self._patterns}
-        with open(_PATTERNS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        """Write the current patterns to database as primary store, with optional JSON sync."""
+        # 1. Update JSON file (secondary/export cache, non-blocking)
+        try:
+            data = {"patterns": self._patterns}
+            with open(_PATTERNS_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
 
         # 2. Synchronize to database
         session = SessionLocal()

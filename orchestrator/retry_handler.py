@@ -67,6 +67,34 @@ class RetryContext:
             self.decision_trace.append(entry)
             print(f"[Decision Trace] Logged: '{decision}'")
 
+    def record_adr(
+        self,
+        title: str,
+        agent: str,
+        decision: str,
+        rationale: str,
+        alternatives_considered: Optional[str] = None,
+        tradeoffs: Optional[str] = None,
+        stage: Optional[str] = None
+    ) -> None:
+        """Records an Architectural Decision Record (ADR) explaining why an architectural choice was made."""
+        from datetime import datetime
+        entry = {
+            "is_adr": True,
+            "title": title,
+            "agent": agent,
+            "stage": stage or "Architecture",
+            "decision": decision,
+            "action": title,
+            "rationale": rationale,
+            "reason": rationale,
+            "alternatives_considered": alternatives_considered or "Standard default configuration",
+            "tradeoffs": tradeoffs or "Balanced reliability, compliance security, and cost efficiency.",
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+        self.decision_trace.append(entry)
+        print(f"[ADR] [{agent}] {title} -> {rationale}")
+
     @property
     def has_retries_left(self) -> bool:
         return self.current_round <= self.max_rounds

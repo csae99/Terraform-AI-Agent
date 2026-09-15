@@ -50,6 +50,8 @@ def main():
     parser.add_argument("--engine", type=str, default="terraform", choices=["terraform", "opentofu", "tofu"], help="IaC execution engine (terraform, opentofu)")
     parser.add_argument("--owner-id", type=str, help="User ID owning the workspace")
     parser.add_argument("--org-id", type=str, help="Organization ID context")
+    parser.add_argument("--consensus", action="store_true", help="Force multi-agent consensus debate")
+    parser.add_argument("--plan-tier", type=str, default=None, help="Subscription tier context (free, pro, enterprise)")
     args = parser.parse_args()
 
     # Handle Destructive Actions
@@ -73,6 +75,10 @@ def main():
         cli_flags.append("--test-local")
     if args.gitops:
         cli_flags.append("--gitops")
+    if args.consensus:
+        cli_flags.append("--consensus")
+    if args.plan_tier:
+        cli_flags.append(f"--plan-tier={args.plan_tier}")
     if args.engine and args.engine != "terraform":
         cli_flags.append(f"--engine={args.engine}")
 
@@ -102,6 +108,8 @@ def main():
         git_token=args.git_token,
         target_branch=args.target_branch,
         engine=args.engine,
+        force_consensus=args.consensus,
+        plan_tier=args.plan_tier,
     )
 
 
