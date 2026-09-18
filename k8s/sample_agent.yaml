@@ -1,0 +1,26 @@
+apiVersion: platform.terraform-ai.io/v1alpha1
+kind: TerraformAgent
+metadata:
+  name: demo-web-fleet
+  namespace: default
+  labels:
+    app.kubernetes.io/managed-by: terraform-ai-operator
+    environment: dev
+spec:
+  prompt: "Deploy a highly-available VPC with 2 public subnets and an S3 bucket in us-east-1"
+  engine: terraform
+  environment: dev
+  governance:
+    maxBudgetMonthlyUSD: 250.0
+    compliancePack: cis_aws_foundations
+    riskThreshold: MEDIUM
+  gitops:
+    targetRepo: "https://github.com/company/infra-fleet.git"
+    targetBranch: "main"
+    autoHealDrift: true
+    createPullRequest: true
+  stateBackend:
+    provider: s3
+    stateBucket: "demo-tf-state"
+    lockTable: "demo-tf-locks"
+    region: "us-east-1"

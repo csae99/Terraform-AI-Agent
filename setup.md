@@ -304,18 +304,30 @@ kubectl get crds | grep platform.terraform-ai.io
 # workflows.platform.terraform-ai.io
 ```
 
-### 2. Deploy the Operator Controller via Helm 3
-Deploy the `terraform-ai-operator` Helm chart into a dedicated namespace:
+### 2. Deploy the Platform & Operator via Helm 3
+Deploy the complete `terraform-ai` Helm chart (Dashboard UI, Reconciler Operator, PostgreSQL, and Redis) into the dedicated `terraform-ai-system` namespace:
+
 ```bash
-helm upgrade --install terraform-ai-operator ./k8s/helm \
+# If transitioning from Docker Compose, stop local containers to free port 5000
+docker compose stop
+
+# Deploy the complete platform stack via Helm
+helm upgrade --install terraform-ai ./k8s/helm \
   --namespace terraform-ai-system \
   --create-namespace \
   --values ./k8s/helm/values.yaml
 ```
-Verify controller deployment:
+
+Verify the deployment and services:
 ```bash
-kubectl get pods -n terraform-ai-system
+kubectl get pods,services -n terraform-ai-system
 ```
+
+> [!TIP]
+> **Accessing the Web Dashboard on Kubernetes**:
+> In Docker Desktop Kubernetes, the `terraform-ai-dashboard` service (`type: LoadBalancer`) automatically binds port 5000 to Windows `localhost`.
+> Open your browser at **`http://localhost:5000`** to access the Web UI and Super-Admin Console directly from your Kubernetes cluster!
+
 
 ### 3. Configure ArgoCD Custom Health Check
 Patch the `argocd-cm` ConfigMap to enable native health visualization for `TerraformAgent` resources in the ArgoCD UI:

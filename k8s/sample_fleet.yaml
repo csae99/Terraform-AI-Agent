@@ -1,0 +1,70 @@
+apiVersion: platform.terraform-ai.io/v1alpha1
+kind: PlatformProject
+metadata:
+  name: fintech-core
+  namespace: default
+spec:
+  organization: "fintech-corp"
+  tier: "enterprise"
+  monthlyBudgetUSD: 10000.0
+  allowedProviders:
+    - "aws"
+    - "azure"
+  allowedRegions:
+    - "us-east-1"
+    - "eu-west-1"
+  targetNamespace: "default"
+---
+apiVersion: platform.terraform-ai.io/v1alpha1
+kind: Policy
+metadata:
+  name: enforce-mandatory-tags
+  namespace: default
+spec:
+  ruleName: "require-environment-owner-tags"
+  severity: "HIGH"
+  enforcementAction: "Deny"
+  requiredTags:
+    - "Environment"
+    - "Owner"
+    - "CostCenter"
+  blockedResourceTypes:
+    - "aws_security_group_rule_open_all"
+---
+apiVersion: platform.terraform-ai.io/v1alpha1
+kind: Workflow
+metadata:
+  name: deploy-web-fleet-workflow
+  namespace: default
+spec:
+  targetAgentRef: "demo-web-fleet"
+  pipelineMode: "full_reconcile"
+  timeoutMinutes: 20
+  concurrencyPolicy: "Forbid"
+---
+apiVersion: platform.terraform-ai.io/v1alpha1
+kind: TerraformAgent
+metadata:
+  name: payment-gateway-vpc
+  namespace: default
+  labels:
+    app.kubernetes.io/managed-by: terraform-ai-operator
+    environment: staging
+spec:
+  prompt: "Deploy an isolated PCI-compliant AWS VPC with 2 private subnets and NAT gateway in us-east-1"
+  engine: terraform
+  environment: staging
+  governance:
+    maxBudgetMonthlyUSD: 500.0
+    compliancePack: cis_aws_foundations
+    riskThreshold: HIGH
+  gitops:
+    targetRepo: "https://github.com/fintech-corp/cloud-infrastructure.git"
+    targetBranch: "main"
+    autoHealDrift: true
+    createPullRequest: true
+  stateBackend:
+    provider: s3
+    stateBucket: "fintech-state-bucket"
+    lockTable: "fintech-state-locks"
+    region: "us-east-1"

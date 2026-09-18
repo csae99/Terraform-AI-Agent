@@ -176,13 +176,28 @@
             <i class="fas fa-building"></i> Organizations & Plans
         </button>
         <button class="admin-tab-btn" id="tab-llm" onclick="switchAdminTab('llm')">
-            <i class="fas fa-brain"></i> LLM Economics
+            <i class="fas fa-chart-line"></i> FinOps & Revenue
         </button>
         <button class="admin-tab-btn" id="tab-k8s" onclick="switchAdminTab('k8s')">
             <i class="fas fa-dharmachakra"></i> K8s & Worker Fleet
         </button>
         <button class="admin-tab-btn" id="tab-audit" onclick="switchAdminTab('audit')">
             <i class="fas fa-history"></i> Global Audit Vault
+        </button>
+        <button class="admin-tab-btn" id="tab-config" onclick="switchAdminTab('config')">
+            <i class="fas fa-sliders-h"></i> Config & Env
+        </button>
+        <button class="admin-tab-btn" id="tab-killswitches" onclick="switchAdminTab('killswitches')">
+            <i class="fas fa-radiation"></i> Kill Switches
+        </button>
+        <button class="admin-tab-btn" id="tab-patterns" onclick="switchAdminTab('patterns')">
+            <i class="fas fa-brain"></i> Pattern Memory
+        </button>
+        <button class="admin-tab-btn" id="tab-agents" onclick="switchAdminTab('agents')">
+            <i class="fas fa-robot"></i> Agent Operations
+        </button>
+        <button class="admin-tab-btn" id="tab-llm-router" onclick="switchAdminTab('llm-router')">
+            <i class="fas fa-network-wired"></i> LLM Router
         </button>
     </nav>
 
@@ -307,21 +322,165 @@
         </div>
     </div>
 
-    <!-- ═══ 4. LLM ECONOMICS ═══ -->
+    <!-- ═══ 4. FINOPS & REVENUE ANALYTICS (MILESTONE 3) ═══ -->
     <div id="view-llm" class="admin-view">
-        <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 1rem;"><i class="fas fa-brain" style="color: #10b981;"></i> LLM Gateway & Token Economics</h2>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h2 style="font-size: 1.4rem; color: #fff; margin: 0 0 0.25rem 0;">
+                    <i class="fas fa-chart-line" style="color: #10b981;"></i> FinOps & Revenue Analytics Command Center
+                </h2>
+                <p style="font-size: 0.85rem; color: #94a3b8; margin: 0;">Executive financial cockpit tracking SaaS ARR/MRR velocity, platform unit economics, gross margins, and tenant profitability.</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button onclick="openPricingSimulator()" class="btn-sm" style="background: rgba(99, 102, 241, 0.2); border: 1px solid #6366f1; color: #a5b4fc; font-weight: 600; padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fas fa-calculator"></i> Pricing Simulator
+                </button>
+                <button onclick="exportFinOpsCSV()" class="btn-sm" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #6ee7b7; font-weight: 600; padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fas fa-file-csv"></i> Export FinOps CSV
+                </button>
+                <button onclick="loadFinOpsData()" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: #cbd5e1; padding: 0.45rem 0.75rem; border-radius: var(--radius-sm); cursor: pointer;">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- FinOps Executive KPI Strip -->
+        <div class="vitals-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1.5rem;">
+            <div class="vital-card" style="border-left: 4px solid #10b981;">
+                <span class="meta-label">Monthly Recurring Revenue (MRR)</span>
+                <div class="vital-val" id="finops-vital-mrr" style="color: #34d399;">$0.00</div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.35rem;">
+                    ARR: <strong id="finops-vital-arr" style="color: #fff;">$0.00</strong>
+                </div>
+            </div>
+
+            <div class="vital-card" style="border-left: 4px solid #ef4444;">
+                <span class="meta-label">Platform Costs (30d)</span>
+                <div class="vital-val" id="finops-vital-costs" style="color: #f87171;">$0.00</div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.35rem;">
+                    AI: <span id="finops-vital-ai-cost" style="color: #cbd5e1;">$0.00</span> | Compute: <span id="finops-vital-compute-cost" style="color: #cbd5e1;">$0.00</span>
+                </div>
+            </div>
+
+            <div class="vital-card" style="border-left: 4px solid #6366f1;">
+                <span class="meta-label">Gross Profit Margin</span>
+                <div class="vital-val" id="finops-vital-margin" style="color: #818cf8;">0.0%</div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.35rem;">
+                    Net Profit: <strong id="finops-vital-net-profit" style="color: #fff;">$0.00</strong>
+                </div>
+            </div>
+
+            <div class="vital-card" style="border-left: 4px solid #f59e0b;">
+                <span class="meta-label">AI Cost Savings Generated</span>
+                <div class="vital-val" id="finops-vital-savings" style="color: #fbbf24;">$0.00</div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.35rem;">
+                    Delivered by <strong style="color: #cbd5e1;">FinOpsSpecialist</strong>
+                </div>
+            </div>
+
+            <div class="vital-card" style="border-left: 4px solid #38bdf8;">
+                <span class="meta-label">Paid Account Conversion</span>
+                <div class="vital-val" id="finops-vital-conversion" style="color: #38bdf8;">0.0%</div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.35rem;">
+                    ARPU: <strong id="finops-vital-arpu" style="color: #fff;">$0.00</strong> / account
+                </div>
+            </div>
+        </div>
+
+        <!-- 2-Column Revenue & Cost Analytics Breakdown -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
+            <!-- Panel 1: Subscription Tiers & Revenue Distribution -->
+            <div class="vital-card">
+                <h3 style="margin-top: 0; font-size: 1.1rem; color: #fff; display: flex; align-items: center; justify-content: space-between;">
+                    <span><i class="fas fa-tags" style="color: #10b981;"></i> Subscription Revenue Streams</span>
+                    <span style="font-size: 0.75rem; color: #94a3b8;" id="finops-total-tenants-count">0 Tenants</span>
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin: 1rem 0;">
+                    <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius-sm); padding: 0.75rem; text-align: center;">
+                        <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 600;">Free Tier</span>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #cbd5e1; margin: 0.25rem 0;" id="finops-free-count">0</div>
+                        <div style="font-size: 0.75rem; color: #64748b;">$0/mo quota</div>
+                    </div>
+                    <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius-sm); padding: 0.75rem; text-align: center;">
+                        <span style="font-size: 0.75rem; color: #a5b4fc; text-transform: uppercase; font-weight: 600;">Pro Tier</span>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #818cf8; margin: 0.25rem 0;" id="finops-pro-count">0</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;" id="finops-pro-rev">$0/mo</div>
+                    </div>
+                    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); padding: 0.75rem; text-align: center;">
+                        <span style="font-size: 0.75rem; color: #6ee7b7; text-transform: uppercase; font-weight: 600;">Enterprise</span>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: #34d399; margin: 0.25rem 0;" id="finops-enterprise-count">0</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;" id="finops-enterprise-rev">$0/mo</div>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #94a3b8;">
+                    <span>Active Paid Ratio: <strong id="finops-paid-ratio" style="color: #fff;">0 / 0</strong></span>
+                    <span>Billing Engine: <span class="badge" style="background: rgba(16,185,129,0.15); color: #34d399;">Multi-Org Active</span></span>
+                </div>
+            </div>
+
+            <!-- Panel 2: Cost Structure & Unit Economics -->
+            <div class="vital-card">
+                <h3 style="margin-top: 0; font-size: 1.1rem; color: #fff; display: flex; align-items: center; justify-content: space-between;">
+                    <span><i class="fas fa-receipt" style="color: #f59e0b;"></i> Operating Cost & Unit Economics</span>
+                    <span style="font-size: 0.75rem; color: #94a3b8;">Trailing 30-Day</span>
+                </h3>
+                <div id="finops-cost-categories-list" style="display: flex; flex-direction: column; gap: 0.6rem; margin: 1rem 0;">
+                    <!-- Injected by JS -->
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem;">
+                    <div style="text-align: center;">
+                        <span style="font-size: 0.7rem; color: #94a3b8; display: block;">Cost / Run</span>
+                        <strong id="finops-unit-cost-run" style="font-size: 0.95rem; color: #f87171;">$0.00</strong>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="font-size: 0.7rem; color: #94a3b8; display: block;">Cost / Project</span>
+                        <strong id="finops-unit-cost-project" style="font-size: 0.95rem; color: #fbbf24;">$0.00</strong>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="font-size: 0.7rem; color: #94a3b8; display: block;">Cost / 1k Tokens</span>
+                        <strong id="finops-unit-cost-tokens" style="font-size: 0.95rem; color: #34d399;">$0.00</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tenant Profitability & Unit Economics Table -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h3 style="font-size: 1.15rem; color: #fff; margin: 0;">
+                <i class="fas fa-layer-group" style="color: #38bdf8;"></i> Tenant Profitability & Unit Economics Matrix
+            </h3>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" id="finops-tenant-search" placeholder="Search organization..." oninput="filterFinOpsTenants()" class="form-input" style="width: 200px; padding: 0.35rem 0.6rem; font-size: 0.8rem;">
+                <select id="finops-health-filter" onchange="filterFinOpsTenants()" class="form-input" style="padding: 0.35rem 0.6rem; font-size: 0.8rem;">
+                    <option value="all">All Accounts</option>
+                    <option value="high_margin">High Margin (>60%)</option>
+                    <option value="healthy">Healthy (30-60%)</option>
+                    <option value="at_risk">At Risk (0-30%)</option>
+                    <option value="unprofitable">Unprofitable (<0%)</option>
+                </select>
+            </div>
+        </div>
+
         <div class="table-container">
             <table class="admin-table">
                 <thead>
                     <tr>
-                        <th>Record ID</th>
-                        <th>Org ID</th>
-                        <th>Tokens Consumed</th>
-                        <th>Infra Projected Spend</th>
-                        <th>Compute Seconds</th>
+                        <th>Organization</th>
+                        <th>Plan</th>
+                        <th>Runs</th>
+                        <th>Tokens</th>
+                        <th>AI Cost</th>
+                        <th>Compute</th>
+                        <th>Total Cost</th>
+                        <th>Cloud Spend</th>
+                        <th>AI Savings</th>
+                        <th>Monthly Fee</th>
+                        <th>Net Margin</th>
+                        <th>Margin %</th>
+                        <th>Health Status</th>
                     </tr>
                 </thead>
-                <tbody id="llm-records-tbody">
+                <tbody id="finops-tenants-tbody">
                     <!-- Injected by JS -->
                 </tbody>
             </table>
@@ -382,6 +541,432 @@
         </div>
     </div>
 
+    <!-- ═══ 7. CONFIG & ENVIRONMENT MANAGER ═══ -->
+    <div id="view-config" class="admin-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h2 style="font-size: 1.4rem; color: #fff; margin: 0;"><i class="fas fa-sliders-h" style="color: #6366f1;"></i> Dynamic Environment & Runtime Configuration</h2>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.3rem;">Hot-reloaded into memory and persisted across Kubernetes pod recreations.</p>
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+                <input type="text" id="search-config" class="search-bar" placeholder="Search config key or description..." oninput="filterConfigTable()">
+                <button onclick="openConfigModal()" class="btn-sm" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; color: #fff; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    <i class="fas fa-plus"></i> Add Variable
+                </button>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; overflow-x: auto;">
+            <button class="action-btn-sm btn-plan active" id="cfg-cat-all" onclick="filterConfigCategory('all')">All (<span id="cfg-count-all">0</span>)</button>
+            <button class="action-btn-sm btn-plan" id="cfg-cat-llm" onclick="filterConfigCategory('llm')">LLM Providers (<span id="cfg-count-llm">0</span>)</button>
+            <button class="action-btn-sm btn-plan" id="cfg-cat-database" onclick="filterConfigCategory('database')">Database & Cache (<span id="cfg-count-database">0</span>)</button>
+            <button class="action-btn-sm btn-plan" id="cfg-cat-auth" onclick="filterConfigCategory('auth')">Security & Auth (<span id="cfg-count-auth">0</span>)</button>
+            <button class="action-btn-sm btn-plan" id="cfg-cat-features" onclick="filterConfigCategory('features')">Feature Flags (<span id="cfg-count-features">0</span>)</button>
+        </div>
+
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th style="width: 250px;">Key</th>
+                        <th style="width: 120px;">Category</th>
+                        <th>Value</th>
+                        <th>Description</th>
+                        <th style="width: 160px;">Last Modified</th>
+                        <th style="width: 180px; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="config-tbody">
+                    <!-- Injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ 8. EMERGENCY KILL SWITCHES ═══ -->
+    <div id="view-killswitches" class="admin-view">
+        <div id="killswitch-global-banner" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; border-radius: var(--radius-md); display: flex; align-items: center; gap: 1rem; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399;">
+            <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i>
+            <div>
+                <strong style="font-size: 1rem; display: block;" id="killswitch-banner-title">All Systems Nominal</strong>
+                <span style="font-size: 0.85rem; color: #cbd5e1;" id="killswitch-banner-desc">No emergency kill switches are currently active. All platform operations are proceeding normally.</span>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;" id="killswitches-grid">
+            <!-- Injected by JS -->
+        </div>
+    </div>
+
+    <!-- ═══ 9. PATTERN MEMORY DASHBOARD ═══ -->
+    <div id="view-patterns" class="admin-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h2 style="font-size: 1.4rem; color: #fff; margin: 0;"><i class="fas fa-brain" style="color: #a855f7;"></i> Failure Pattern Memory Catalog</h2>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.3rem;">Learned error patterns used by autonomous self-healing loops to remediate Terraform failures.</p>
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+                <input type="text" id="search-patterns" class="search-bar" placeholder="Search patterns or fixes..." oninput="filterPatternsTable()">
+                <button onclick="openPatternModal()" class="btn-sm" style="background: linear-gradient(135deg, #a855f7, #6366f1); border: none; color: #fff; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    <i class="fas fa-plus"></i> Add Pattern
+                </button>
+            </div>
+        </div>
+
+        <!-- Pattern KPIs -->
+        <div class="vitals-grid" style="margin-bottom: 1.5rem;">
+            <div class="vital-card">
+                <span class="meta-label">Total Learned Patterns</span>
+                <div class="vital-val" id="vital-pat-total" style="color: #a855f7;">0</div>
+                <span style="font-size: 0.8rem; color: #94a3b8;">Indexed in Vector Catalog</span>
+            </div>
+            <div class="vital-card">
+                <span class="meta-label">Trusted Patterns</span>
+                <div class="vital-val" id="vital-pat-trusted" style="color: #10b981;">0</div>
+                <span style="font-size: 0.8rem; color: #34d399;">High-confidence automated auto-fix</span>
+            </div>
+            <div class="vital-card">
+                <span class="meta-label">Candidate Patterns</span>
+                <div class="vital-val" id="vital-pat-candidate" style="color: #f59e0b;">0</div>
+                <span style="font-size: 0.8rem; color: #fbbf24;">Evaluating performance & decay</span>
+            </div>
+            <div class="vital-card">
+                <span class="meta-label">Average Confidence</span>
+                <div class="vital-val" id="vital-pat-confidence" style="color: #38bdf8;">0%</div>
+                <span style="font-size: 0.8rem; color: #94a3b8;">Across all active signatures</span>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th style="width: 280px;">Error Substring / Signature</th>
+                        <th style="width: 100px;">Category</th>
+                        <th style="width: 90px;">Severity</th>
+                        <th style="width: 130px;">Confidence</th>
+                        <th style="width: 100px;">Success / Fail</th>
+                        <th style="width: 90px;">Status</th>
+                        <th>Recommended Fix</th>
+                        <th style="width: 160px; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="patterns-tbody">
+                    <!-- Injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ 9. AGENT OPERATIONS CENTER ═══ -->
+    <div id="view-agents" class="admin-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+            <div>
+                <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 0.25rem;">
+                    <i class="fas fa-robot" style="color: #38bdf8;"></i> Agent Operations Command Center
+                </h2>
+                <span style="font-size: 0.85rem; color: var(--text-secondary);">
+                    Real-time monitoring, success rates, latency benchmarks, and in-flight pipeline intervention for specialized agents.
+                </span>
+            </div>
+            <button onclick="loadAgentOperations()" class="btn-sm" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
+                <i class="fas fa-sync-alt"></i> Refresh Fleet
+            </button>
+        </div>
+
+        <!-- Leaderboard Metrics -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+            <div class="vital-card" style="border-left: 3px solid #38bdf8;">
+                <span class="meta-label">Most Used Agent</span>
+                <div class="vital-val" style="font-size: 1.3rem; color: #38bdf8;" id="agent-lb-most-used">Loading...</div>
+                <span style="font-size: 0.75rem; color: #94a3b8;" id="agent-lb-most-used-sub">Fleet Workhorse</span>
+            </div>
+            <div class="vital-card" style="border-left: 3px solid #f87171;">
+                <span class="meta-label">Highest Failure Rate</span>
+                <div class="vital-val" style="font-size: 1.3rem; color: #f87171;" id="agent-lb-failure-rate">Loading...</div>
+                <span style="font-size: 0.75rem; color: #94a3b8;" id="agent-lb-failure-sub">Needs Attention / Patterns</span>
+            </div>
+            <div class="vital-card" style="border-left: 3px solid #a855f7;">
+                <span class="meta-label">Top Token Consumer</span>
+                <div class="vital-val" style="font-size: 1.3rem; color: #c084fc;" id="agent-lb-tokens">Loading...</div>
+                <span style="font-size: 0.75rem; color: #94a3b8;" id="agent-lb-tokens-sub">Cumulative Tokens</span>
+            </div>
+            <div class="vital-card" style="border-left: 3px solid #34d399;">
+                <span class="meta-label">Most Expensive Agent</span>
+                <div class="vital-val" style="font-size: 1.3rem; color: #34d399;" id="agent-lb-cost">Loading...</div>
+                <span style="font-size: 0.75rem; color: #94a3b8;" id="agent-lb-cost-sub">Estimated Model Spend</span>
+            </div>
+        </div>
+
+        <!-- 7 Agent Fleet Health Grid -->
+        <h3 style="font-size: 1.1rem; color: #fff; margin: 1.5rem 0 0.75rem;">
+            <i class="fas fa-microchip" style="color: #a5b4fc;"></i> Autonomous Agent Fleet Status
+        </h3>
+        <div id="agent-fleet-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+            <!-- Rendered by JS -->
+        </div>
+
+        <!-- Live & Recent Runs with Intervene Controls -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 1.5rem 0 0.75rem;">
+            <h3 style="font-size: 1.1rem; color: #fff; margin: 0;">
+                <i class="fas fa-stream" style="color: #6366f1;"></i> Pipeline Runs & Execution Control
+            </h3>
+            <input type="text" id="runs-search-input" class="search-bar" placeholder="Filter by slug or prompt..." oninput="filterAgentRuns()" style="width: 260px;">
+        </div>
+
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th style="width: 140px;">Workspace Slug</th>
+                        <th>User Prompt</th>
+                        <th style="width: 130px;">Active Agent</th>
+                        <th style="width: 130px;">Current Stage</th>
+                        <th style="width: 90px;">Duration</th>
+                        <th style="width: 80px;">Healing</th>
+                        <th style="width: 110px;">Status</th>
+                        <th style="width: 220px; text-align: right;">Intervene Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="agent-runs-tbody">
+                    <!-- Rendered by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ 10. LLM ROUTER & FALLBACK POLICY ═══ -->
+    <div id="view-llm-router" class="admin-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+            <div>
+                <h2 style="font-size: 1.4rem; color: #fff; margin-bottom: 0.25rem;">
+                    <i class="fas fa-network-wired" style="color: #a855f7;"></i> LLM Router & Fallback Policy Control
+                </h2>
+                <span style="font-size: 0.85rem; color: var(--text-secondary);">
+                    Intelligent task-complexity model routing, dynamic multi-tier failover chains, and emergency provider isolation.
+                </span>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button onclick="openTestLLMModal()" class="btn-sm" style="background: rgba(168, 85, 247, 0.2); border: 1px solid #a855f7; color: #c084fc; padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">
+                    <i class="fas fa-bolt"></i> Test Route Diagnostic
+                </button>
+                <button onclick="loadLLMRouter()" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: #fff; padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer;">
+                    <i class="fas fa-sync-alt"></i> Refresh Router
+                </button>
+            </div>
+        </div>
+
+        <!-- Routing Mode & Policy Panel -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem;">
+            <div>
+                <span class="meta-label" style="display: block; margin-bottom: 0.35rem;">Active Routing Mode</span>
+                <div style="display: flex; gap: 0.5rem;" id="routing-mode-selector">
+                    <button onclick="setRoutingMode('auto')" id="btn-mode-auto" class="btn-sm" style="padding: 0.4rem 0.8rem; border-radius: 4px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: #3b82f6; color: #fff;">
+                        <i class="fas fa-magic"></i> Auto (Complexity-Based)
+                    </button>
+                    <button onclick="setRoutingMode('force')" id="btn-mode-force" class="btn-sm" style="padding: 0.4rem 0.8rem; border-radius: 4px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: #ccc;">
+                        <i class="fas fa-crosshairs"></i> Force Specific Provider
+                    </button>
+                    <button onclick="setRoutingMode('failover_chain')" id="btn-mode-failover" class="btn-sm" style="padding: 0.4rem 0.8rem; border-radius: 4px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: #ccc;">
+                        <i class="fas fa-link"></i> Strict Fallback Chain
+                    </button>
+                </div>
+            </div>
+
+            <div id="forced-provider-container" style="display: none; align-items: center; gap: 0.5rem;">
+                <span class="meta-label">Forced Provider:</span>
+                <select id="forced-provider-select" class="form-input" style="padding: 0.35rem 0.75rem;" onchange="updateForcedProvider(this.value)">
+                    <option value="gemini">Google Gemini</option>
+                    <option value="zenmux">ZenMux AI</option>
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="groq">Groq LPU</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic Claude</option>
+                    <option value="mistral">Mistral AI</option>
+                    <option value="nvidia">NVIDIA NIM</option>
+                    <option value="ollama">Ollama (Local)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Dynamic Fallback Chain Priority -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <h3 style="font-size: 1.05rem; color: #fff; margin: 0;">
+                    <i class="fas fa-layer-group" style="color: #38bdf8;"></i> Priority Fallback Execution Chain
+                </h3>
+                <span style="font-size: 0.8rem; color: #94a3b8;">Executed sequentially upon rate limit or upstream failure</span>
+            </div>
+            <div id="fallback-chain-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+                <!-- Injected by JS -->
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button onclick="addFallbackModelPrompt()" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.8rem; border-radius: var(--radius-sm); cursor: pointer;">
+                    <i class="fas fa-plus"></i> Add Fallback Model
+                </button>
+                <button onclick="saveFallbackChain()" class="btn-sm" style="background: #3b82f6; border: none; color: #fff; font-weight: 600; padding: 0.4rem 0.8rem; border-radius: var(--radius-sm); cursor: pointer;">
+                    <i class="fas fa-save"></i> Save & Hot-Reload Chain
+                </button>
+            </div>
+        </div>
+
+        <!-- Multi-Provider Telemetry & Economics Matrix -->
+        <h3 style="font-size: 1.1rem; color: #fff; margin: 1.5rem 0 0.75rem;">
+            <i class="fas fa-server" style="color: #34d399;"></i> AI Provider Health & Latency Matrix
+        </h3>
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th style="width: 140px;">Provider</th>
+                        <th>Target Model</th>
+                        <th style="width: 100px;">Requests</th>
+                        <th style="width: 110px;">Avg Latency</th>
+                        <th style="width: 100px;">Error Rate</th>
+                        <th style="width: 100px;">Total Cost</th>
+                        <th style="width: 120px;">Routing Status</th>
+                        <th style="width: 180px; text-align: right;">Controls</th>
+                    </tr>
+                </thead>
+                <tbody id="llm-providers-tbody">
+                    <!-- Rendered by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ─── Edit / Add Config Modal ─── -->
+    <div id="modal-edit-config" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; z-index: 9999;">
+        <div style="background: var(--bg-card, #1e293b); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 480px; color: #fff;">
+            <h3 style="margin-top: 0; font-size: 1.2rem;" id="modal-cfg-title"><i class="fas fa-sliders-h" style="color: #6366f1;"></i> Configure Runtime Parameter</h3>
+            
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Parameter Key (ENV VAR)</label>
+                <input type="text" id="cfg-input-key" class="form-input" style="width: 100%; font-family: monospace;" placeholder="e.g. OPENAI_API_KEY">
+            </div>
+
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Parameter Value</label>
+                <textarea id="cfg-input-value" class="form-input" style="width: 100%; min-height: 80px; font-family: monospace;" placeholder="Enter configuration value..."></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
+                <div>
+                    <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Category</label>
+                    <select id="cfg-input-category" class="form-input" style="width: 100%;">
+                        <option value="llm">LLM Providers</option>
+                        <option value="database">Database & Cache</option>
+                        <option value="auth">Security & Auth</option>
+                        <option value="features">Feature Flags</option>
+                        <option value="general">General</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Secret / Masked?</label>
+                    <select id="cfg-input-secret" class="form-input" style="width: 100%;">
+                        <option value="auto">Auto-Detect</option>
+                        <option value="true">Yes (Sensitive)</option>
+                        <option value="false">No (Public / URL)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Description</label>
+                <input type="text" id="cfg-input-desc" class="form-input" style="width: 100%;" placeholder="Purpose or usage notes">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                <button onclick="closeModal('modal-edit-config')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Cancel</button>
+                <button onclick="submitConfigSave()" class="btn-sm" style="background: #6366f1; border: none; color: #fff; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Save Parameter</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Kill Switch Confirmation Modal ─── -->
+    <div id="modal-killswitch-confirm" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; z-index: 9999;">
+        <div style="background: var(--bg-card, #1e293b); border: 1px solid #ef4444; border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 440px; color: #fff;">
+            <h3 style="margin-top: 0; font-size: 1.2rem; color: #f87171;" id="ks-modal-title"><i class="fas fa-radiation"></i> Confirm Kill Switch Action</h3>
+            <p style="font-size: 0.9rem; color: #cbd5e1;" id="ks-modal-msg">Are you sure you want to toggle this emergency switch?</p>
+            <input type="hidden" id="ks-target-id">
+            <input type="hidden" id="ks-target-state">
+            
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.4rem;">Audit Justification (Required)</label>
+                <input type="text" id="ks-input-reason" class="form-input" style="width: 100%;" placeholder="e.g. Investigation of rogue tenant apply loop (INC-102)">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                <button onclick="closeModal('modal-killswitch-confirm')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Cancel</button>
+                <button id="ks-btn-confirm" onclick="submitKillSwitchToggle()" class="btn-sm" style="background: #ef4444; border: none; color: #fff; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Confirm Toggle</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Edit / Add Pattern Modal ─── -->
+    <div id="modal-edit-pattern" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; z-index: 9999;">
+        <div style="background: var(--bg-card, #1e293b); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 520px; color: #fff;">
+            <h3 style="margin-top: 0; font-size: 1.2rem;" id="pat-modal-title"><i class="fas fa-brain" style="color: #a855f7;"></i> Failure Knowledge Pattern</h3>
+            <input type="hidden" id="pat-target-id">
+
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Error Substring (Exact string match)</label>
+                <input type="text" id="pat-input-substring" class="form-input" style="width: 100%; font-family: monospace;" placeholder="e.g. BucketAlreadyExists">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
+                <div>
+                    <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Category</label>
+                    <select id="pat-input-category" class="form-input" style="width: 100%;">
+                        <option value="provider">Cloud Provider</option>
+                        <option value="syntax">Syntax & HCL</option>
+                        <option value="iam">IAM & Permissions</option>
+                        <option value="quota">Quota & Limits</option>
+                        <option value="general">General</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Severity</label>
+                    <select id="pat-input-severity" class="form-input" style="width: 100%;">
+                        <option value="CRITICAL">CRITICAL</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="MEDIUM" selected>MEDIUM</option>
+                        <option value="LOW">LOW</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Description</label>
+                <input type="text" id="pat-input-desc" class="form-input" style="width: 100%;" placeholder="e.g. S3 bucket name is globally taken by another AWS account">
+            </div>
+
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Recommended Fix (Provided to LLM during self-healing)</label>
+                <textarea id="pat-input-fix" class="form-input" style="width: 100%; min-height: 80px;" placeholder="e.g. Append random_pet or uuid suffix to make bucket name globally unique."></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
+                <div>
+                    <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Status</label>
+                    <select id="pat-input-status" class="form-input" style="width: 100%;">
+                        <option value="trusted">Trusted (Immediate Auto-fix)</option>
+                        <option value="candidate">Candidate (Evaluating)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="meta-label" style="display: block; margin-bottom: 0.3rem;">Initial Confidence</label>
+                    <input type="number" id="pat-input-confidence" class="form-input" style="width: 100%;" min="0.1" max="1.0" step="0.05" value="0.95">
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                <button onclick="closeModal('modal-edit-pattern')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Cancel</button>
+                <button onclick="submitPatternSave()" class="btn-sm" style="background: #a855f7; border: none; color: #fff; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Save Pattern</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ─── Plan Override Modal ─── -->
     <div id="modal-override-plan" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 9999;">
         <div style="background: var(--bg-card, #1e293b); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 420px; color: #fff;">
@@ -398,9 +983,129 @@
                 </select>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
-                <button onclick="closeModal('modal-override-plan')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Cancel</button>
-                <button onclick="submitOrgPlanOverride()" class="btn-sm" style="background: var(--accent-blue, #3b82f6); border: none; color: #fff; font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Save Plan</button>
+    <!-- ─── Agent Run Waterfall Inspector Modal ─── -->
+    <div id="modal-run-inspector" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; z-index: 9999;">
+        <div style="background: var(--bg-card, #1e293b); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 650px; color: #fff; max-height: 85vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-microchip" style="color: #38bdf8;"></i> Agent Execution Waterfall
+                    </h3>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);" id="inspector-run-slug">Slug: ...</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span id="inspector-run-status-badge" class="badge" style="background: rgba(56,189,248,0.2); color: #38bdf8;">RUNNING</span>
+                    <button onclick="closeModal('modal-run-inspector')" style="background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 1.2rem;">&times;</button>
+                </div>
+            </div>
+
+            <!-- Intervene Quick Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.25); padding: 0.75rem 1rem; border-radius: var(--radius-sm); margin: 1rem 0;">
+                <span style="font-size: 0.85rem; color: #cbd5e1;"><i class="fas fa-shield-alt"></i> Super-Admin Intervene:</span>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="btn-inspector-pause" onclick="interveneRunFromModal('pause')" class="btn-sm" style="background: rgba(234, 179, 8, 0.2); border: 1px solid #eab308; color: #fde047; padding: 0.35rem 0.7rem; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        <i class="fas fa-pause"></i> Pause Run
+                    </button>
+                    <button id="btn-inspector-resume" onclick="interveneRunFromModal('resume')" class="btn-sm" style="background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; color: #86efac; padding: 0.35rem 0.7rem; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        <i class="fas fa-play"></i> Resume
+                    </button>
+                    <button id="btn-inspector-cancel" onclick="interveneRunFromModal('cancel')" class="btn-sm" style="background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 0.35rem 0.7rem; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                        <i class="fas fa-stop"></i> Abort / Cancel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Waterfall Steps Container -->
+            <div id="inspector-stages-list" style="overflow-y: auto; flex: 1; padding-right: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Dynamically populated by JS -->
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
+                <button onclick="closeModal('modal-run-inspector')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.45rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Close Inspector</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Test LLM Model Route Modal ─── -->
+    <div id="modal-test-llm" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; z-index: 9999;">
+        <div style="background: var(--bg-card, #1e293b); border: 1px solid #a855f7; border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 480px; color: #fff;">
+            <h3 style="margin-top: 0; font-size: 1.2rem; color: #c084fc;"><i class="fas fa-bolt"></i> Test Model Route Latency</h3>
+            <p style="font-size: 0.85rem; color: #94a3b8;">Send a synthetic diagnostic probe to verify upstream API status, response latency, and credential validity.</p>
+            
+            <div style="margin: 1rem 0;">
+                <label class="meta-label" style="display: block; margin-bottom: 0.35rem;">Target AI Provider</label>
+                <select id="test-llm-provider-select" class="form-input" style="width: 100%;">
+                    <option value="gemini">Google Gemini (gemini-2.0-flash)</option>
+                    <option value="zenmux">ZenMux AI (kimi-k3-free)</option>
+                    <option value="openrouter">OpenRouter (poolside/laguna-xs-2.1:free)</option>
+                    <option value="groq">Groq LPU (llama-3.3-70b-versatile)</option>
+                    <option value="openai">OpenAI (gpt-4o-mini)</option>
+                    <option value="anthropic">Anthropic Claude (claude-3-5-haiku)</option>
+                    <option value="mistral">Mistral AI (codestral-latest)</option>
+                    <option value="nvidia">NVIDIA NIM (deepseek-r1)</option>
+                    <option value="ollama">Ollama (deepseek-coder:6.7b)</option>
+                </select>
+            </div>
+
+            <div id="test-llm-result" style="display: none; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.75rem; margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <span style="font-size: 0.8rem; font-weight: 600;" id="test-llm-result-status">Status</span>
+                    <span style="font-size: 0.8rem; color: #34d399; font-family: monospace;" id="test-llm-result-latency">0ms</span>
+                </div>
+                <div style="font-size: 0.8rem; color: #cbd5e1; font-family: monospace;" id="test-llm-result-body">Response details</div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button onclick="closeModal('modal-test-llm')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.45rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Cancel</button>
+                <button id="btn-execute-llm-test" onclick="submitLLMRouteTest()" class="btn-sm" style="background: #a855f7; border: none; color: #fff; font-weight: 600; padding: 0.45rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Run Probe Ping</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Pricing Model Simulator Modal (Milestone 3) ─── -->
+    <div id="modal-pricing-simulator" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; z-index: 9999;">
+        <div style="background: var(--bg-card, #1e293b); border: 1px solid #6366f1; border-radius: var(--radius-md); padding: 1.5rem; width: 100%; max-width: 520px; color: #fff;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h3 style="margin: 0; font-size: 1.25rem; color: #a5b4fc;"><i class="fas fa-calculator"></i> Subscription Tier Pricing Simulator</h3>
+                <button onclick="closeModal('modal-pricing-simulator')" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">&times;</button>
+            </div>
+            <p style="font-size: 0.85rem; color: #94a3b8; margin: 0 0 1.25rem 0;">Test different subscription price points to project immediate impacts on platform MRR, ARR, and gross margins.</p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                <div>
+                    <label class="meta-label" style="display: block; margin-bottom: 0.35rem;">Pro Tier Monthly Fee ($)</label>
+                    <input type="number" id="sim-pro-price" class="form-input" value="29" min="0" step="1" style="width: 100%; font-size: 1.1rem; font-weight: 700;" oninput="recalculateSimulation()">
+                </div>
+                <div>
+                    <label class="meta-label" style="display: block; margin-bottom: 0.35rem;">Enterprise Monthly Fee ($)</label>
+                    <input type="number" id="sim-enterprise-price" class="form-input" value="199" min="0" step="1" style="width: 100%; font-size: 1.1rem; font-weight: 700;" oninput="recalculateSimulation()">
+                </div>
+            </div>
+
+            <!-- Simulation Projection Cards -->
+            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1.25rem;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; text-align: center;">
+                    <div>
+                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Projected MRR</span>
+                        <div id="sim-result-mrr" style="font-size: 1.15rem; font-weight: 700; color: #34d399;">$0.00</div>
+                    </div>
+                    <div>
+                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">MRR Delta (Δ)</span>
+                        <div id="sim-result-delta" style="font-size: 1.15rem; font-weight: 700; color: #818cf8;">+$0.00</div>
+                    </div>
+                    <div>
+                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Projected Margin</span>
+                        <div id="sim-result-margin" style="font-size: 1.15rem; font-weight: 700; color: #38bdf8;">0.0%</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.75rem; color: #94a3b8; text-align: center; margin-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.5rem;">
+                    Projected ARR: <strong id="sim-result-arr" style="color: #fff;">$0.00</strong> | Platform Cost: <span id="sim-result-cost" style="color: #cbd5e1;">$0.00</span>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button onclick="closeModal('modal-pricing-simulator')" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #ccc; padding: 0.45rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Cancel</button>
+                <button onclick="saveSimulationPrices()" class="btn-sm" style="background: #6366f1; border: none; color: #fff; font-weight: 600; padding: 0.45rem 1rem; border-radius: var(--radius-sm); cursor: pointer;">Apply Tier Pricing</button>
             </div>
         </div>
     </div>

@@ -47,6 +47,34 @@ class IntelligentModelRouter:
             tier = "fast_lean"
             reason = "Standard IaC template request routed to fast, cost-effective model."
 
+        try:
+            from tools.project.tracker import LLMRoutingManager
+            state = LLMRoutingManager.get_routing_state()
+            if state.get("routing_mode") == "force" and state.get("forced_provider"):
+                forced_p = state.get("forced_provider")
+                for p_item in state.get("providers", []):
+                    if p_item["provider"] == forced_p:
+                        return {
+                            "selected_tier": "forced_override",
+                            "model_name": p_item["model"],
+                            "cost_profile_per_1k": 0.001,
+                            "routing_reason": f"Super-Admin forced route to provider '{forced_p}' ({p_item['model']})."
+                        }
+            
+            # Check if tier model provider is enabled
+            prov = selected["model"].split("/")[0].lower() if "/" in selected["model"] else "gemini"
+            if not LLMRoutingManager.is_provider_enabled(prov):
+                fallback = LLMRoutingManager.get_fallback_chain()
+                if fallback:
+                    return {
+                        "selected_tier": "fallback_reroute",
+                        "model_name": fallback[0],
+                        "cost_profile_per_1k": selected["cost_per_1k"],
+                        "routing_reason": f"Provider '{prov}' disabled by Admin. Re-routed to fallback '{fallback[0]}'."
+                    }
+        except Exception:
+            pass
+
         selected = cls.MODEL_TIERS[tier]
         return {
             "selected_tier": tier,
@@ -54,3 +82,4 @@ class IntelligentModelRouter:
             "cost_profile_per_1k": selected["cost_per_1k"],
             "routing_reason": reason
         }
+

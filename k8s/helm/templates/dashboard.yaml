@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terraform-ai-dashboard
+  labels:
+    app.kubernetes.io/name: terraform-ai-dashboard
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.dashboard.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: terraform-ai-dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: terraform-ai-dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: "{{ .Values.dashboard.image | default "shubham554/terraform-ai-agent:v3" }}"
+          imagePullPolicy: {{ .Values.dashboard.pullPolicy | default "IfNotPresent" }}
+          command:
+            - python
+            - app/dashboard.py
+          ports:
+            - containerPort: 5000
+              name: http
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://{{ .Values.database.user | default "terra_user" }}:{{ .Values.database.password | default "terra_password" }}@terraform-ai-db:5432/{{ .Values.database.name | default "terraform_agent" }}"
+            - name: REDIS_URL
+              value: "redis://terraform-ai-redis:6379/0"
+            - name: PYTHONPATH
+              value: "/app"
+            - name: RUNNING_IN_DOCKER
+              value: "true"
+            - name: CREWAI_DISABLE_TELEMETRY
+              value: "true"
+            - name: OTEL_SDK_DISABLED
+              value: "true"
+            - name: FLASK_SECRET_KEY
+              value: {{ .Values.dashboard.secretKey | default "supersecretk8skey123" | quote }}
+          livenessProbe:
+            httpGet:
+              path: /api/k8s/operator/status
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/k8s/operator/status
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: terraform-ai-dashboard
+  labels:
+    app.kubernetes.io/name: terraform-ai-dashboard
+spec:
+  type: {{ .Values.dashboard.service.type | default "LoadBalancer" }}
+  ports:
+    - port: {{ .Values.dashboard.service.port | default 5000 }}
+      targetPort: 5000
+      name: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: terraform-ai-dashboard

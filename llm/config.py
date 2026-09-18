@@ -168,8 +168,39 @@ def _patched_litellm_completion(*args, **kwargs):
                     cleaned_messages.append(msg)
             kwargs["messages"] = cleaned_messages
 
+    # Dynamic LLM Router: Check forced provider, emergency disablement, and routing policies
+    try:
+        from tools.project.tracker import LLMRoutingManager
+        routing_state = LLMRoutingManager.get_routing_state()
+        forced = routing_state.get("forced_provider")
+        if routing_state.get("routing_mode") == "force" and forced:
+            for p_info in routing_state.get("providers", []):
+                if p_info["provider"] == forced and p_info.get("model"):
+                    kwargs["model"] = p_info["model"]
+                    model_name = p_info["model"]
+                    break
+
+        curr_provider = provider or (model_name.split("/")[0].lower() if model_name and "/" in model_name else "gemini")
+        if not LLMRoutingManager.is_provider_enabled(curr_provider):
+            import logging
+            logging.getLogger("terraform-dashboard").warning(
+                f"[LLM Router Emergency] Provider '{curr_provider}' is DISABLED by Super-Admin. Diverting call to fallback chain..."
+            )
+            fallback_chain = LLMRoutingManager.get_fallback_chain()
+            for cand in fallback_chain:
+                cand_p = cand.split("/")[0].lower() if "/" in cand else "gemini"
+                if LLMRoutingManager.is_provider_enabled(cand_p):
+                    kwargs["model"] = cand
+                    model_name = cand
+                    break
+    except Exception:
+        pass
+
     def _execute_with_telemetry(params):
+        import time as _t
+        _call_start = _t.time()
         res = _orig_litellm_completion(*args, **params)
+        _duration = _t.time() - _call_start
         try:
             from litellm import completion_cost
             cost = completion_cost(res)
@@ -178,11 +209,23 @@ def _patched_litellm_completion(*args, **kwargs):
             usage = getattr(res, "usage", None)
             prompt_t = getattr(usage, "prompt_tokens", 0) if usage else 0
             completion_t = getattr(usage, "completion_tokens", 0) if usage else 0
+            total_t = prompt_t + completion_t
             import logging
             logging.getLogger("terraform-dashboard").info(
                 f"[LLM Telemetry] Model: {params.get('model')} | "
                 f"Prompt Tokens: {prompt_t} | Completion Tokens: {completion_t} | "
                 f"Estimated Spend: ${cost:.6f}"
+            )
+            from tools.project.tracker import LLMRoutingManager
+            m_used = params.get("model", "")
+            p_used = m_used.split("/")[0].lower() if "/" in m_used else "gemini"
+            LLMRoutingManager.record_call_telemetry(
+                provider=p_used,
+                model=m_used,
+                duration_seconds=_duration,
+                success=True,
+                tokens=total_t,
+                cost=cost
             )
         except Exception:
             pass
@@ -191,6 +234,23 @@ def _patched_litellm_completion(*args, **kwargs):
     try:
         return _execute_with_telemetry(kwargs)
     except Exception as e:
+        # Record failure telemetry
+        try:
+            from tools.project.tracker import LLMRoutingManager
+            m_used = kwargs.get("model", "")
+            p_used = m_used.split("/")[0].lower() if "/" in m_used else "gemini"
+            LLMRoutingManager.record_call_telemetry(
+                provider=p_used,
+                model=m_used,
+                duration_seconds=0.0,
+                success=False,
+                tokens=0,
+                cost=0.0,
+                error=str(e)
+            )
+        except Exception:
+            pass
+
         error_str = str(e).lower()
         is_quota_error = any(kw in error_str for kw in ["quota", "rate", "limit", "429", "exhausted", "credits", "402", "502", "stealth", "venice"])
         if is_quota_error:
@@ -237,12 +297,16 @@ def _patched_litellm_completion(*args, **kwargs):
                 fallback_kwargs.pop("base_url", None)  # Remove ZenMux/NVIDIA base_url overrides
                 os.environ["OPENROUTER_API_KEY"] = openrouter_key
                 
-                # Multi-stage fallback candidate models for LiteLLM (prefixed with openrouter/)
-                candidate_models = [
-                    "openrouter/poolside/laguna-xs-2.1:free",
-                    "openrouter/tencent/hy3:free",
-                    "openrouter/cohere/north-mini-code:free"
-                ]
+                # Multi-stage fallback candidate models from dynamic LLMRoutingManager
+                try:
+                    from tools.project.tracker import LLMRoutingManager
+                    candidate_models = LLMRoutingManager.get_fallback_chain()
+                except Exception:
+                    candidate_models = [
+                        "openrouter/poolside/laguna-xs-2.1:free",
+                        "openrouter/tencent/hy3:free",
+                        "openrouter/cohere/north-mini-code:free"
+                    ]
                 
                 last_err = e
                 for model in candidate_models:
