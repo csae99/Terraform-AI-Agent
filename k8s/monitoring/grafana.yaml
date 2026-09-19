@@ -1,0 +1,173 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: terraform-ai-system
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: terraform-ai-system
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'Default'
+        orgId: 1
+        folder: 'Platform'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-platform
+  namespace: terraform-ai-system
+data:
+  platform-overview.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "Agent Execution Throughput",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+          "targets": [{ "expr": "sum(terraform_ai_agent_executions_total)", "legendFormat": "Executions" }]
+        },
+        {
+          "title": "LLM Token Cost ($ USD)",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+          "targets": [{ "expr": "sum(terraform_ai_llm_cost_dollars_total)", "legendFormat": "Total Spend" }]
+        },
+        {
+          "title": "Security Findings",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+          "targets": [{ "expr": "sum(terraform_ai_security_violations_total)", "legendFormat": "Violations" }]
+        },
+        {
+          "title": "Active Drifted Resources",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+          "targets": [{ "expr": "terraform_ai_drift_detected_total", "legendFormat": "Drift" }]
+        },
+        {
+          "title": "Agent Executions by Status",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "targets": [{ "expr": "sum by (agent, status) (rate(terraform_ai_agent_executions_total[5m]))", "legendFormat": "{{agent}} - {{status}}" }]
+        },
+        {
+          "title": "LLM Requests by Provider",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "targets": [{ "expr": "sum by (provider) (rate(terraform_ai_llm_requests_total[5m]))", "legendFormat": "{{provider}}" }]
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["terraform-ai", "platform", "agents"],
+      "time": { "from": "now-1h", "to": "now" },
+      "title": "Terraform AI Platform & Agent Operations",
+      "uid": "terraform-ai-platform",
+      "version": 1
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: terraform-ai-system
+  labels:
+    app.kubernetes.io/name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.2.2
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: "admin"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"
+            - name: GF_SECURITY_ALLOW_EMBEDDING
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Admin"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: grafana-datasources-vol
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: grafana-providers-vol
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-dashboards-vol
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: grafana-datasources-vol
+          configMap:
+            name: grafana-datasources
+        - name: grafana-providers-vol
+          configMap:
+            name: grafana-dashboards-provider
+        - name: grafana-dashboards-vol
+          configMap:
+            name: grafana-dashboard-platform
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: terraform-ai-system
+  labels:
+    app.kubernetes.io/name: grafana
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+  selector:
+    app: grafana

@@ -2,11 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: terraform-ai-dashboard
+  namespace: terraform-ai-system
   labels:
     app.kubernetes.io/name: terraform-ai-dashboard
     app.kubernetes.io/component: web
 spec:
-  replicas: {{ .Values.dashboard.replicaCount | default 1 }}
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: terraform-ai-dashboard
@@ -15,11 +16,11 @@ spec:
       labels:
         app.kubernetes.io/name: terraform-ai-dashboard
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name | default "terraform-ai-operator" }}
+      serviceAccountName: terraform-ai-operator
       containers:
         - name: dashboard
-          image: "{{ .Values.dashboard.image | default "shubham554/terraform-ai-agent:v3" }}"
-          imagePullPolicy: {{ .Values.dashboard.pullPolicy | default "IfNotPresent" }}
+          image: terraform-ai-agent:k8s-local
+          imagePullPolicy: IfNotPresent
           command:
             - python
             - app/dashboard.py
@@ -28,11 +29,11 @@ spec:
               name: http
           envFrom:
             - secretRef:
-                name: {{ .Values.secrets.name | default "terraform-ai-secrets" }}
+                name: terraform-ai-secrets
                 optional: true
           env:
             - name: DATABASE_URL
-              value: "postgresql://{{ .Values.database.user | default "terra_user" }}:{{ .Values.database.password | default "terra_password" }}@terraform-ai-db:5432/{{ .Values.database.name | default "terraform_agent" }}"
+              value: "postgresql://terra_user:terra_password@terraform-ai-db:5432/terraform_agent"
             - name: REDIS_URL
               value: "redis://terraform-ai-redis:6379/0"
             - name: PYTHONPATH
@@ -44,17 +45,17 @@ spec:
             - name: OTEL_SDK_DISABLED
               value: "true"
             - name: FLASK_SECRET_KEY
-              value: {{ .Values.dashboard.secretKey | default "supersecretk8skey123" | quote }}
+              value: "supersecretk8skey123"
             - name: DEFAULT_ADMIN_USER
-              value: {{ .Values.admin.username | default "admin" | quote }}
+              value: "admin"
             - name: DEFAULT_ADMIN_PASSWORD
-              value: {{ .Values.admin.password | default "StrongPassword123!" | quote }}
+              value: "StrongPassword123!"
             - name: DEFAULT_ADMIN_EMAIL
-              value: {{ .Values.admin.email | default "admin@platform.io" | quote }}
+              value: "admin@platform.io"
             - name: DEFAULT_MODEL
-              value: {{ .Values.env.defaultModel | default "gemini/gemini-2.0-flash" | quote }}
+              value: "gemini/gemini-2.0-flash"
             - name: TEST_LOCAL
-              value: {{ .Values.env.testLocal | default "true" | quote }}
+              value: "true"
           livenessProbe:
             httpGet:
               path: /api/k8s/operator/status
@@ -79,12 +80,13 @@ apiVersion: v1
 kind: Service
 metadata:
   name: terraform-ai-dashboard
+  namespace: terraform-ai-system
   labels:
     app.kubernetes.io/name: terraform-ai-dashboard
 spec:
-  type: {{ .Values.dashboard.service.type | default "LoadBalancer" }}
+  type: LoadBalancer
   ports:
-    - port: {{ .Values.dashboard.service.port | default 5000 }}
+    - port: 5000
       targetPort: 5000
       name: http
       protocol: TCP

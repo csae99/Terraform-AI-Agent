@@ -138,11 +138,21 @@ TEST_LOCAL=true
 
 The platform provides a dedicated, enterprise-grade **Platform Operations Console** (`/admin`) reserved exclusively for Super-Administrators.
 
-### 1. Bootstrap a Super-Admin Account (CLI)
-Before accessing the console for the first time, initialize a Super-Admin account using the CLI utility:
+### 1. Bootstrap a Super-Admin Account (CLI & Auto-Bootstrap)
+
+> [!IMPORTANT]
+> **Automatic Super-Admin Bootstrapping (Kubernetes & Docker Modes)**:
+> When the platform starts up in Kubernetes or Docker Compose, the database engine **automatically creates the default Super-Admin user** on initial launch:
+> - **Username**: `admin` (or via `DEFAULT_ADMIN_USER`)
+> - **Password**: `StrongPassword123!` (or via `DEFAULT_ADMIN_PASSWORD`)
+> - **Email**: `admin@platform.io`
+> 
+> You do **not** need to manually run any script or exec into pods to create the Super-Admin account in Kubernetes. Normal users who subsequently register via the Web UI register form (`/login`) are automatically assigned standard user privileges (`is_superuser = False`).
+>
+> The CLI utility `scripts/create_admin.py` is available for offline SQLite exploration (Mode 1) or for promoting/demoting existing users from the command line:
 
 ```powershell
-# Create a new Super-Admin account
+# Create a new Super-Admin account (or promote existing)
 python scripts/create_admin.py --username admin --password "StrongPassword123!" --email admin@platform.io
 
 # Or promote an existing user account to Super-Admin
@@ -287,14 +297,44 @@ docker run --rm -it --env-file .env -v $(pwd)/output:/app/output \
 
 ## ☸️ Kubernetes-Native Control Plane Setup (Phase 15)
 
-Phase 15 allows you to run the platform as a Kubernetes Operator that watches and reconciles declarative `TerraformAgent` Custom Resources with continuous drift healing and GitOps integration.
+Phase 15 allows you to run the complete platform as an enterprise Kubernetes Operator and Control Plane with continuous drift healing, automated GitOps pull requests, LLM model routing, and an in-cluster observability stack (Prometheus, Grafana, Alertmanager).
 
-### 1. Install Custom Resource Definitions (CRDs)
-Apply the 4 OpenAPI v3 Custom Resource Definitions to your cluster:
+> [!NOTE]
+> **Cross-Machine Compatibility**:
+> These instructions are verified to run identically on any local machine (Windows, macOS, Linux) or cloud provider using:
+> - **Docker Desktop Kubernetes** (Windows/macOS - recommended for local exploration)
+> - **Minikube** (`minikube start`)
+> - **KinD** (`kind create cluster`)
+> - **K3s / MicroK8s**
+> - **Managed Cloud Kubernetes** (AWS EKS, GCP GKE, Azure AKS)
+
+---
+
+### Step 1: Build the Platform Container Image
+Before applying the manifests, build the unified platform container image from the repository root. This bundles Python 3.11, OpenTofu, Terraform, Infracost, Checkov, and the web console into a local image tagged `terraform-ai-agent:k8s-local`:
+
+```bash
+# Standard Docker Desktop / Linux / macOS:
+docker build -t terraform-ai-agent:k8s-local .
+
+# If using Minikube (build directly inside Minikube's Docker daemon):
+minikube image build -t terraform-ai-agent:k8s-local .
+
+# If using KinD:
+docker build -t terraform-ai-agent:k8s-local .
+kind load docker-image terraform-ai-agent:k8s-local
+```
+
+---
+
+### Step 2: Install Custom Resource Definitions (CRDs)
+Apply the 4 OpenAPI v3 Custom Resource Definitions to the cluster:
+
 ```bash
 kubectl apply -f k8s/crds/
 ```
-Verify CRD registration:
+
+Verify that the CRDs are registered:
 ```bash
 kubectl get crds | grep platform.terraform-ai.io
 # Output:
@@ -304,39 +344,129 @@ kubectl get crds | grep platform.terraform-ai.io
 # workflows.platform.terraform-ai.io
 ```
 
-### 2. Deploy the Platform & Operator via Helm 3
-Deploy the complete `terraform-ai` Helm chart (Dashboard UI, Reconciler Operator, PostgreSQL, and Redis) into the dedicated `terraform-ai-system` namespace:
+---
+
+### Step 3: Configure Environment Secrets (Optional but Recommended)
+Create the dedicated `terraform-ai-system` namespace and configure your API keys (Google Gemini, OpenAI, Claude, Infracost, etc.):
 
 ```bash
-# If transitioning from Docker Compose, stop local containers to free port 5000
-docker compose stop
+# 1. Create namespace
+kubectl create namespace terraform-ai-system
 
-# Deploy the complete platform stack via Helm
+# 2. Store API keys as a Kubernetes Secret
+kubectl create secret generic terraform-ai-secrets -n terraform-ai-system \
+  --from-literal=GEMINI_API_KEY="your_gemini_api_key" \
+  --from-literal=OPENAI_API_KEY="your_openai_api_key_optional" \
+  --from-literal=INFRACOST_API_KEY="your_infracost_key_optional" \
+  --from-literal=TEST_LOCAL="true"
+```
+*(If you skip this step, the platform will start cleanly using mock/local emulation mode).*
+
+---
+
+### Step 4: Deploy the Platform Control Plane
+You can deploy the platform using **Option A (Pure `kubectl` - No Helm required)** or **Option B (Helm 3)**:
+
+#### Option A: Direct `kubectl` Manifests (No Helm Required)
+If you do not have Helm installed, apply the standalone Kubernetes manifests directly:
+
+```bash
+# Deploy RBAC, PostgreSQL, Redis, Dashboard, and Operator:
+kubectl apply -f k8s/manifests/
+```
+
+#### Option B: Deploy via Helm 3
+If you use Helm, deploy the parameterized Helm chart:
+
+```bash
+# Deploy with default values (auto-creates Super-Admin and configures services)
 helm upgrade --install terraform-ai ./k8s/helm \
   --namespace terraform-ai-system \
   --create-namespace \
   --values ./k8s/helm/values.yaml
 ```
 
-Verify the deployment and services:
+---
+
+### Step 5: Deploy Monitoring & Observability Stack (Prometheus, Grafana & Alertmanager)
+Deploy the in-cluster Prometheus time-series scraper, Grafana dashboard engine, and Alertmanager notification dispatcher:
+
+```bash
+kubectl apply -f k8s/monitoring/
+```
+
+---
+
+### Step 6: Verify Running Pods & Services
+Verify that all 7 platform workloads are running in `terraform-ai-system`:
+
 ```bash
 kubectl get pods,services -n terraform-ai-system
 ```
 
-> [!TIP]
-> **Accessing the Web Dashboard on Kubernetes**:
-> In Docker Desktop Kubernetes, the `terraform-ai-dashboard` service (`type: LoadBalancer`) automatically binds port 5000 to Windows `localhost`.
-> Open your browser at **`http://localhost:5000`** to access the Web UI and Super-Admin Console directly from your Kubernetes cluster!
+Expected output:
+```text
+NAME                                             READY   STATUS    RESTARTS   AGE
+pod/alertmanager-687998d5c5-hbjjx                1/1     Running   0          5m
+pod/grafana-8446c7464b-qfnsb                     1/1     Running   0          5m
+pod/prometheus-56d449c689-dhnlr                  1/1     Running   0          5m
+pod/terraform-ai-dashboard-6c98b5c75b-rzxl6      1/1     Running   0          5m
+pod/terraform-ai-db-69cc88b785-9jsmd             1/1     Running   0          5m
+pod/terraform-ai-redis-86b6b5cb8f-8jtbb          1/1     Running   0          5m
+pod/terraform-ai-terraform-ai-operator-67555-q   1/1     Running   0          5m
+```
 
+---
 
-### 3. Configure ArgoCD Custom Health Check
+### Step 7: Access the Web Console & Port Forwarding
+
+#### In Docker Desktop (Windows & macOS):
+All services with `type: LoadBalancer` automatically bind to `localhost`:
+- **Web Dashboard & Admin Console**: **`http://localhost:5000`**
+- **Prometheus Metrics Scraper**: **`http://localhost:9090`**
+- **Grafana Dashboards**: **`http://localhost:3000`**
+- **Alertmanager Dispatcher**: **`http://localhost:9093`**
+
+#### In Minikube, KinD, or Remote/Cloud Clusters:
+- **Minikube**: Run `minikube tunnel` in an administrator terminal to route LoadBalancers, OR use port-forwarding.
+- **Universal Port-Forwarding (Works on ANY machine/cluster)**:
+  ```bash
+  # Web Dashboard (Port 5000)
+  kubectl port-forward svc/terraform-ai-dashboard 5000:5000 -n terraform-ai-system
+
+  # Observability Tools (Optional)
+  kubectl port-forward svc/prometheus 9090:9090 -n terraform-ai-system
+  kubectl port-forward svc/grafana 3000:3000 -n terraform-ai-system
+  kubectl port-forward svc/alertmanager 9093:9093 -n terraform-ai-system
+  ```
+
+---
+
+### Step 8: Automatic Super-Admin Login vs Normal User Signup
+
+The platform implements strict role-based separation:
+
+1. **👑 Automatic Super-Admin Creation (On First Launch)**:
+   - When the `terraform-ai-dashboard` pod starts, it initializes the database tables and **automatically creates the primary Super-Admin account**:
+     - **Username**: `admin` (customizable via `DEFAULT_ADMIN_USER` in `values.yaml` or manifests)
+     - **Password**: `StrongPassword123!` (customizable via `DEFAULT_ADMIN_PASSWORD`)
+     - **Email**: `admin@platform.io`
+   - Open **`http://localhost:5000/login`**, enter `admin` / `StrongPassword123!`, and you will immediately have full access to the **Platform Operations Command Center** at **`http://localhost:5000/admin`**.
+
+2. **👤 Normal User Sign-Up (Standard Users)**:
+   - Normal developers and team members register by navigating to **`http://localhost:5000/login`** and clicking the **Register** tab.
+   - Newly registered users are automatically assigned standard tenant privileges (`is_superuser = False`).
+   - Normal users can generate infrastructure workspaces, inspect Mermaid diagrams, and trigger plans, but are **cleanly blocked (HTTP 403)** from accessing administrative routes (`/admin`, `/api/admin/*`).
+   - Super-Admins can view, suspend, reactivate, or promote any standard user directly from **`http://localhost:5000/admin#tab-overview`**.
+
+### Step 9: Configure ArgoCD Custom Health Check
 Patch the `argocd-cm` ConfigMap to enable native health visualization for `TerraformAgent` resources in the ArgoCD UI:
 ```bash
 # Apply health check script patch
 kubectl patch configmap argocd-cm -n argocd --patch-file <(python -c "import yaml; from k8s.gitops.argocd_plugin import generate_argocd_cm_patch; print(yaml.dump(generate_argocd_cm_patch()))")
 ```
 
-### 4. Create Your First Declarative Agent Resource
+### Step 10: Create Your First Declarative Agent Resource
 Create an agent manifest `agent.yaml`:
 ```yaml
 apiVersion: platform.terraform-ai.io/v1alpha1
@@ -460,5 +590,23 @@ kubectl describe terraformagent prod-vpc-fleet
      Get-NetTCPConnection -LocalPort 5000 | Select-Object LocalAddress, LocalPort, State, OwningProcess
      ```
 
+### 12. 📈 Prometheus Scraping Failure / Target Down on `/metrics`
+* **Symptom**: Prometheus targets page (`http://localhost:9090/targets`) shows `terraform-ai-dashboard` as `DOWN` with connection refused or timeout.
+* **Solution**:
+  - In Kubernetes, ensure the Prometheus ConfigMap targets the Kubernetes service DNS: `terraform-ai-dashboard.terraform-ai-system.svc.cluster.local:5000`.
+  - Verify that `/metrics` is unauthenticated and responding: `kubectl exec -n terraform-ai-system prometheus-xxx -- wget -qO- http://terraform-ai-dashboard:5000/metrics`.
+
+### 13. 🛡️ Super-Admin Access Denied (HTTP 403)
+* **Symptom**: Accessing `/admin` redirects to login or displays an error: `"Superuser access required"`.
+* **Solution**:
+  - Verify that the authenticated user has `is_superuser = True` in the database.
+  - Run `python scripts/create_admin.py --username <your_username> --promote` to grant super-admin privileges to an existing user without changing their password.
+
+### 14. 📋 Kubernetes Pod Log Streaming Returns Empty
+* **Symptom**: In the Super-Admin K8s Control Plane, clicking **Logs** on a pod displays an empty modal or `"No log output available"`.
+* **Solution**:
+  - Verify that the dashboard ServiceAccount has `get`, `list`, `watch` permissions on `pods/log` across the `terraform-ai-system` namespace.
+  - In local development, ensure your local `kubectl` context points to the active cluster: `kubectl config current-context`.
+
 ---
-*Last Updated: 2026-09-14 (Super-Admin Platform Operations Console & RBAC Release)*
+*Last Updated: 2026-09-19 (Super-Admin Platform Operations Command Center & Observability Release)*

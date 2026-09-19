@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: terraform-ai-system
+  labels:
+    app.kubernetes.io/part-of: terraform-ai-platform

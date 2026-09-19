@@ -29,6 +29,19 @@ dashboard:
     type: LoadBalancer
     port: 5000
 
+admin:
+  username: "admin"
+  password: "StrongPassword123!"
+  email: "admin@platform.io"
+
+env:
+  defaultModel: "gemini/gemini-2.0-flash"
+  testLocal: "true"
+
+secrets:
+  enabled: true
+  name: "terraform-ai-secrets"
+
 redis:
   enabled: true
   image: redis:7-alpine
@@ -72,3 +85,11 @@ resources:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+monitoring:
+  enabled: true
+  prometheus:
+    port: 9090
+  grafana:
+    port: 3000
+

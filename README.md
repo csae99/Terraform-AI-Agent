@@ -6,7 +6,15 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem and Kubernetes-Nat
 
 ## 🚀 Key Features
 
-- **Super-Admin Platform Operations Console & CLI Bootstrap**: Dedicated mission control operations dashboard (`/admin`) for platform administrators. Features cross-tenant multi-organization visibility, user lifecycle management (suspend/reactivate users, grant/revoke Super-Admin privileges), organization subscription tier overrides (Free/Pro/Enterprise with quota bypass), global LLM token economics & provider analytics, Kubernetes cluster fleet telemetry, and an immutable platform-wide audit trail. Includes a CLI bootstrap tool (`scripts/create_admin.py`) for automated headless setup.
+- **Super-Admin Platform Operations Command Center (`/admin`)**: A comprehensive, production-grade Platform Engineering Operating System command center featuring:
+  - **Platform Health Overview & Multi-Tenant Administration**: Real-time cross-tenant aggregation (145+ organizations, active users, running jobs, worker utilization %), database/cache heartbeat monitors (PostgreSQL & Redis connection pools), user lifecycle controls (suspend/reactivate, super-admin privilege escalation), and tenant subscription tier overrides (`Free`, `Pro`, `Enterprise`). Includes CLI bootstrap utility (`scripts/create_admin.py`).
+  - **Agent Operations Center & Live Leaderboard (Priority 2)**: Real-time fleet health monitoring for all 7 specialized agents (`ArchitectAgent`, `DeveloperAgent`, `SecurityReviewer`, `FinOpsSpecialist`, `TestingAgent`, `GitOpsCoordinator`, `DeploymentPlanner`). 4-KPI operational leaderboard (Most Used, Highest Failure Rate, Top Token Consumer, Most Expensive Agent), visual stage waterfall traces (`PipelineStageTraceModel`), and in-flight intervention checkpoints (**Pause**, **Resume**, **Cancel**).
+  - **LLM Router & Fallback Policy Control Center (Priority 3)**: Microsecond routing governance across 9 AI providers (Gemini, Claude, OpenAI, Groq, Mistral, ZenMux, OpenRouter, NVIDIA, Ollama). Dynamic routing modes (`auto`, `force`, `failover_chain`), 1-click emergency provider isolation toggles with microsecond environment caching, priority-ordered fallback chains, and synthetic diagnostic latency probes.
+  - **Dynamic Failure Pattern Memory & ML Confidence Scoring (Priority 4)**: Machine learning-style reinforcement confidence scoring ($0.0 - 1.0$), categorized failure intelligence (`provider`, `syntax`, `iam`, `quota`), and administrative promotion of verified fixes to "Trusted" status.
+  - **Global Operational Kill Switches (Priority 6)**: Emergency circuit breakers allowing immediate 1-click halting of cloud deployments, GitOps PR synthesis, self-healing retries, marketplace plugins, or tenant registrations with mandatory administrative audit justifications recorded in `GlobalAuditVault`.
+  - **Risk, Security & AI Governance Center (Priorities 7 & 12)**: 12 pre-configured policy guardrails across IAM, Network, Storage Encryption, and Tagging with runtime enforcement toggles (**Blocking**, **Advisory**, **Disabled**). Features live threat alerts ticker, explainable AI consensus decision traces with composite risk scoring (0-100), and an on-demand static HCL/OPA vulnerability scanner.
+  - **Kubernetes Global Fleet & Node Control Center (Priority 8)**: Multi-cluster switching (`docker-desktop`, `aws-eks-prod`, `gcp-gke-staging`), live node allocation vitals (CPU Cores, Memory GB, Pod Fleet Density), active workloads pod matrix with replica targets and resource requests, interactive pod stdout/stderr log stream modal, CRD instance monitor, and GitOps cloud drift auto-reconciliation.
+  - **Incident Management & In-Cluster Observability Stack (Priority 9)**: Native **Prometheus** (Port 9090), **Grafana** (Port 3000), and **Alertmanager** (Port 9093) integration. Standardized `/metrics` exposition endpoint exporting real-time platform counters, incident triage matrix (`P1`-`P4`), generative AI Root Cause Analysis (RCA), outbound alert webhooks (Slack, PagerDuty, Discord), and inbound Alertmanager webhook receiver.
 - **Kubernetes-Native Control Plane & CRD Operator** *(Phase 15)*: Manage AI Terraform agents, multi-tenant projects, DAG workflows, and compliance policies as native Kubernetes Custom Resources (`kubectl apply -f agent.yaml`). Features an asynchronous Operator controller reconciliation loop with condition lifecycle, continuous cloud drift watcher with auto-healing, ArgoCD custom Lua health checks, Flux CD webhook synchronizer, Helm 3 deployment charts, and native dashboard REST endpoints.
 - **Agent Marketplace & Plugin SDK** *(Phase 14)*: Organization-scoped agent registry with installable specialist agents (`Kubernetes Specialist`, `FinOps Cost Hawk`, `Disaster Recovery Pilot`, `Zero-Trust SecOps`) and standard `BasePlugin` lifecycle hooks (`pre_plan`, `post_plan`, `validate`).
 - **Visual DAG Workflow Builder & Golden Path Catalog** *(Phase 14)*: Node-based visual execution graph engine with dependency resolution, conditional branching, automated rollbacks, and pre-architected Golden Path service templates (*Microservices K8s Stack*, *Serverless Event Stream*, *Secure ML Vault*).
@@ -48,8 +56,16 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem and Kubernetes-Nat
 
 | Capability Area | Specific Module | Status | Automated Test Suite |
 |:---|:---|:---:|:---|
-| **Super-Admin Operations Console** | `app/dashboard.py`, `static/admin.*` | ✅ **Implemented & Verified** | `scratch/test_admin_console.py` |
+| **Platform Health & Tenant Overview** | `app/dashboard.py`, `static/admin.*` | ✅ **Implemented & Verified** | `scratch/test_admin_console.py` |
 | **CLI Admin Bootstrap Utility** | `scripts/create_admin.py` | ✅ **Implemented & Verified** | `scratch/test_admin_console.py` |
+| **Agent Operations & Live Leaderboard**| `AgentMetricTracker`, `RunControlManager` | ✅ **Implemented & Verified** | `scratch/test_milestone2_suite.py` (14/14 tests) |
+| **LLM Router & Fallback Policies** | `LLMRoutingManager`, `llm/config.py` | ✅ **Implemented & Verified** | `scratch/test_milestone2_suite.py` (14/14 tests) |
+| **Pattern Memory & ML Confidence** | `PatternManager`, `PatternMemoryModel` | ✅ **Implemented & Verified** | `scratch/test_milestone3_suite.py` (12/12 tests) |
+| **Global Operational Kill Switches** | `KillSwitchManager`, `KillSwitchModel` | ✅ **Implemented & Verified** | `scratch/test_milestone3_suite.py` (12/12 tests) |
+| **Risk, Security & AI Governance** | `SecurityGovernanceManager`, `OPA` | ✅ **Implemented & Verified** | `scratch/test_milestone4_suite.py` (9/9 tests) |
+| **Kubernetes Global Fleet & Node View** | `K8sFleetManager`, `k8s/operator/` | ✅ **Implemented & Verified** | `scratch/test_milestone5_suite.py` (17/17 tests) |
+| **Incident Center & Observability** | `IncidentManager`, Prometheus/Grafana | ✅ **Implemented & Verified** | `scratch/test_milestone5_suite.py` (17/17 tests) |
+| **Prometheus Metrics Exposition** | `app/dashboard.py` (`/metrics`) | ✅ **Implemented & Verified** | `scratch/test_milestone5_suite.py` (17/17 tests) |
 | **Multi-Dimensional Risk Matrix** | `portal/agent_governance.py` | ✅ **Implemented & Verified** | `scratch/test_governance_guardrails.py` |
 | **Hard Block OPA Guardrails** | `policy/guardrails.py` | ✅ **Implemented & Verified** | `scratch/test_governance_guardrails.py` |
 | **Operational Circuit Breakers** | `portal/approvals.py` | ✅ **Implemented & Verified** | `scratch/test_governance_guardrails.py` |
@@ -65,18 +81,22 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem and Kubernetes-Nat
 | **Multi-Agent Debate & Consensus** | `consensus/debate_engine.py` | ✅ **Implemented & Verified** | `scratch/test_phase13.py` |
 | **Multi-Cloud Optimization** | `cloud_optimizer/multi_cloud.py` | ✅ **Implemented & Verified** | `scratch/test_phase13.py` |
 | **pgvector Knowledge Base & RAG** | `memory/vector_knowledge.py` | ✅ **Implemented & Verified** | `scratch/test_vector_knowledge.py` |
-| **OpenTelemetry & Prometheus** | `observability/tracing.py`, `metrics.py` | ✅ **Implemented & Verified** | `scratch/test_observability.py` |
+| **OpenTelemetry & Distributed Tracing**| `observability/tracing.py`, `metrics.py` | ✅ **Implemented & Verified** | `scratch/test_observability.py` |
 | **Billing & Dual Gateways** | `billing/metering.py`, `usage_tracking.py` | ✅ **Implemented & Verified** | `scratch/test_billing.py` |
 | **Universal Engine (Terraform/Tofu)**| `tools/engine/factory.py` | ✅ **Implemented & Verified** | `scratch/test_live_e2e.py` |
 | **Kubernetes CRD Control Plane** | `k8s/operator/`, `k8s/crds/` | ✅ **Implemented & Verified** | `scratch/test_phase15_k8s_control_plane.py` |
 | **GitOps Controllers (ArgoCD/Flux)** | `k8s/gitops/` | ✅ **Implemented & Verified** | `scratch/test_phase15_k8s_control_plane.py` |
 
+---
+
 ## 📖 Documentation
 
+- [Super-Admin Platform Operations Command Center Manual](docs/SUPER_ADMIN_COMMAND_CENTER.md) — Comprehensive technical manual for all 10 console views, 35+ REST APIs, Prometheus exposition, and operational runbooks.
+- [Super-Admin Platform Specification & Completion Matrix](Super-Admin-Console-new-features.md) — Detailed capability specifications for Priorities 1 through 12.
 - [Phase 15 Specification (Kubernetes Control Plane)](phase-15.md) — Declarative CRD Operator, continuous reconciliation, ArgoCD/Flux GitOps, and Helm 3 architecture.
 - [Multi-Agent Architecture Guide](MULTI_AGENT_ARCHITECTURE.md) — 15-layer platform architecture, agent roles, workflow diagrams, GitOps flow, and self-healing logic.
 - [Project Structure Reference](Project-structure.md) — Production-grade directory tree and bounded context reference.
-- [Setup Guide](setup.md) — Step-by-step setup for Windows, Linux, Docker Compose, and troubleshooting FAQ.
+- [Setup Guide](setup.md) — Step-by-step setup for Windows, Linux, Docker Compose, Kubernetes Helm, and troubleshooting FAQ.
 - [Manual Test Plan](test-cases/MANUAL_TEST_PLAN.md) — Complete 19-scenario end-to-end verification test roadmap for Phases 1–15.
 - [Architecture Review & Evolution Audit](co-pilot-review.md) — Comprehensive architectural evaluation and audit summary across all phases.
 
@@ -183,6 +203,40 @@ This spawns:
 * **`redis`**: Cache and broker service managing the Celery task queue.
 * **`worker`**: Celery worker container executing Terraform actions asynchronously in the background.
 * **`floci`**: Local AWS emulation backend listening on port `4566`.
+
+---
+
+## 🛡️ Super-Admin Platform Operations Command Center (`/admin`)
+
+The platform includes a dedicated, full-lifecycle mission control console designed for enterprise platform administrators, SREs, and security officers.
+
+Access the console in your browser at **`http://localhost:5000/admin`** using super-admin credentials bootstrapped via `python scripts/create_admin.py`.
+
+```mermaid
+graph LR
+    ADMIN["Super-Admin (/admin)"] --> HEALTH["Platform Health Overview"]
+    ADMIN --> AGENTS["Agent Operations & Leaderboard"]
+    ADMIN --> ROUTER["LLM Router & Fallbacks"]
+    ADMIN --> PATTERNS["Failure Pattern Memory"]
+    ADMIN --> KILLSWITCH["Global Kill Switches"]
+    ADMIN --> SECURITY["Risk & AI Governance"]
+    ADMIN --> K8S["Kubernetes Global Fleet"]
+    ADMIN --> INCIDENTS["Incidents & Observability"]
+```
+
+### 10 Dedicated Command Views:
+1. **🏠 Overview**: Executive health vitals, active organizations, running pipeline jobs, worker utilization %, database/cache heartbeat monitors, and platform activity stream.
+2. **👥 User Lifecycle**: Directory of all registered users across tenants, account suspension/reactivation, and super-admin privilege escalation.
+3. **🏢 Organization Operations**: Multi-tenant workspace management, team member role audits, and enterprise subscription tier quota overrides (`Free`, `Pro`, `Enterprise`).
+4. **🤖 Agent Operations Center**: 7-agent fleet health monitoring (`Architect`, `Developer`, `SecurityReviewer`, `FinOps`, `TestingAgent`, `GitOps`, `DeploymentPlanner`), 4-KPI leaderboard (Most Used, Highest Failure Rate, Top Token Consumer, Most Expensive Agent), visual stage waterfall traces (`PipelineStageTraceModel`), and in-flight intervention checkpoints (**Pause**, **Resume**, **Cancel**).
+5. **🔀 LLM Router & Fallbacks**: Microsecond routing governance across 9 AI providers (Gemini, Claude, OpenAI, Groq, Mistral, ZenMux, OpenRouter, NVIDIA, Ollama). Supports `auto`, `force`, and `failover_chain` routing modes, 1-click emergency provider isolation toggles, and live diagnostic latency probes.
+6. **🧠 Failure Pattern Memory**: Self-healing failure knowledge base with machine learning-style reinforcement confidence scoring ($0.0 - 1.0$), categorization (`provider`, `syntax`, `iam`, `quota`), and manual pattern promotion to "Trusted" status.
+7. **🛑 Global Kill Switches**: 5 emergency circuit breakers allowing immediate 1-click halting of cloud deployments, GitOps PR synthesis, self-healing retries, marketplace plugins, or tenant signups with mandatory audit justifications recorded in `GlobalAuditVault`.
+8. **🔒 Risk, Security & Governance**: 12 policy guardrails with runtime enforcement toggles (**Blocking**, **Advisory**, **Disabled**), live threat alerts ticker, explainable AI consensus decision traces (0-100 composite risk scoring), and an on-demand static HCL/OPA vulnerability scanner.
+9. **☸ Kubernetes Global Fleet**: Multi-cluster context switching, live node resource allocation vitals (CPU Cores & Memory allocation %, Pod density), active workloads pod matrix, interactive container stdout/stderr log stream modal, CRD instance monitor, and GitOps cloud drift auto-reconciliation.
+10. **🚨 Incidents & Observability**: Integrated **Prometheus** (Port 9090), **Grafana** (Port 3000), and **Alertmanager** (Port 9093) stack. Exposes standard `/metrics` endpoint, incident triage matrix (`P1`-`P4`), generative AI Root Cause Analysis (RCA), outbound alert webhooks (Slack, PagerDuty), and inbound Alertmanager webhook receiver.
+
+> 📖 For in-depth architecture diagrams, REST API schemas, database models, and administrator runbooks, see the [Super-Admin Command Center Manual](docs/SUPER_ADMIN_COMMAND_CENTER.md).
 
 ---
 

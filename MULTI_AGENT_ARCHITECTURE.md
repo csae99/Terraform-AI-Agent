@@ -49,6 +49,25 @@ graph TD
 
 ## 🧱 Core Architecture Layers
 
+### Agent Operations, Telemetry & In-Flight Control Layer (`tools/project/tracker.py`, `orchestrator/pipeline.py`)
+Fleet-wide telemetry monitoring, operational KPI leaderboards, stage waterfall traces, and real-time execution controls.
+
+| Module | Purpose |
+| :--- | :--- |
+| `tools/project/tracker.py` (`AgentMetricTracker`) | Tracks execution counters, failure rates, durations, costs, and token consumption across all 7 agents. Computes real-time leaderboards. |
+| `tools/project/tracker.py` (`RunControlManager`) | Manages project run lifecycle states (`running`, `paused`, `cancelled`, `completed`). Enforces safe pause loops and abort signals. |
+| `tools/project/tracker.py` (`PipelineStageTraceModel`) | Captures waterfall traces per execution stage (`architect_design`, `developer_code`, `security_audit`, `finops_estimate`, `gitops_pr`). |
+| `orchestrator/pipeline.py` | Pipeline checkpoints invoking `RunControlManager.check_run_interruption()` before each major agent phase. |
+
+### LLM Router, Model Governance & Fallback Layer (`llm/config.py`, `aiops/model_router.py`)
+Microsecond routing engine, dynamic fallback chains, and emergency provider isolation.
+
+| Module | Purpose |
+| :--- | :--- |
+| `tools/project/tracker.py` (`LLMRoutingManager`) | Manages provider enablement states, active routing mode (`auto`, `force`, `failover_chain`), and dynamic priority chains. |
+| `llm/config.py` (`_patched_litellm_completion`) | Intercepts LiteLLM completions to enforce provider disablement bypass, fallback model cascading, and latency/cost telemetry logging. |
+| `aiops/model_router.py` (`IntelligentModelRouter`) | Task complexity classifier routing prompts to optimal models (lightweight models for linting, frontier reasoning for architecture). |
+
 ### Kubernetes Control Plane & CRD Operator Layer (`k8s/`) *(Phase 15)*
 Declarative Custom Resources, continuous operator reconciler loop, and GitOps engine controllers.
 
@@ -269,6 +288,24 @@ output/prod-eks-cluster/
     └── iam/
 ```
 
+### 🕹️ Real-Time In-Flight Pipeline Interventions (Pause, Resume, Cancel)
+In enterprise production operations, pipelines cannot run as unchecked black boxes. The platform incorporates a stage-aware interruption engine (`RunControlManager`) integrated directly into `orchestrator/pipeline.py`:
+- **Stage Checkpoints**: Before and after each agent phase (`architect_design`, `developer_code`, `security_audit`, `finops_estimate`, `gitops_pr`), the orchestrator executes `RunControlManager.check_run_interruption(slug)`.
+- **Low-Frequency Pause Loop**: When a super-admin clicks **Pause**, the pipeline enters a non-blocking 1.5-second sleep polling loop. No CPU or tokens are burned while paused.
+- **Instant Resume**: When toggled to **Resume**, the orchestrator immediately exits the polling loop and executes the next stage seamlessly.
+- **Safe Abort & Cleanup**: When toggled to **Cancel**, the checkpoint raises a controlled `RuntimeError("Execution cancelled by administrator")`. Downstream task workers terminate immediately, intermediate temporary files are cleaned up, and a permanent cancellation record is logged in the `PipelineStageTraceModel`.
+
+### 🔀 Multi-Provider LLM Routing & Dynamic Fallback Cascade
+The platform's LLM engine (`llm/config.py` & `LLMRoutingManager`) eliminates vendor lock-in and protects against third-party AI outages:
+- **Provider Status Interception**: LiteLLM completion calls intercept configured providers against an in-memory status registry (`os.environ[f"LLM_PROVIDER_{provider.upper()}_STATUS"]`).
+- **Dynamic Candidate Fallback Chain**: If a provider is disabled or encounters HTTP 429 / 500 errors, the engine automatically walks down a priority fallback chain (e.g., `gemini` ➔ `zenmux` ➔ `openrouter` ➔ `groq` ➔ `openai` ➔ `claude` ➔ `mistral` ➔ `nvidia` ➔ `ollama`).
+- **Microsecond Hot Reloading**: Fallback chains and provider disablement toggles reconfigure instantly in-memory without requiring pod restarts or container rebuilds.
+
+### 📊 Real-Time Fleet Telemetry & Agent Operational Leaderboards
+Every autonomous agent execution emits structured telemetry to `AgentMetricTracker`:
+- Aggregates total executions, successful completions, failed runs, execution durations, token consumption, and attributed dollar costs.
+- Generates a live **Agent Leaderboard** identifying peak demand agents, failure hotspots, top token consumers, and cost drivers for continuous prompt engineering and system optimization.
+
 ---
 
 ## ⚙️ Configuration & Usage
@@ -364,7 +401,28 @@ python app/dashboard.py
 | **Organizations & RBAC**| `/api/orgs` | GET / POST | Manage multi-tenant organization workspaces |
 | **Organizations & RBAC**| `/api/orgs/{id}/members` | GET / POST | Team invitations and role assignment (Owner/Admin/Member/Viewer)|
 | **Compliance Export** | `/api/compliance/export` | GET | 1-Click SOC2 audit package export (JSON / CSV) |
+| **Super-Admin Console** | `/api/admin/agents/health` | GET | Real-time fleet health for all 7 specialized agents |
+| **Super-Admin Console** | `/api/admin/agents/leaderboard` | GET | 4-KPI operational agent performance leaderboard |
+| **Super-Admin Console** | `/api/admin/agents/runs/{slug}/pause` | POST | Pause in-flight pipeline run at next stage checkpoint |
+| **Super-Admin Console** | `/api/admin/agents/runs/{slug}/resume`| POST | Resume paused pipeline run execution |
+| **Super-Admin Console** | `/api/admin/agents/runs/{slug}/cancel`| POST | Abort in-flight pipeline run safely with cleanup |
+| **Super-Admin Console** | `/api/admin/llm/router` | GET / POST | Multi-provider matrix, routing modes, fallback chain |
+| **Super-Admin Console** | `/api/admin/llm/router/provider/{p}` | POST | 1-Click emergency provider isolation toggle |
+| **Super-Admin Console** | `/api/admin/patterns` | GET / POST | Failure pattern memory management & ML confidence |
+| **Super-Admin Console** | `/api/admin/killswitches` | GET / POST | Emergency operational circuit breakers with audit reasoning |
+| **Super-Admin Console** | `/api/admin/security/overview` | GET | Executive security overview & compliance readiness % |
+| **Super-Admin Console** | `/api/admin/security/policies` | GET / PUT | 12 policy guardrails runtime enforcement modes |
+| **Super-Admin Console** | `/api/admin/security/scan` | POST | On-demand static HCL and OPA policy security scanner |
+| **Super-Admin Console** | `/api/admin/k8s/cluster` | GET | Multi-cluster context, node CPU/Mem vitals & density |
+| **Super-Admin Console** | `/api/admin/k8s/pods` | GET | Active workloads pod matrix with resource requests |
+| **Super-Admin Console** | `/api/admin/k8s/pods/{pod}/logs` | GET | Real-time container stdout/stderr log stream buffer |
+| **Super-Admin Console** | `/api/admin/k8s/drift/reconcile` | POST | 1-Click cluster-wide GitOps drift reconciliation scan |
+| **Super-Admin Console** | `/metrics` | GET | Standard Prometheus text-format metrics exposition |
+| **Super-Admin Console** | `/api/admin/incidents` | GET / PATCH| Incident triage matrix & lifecycle state transitions |
+| **Super-Admin Console** | `/api/admin/incidents/{id}/rca` | POST | Generative AI Root Cause Analysis (RCA) engine |
+| **Super-Admin Console** | `/api/admin/incidents/webhooks` | GET / POST | Alert dispatch channels (Slack, PagerDuty, Discord) |
+| **Super-Admin Console** | `/api/admin/incidents/webhook` | POST | Inbound Alertmanager alert notification receiver |
 
 ---
 
-*Last Updated: 2026-08-27 (Phase 14 Platform Engineering Ecosystem Release)*
+*Last Updated: 2026-09-19 (Super-Admin Platform Operations Command Center Release)*

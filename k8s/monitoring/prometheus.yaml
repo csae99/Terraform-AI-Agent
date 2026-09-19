@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: terraform-ai-system
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    rule_files:
+      - /etc/prometheus/alert_rules.yml
+    scrape_configs:
+      - job_name: 'terraform-ai-dashboard'
+        metrics_path: '/metrics'
+        scrape_interval: 10s
+        static_configs:
+          - targets: ['terraform-ai-dashboard:5000']
+            labels:
+              app: 'terraform-ai-dashboard'
+              environment: 'kubernetes-local'
+      - job_name: 'prometheus'
+        scrape_interval: 30s
+        static_configs:
+          - targets: ['localhost:9090']
+  alert_rules.yml: |
+    groups:
+      - name: terraform_ai_alerts
+        rules:
+          - alert: HighAgentFailureRate
+            expr: rate(terraform_ai_agent_executions_total{status="failed"}[5m]) > 0.2
+            for: 1m
+            labels:
+              severity: P2
+            annotations:
+              summary: "Agent failure rate elevated"
+              description: "More than 20% of agent runs are failing in the last 5 minutes."
+          - alert: DriftDetected
+            expr: terraform_ai_drift_detected_total > 0
+            for: 2m
+            labels:
+              severity: P3
+            annotations:
+              summary: "Infrastructure drift detected"
+              description: "Terraform managed resources are currently out of sync with state."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: terraform-ai-system
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.48.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--web.console.libraries=/etc/prometheus/console_libraries"
+            - "--web.console.templates=/etc/prometheus/consoles"
+            - "--web.enable-lifecycle"
+          ports:
+            - containerPort: 9090
+              name: web
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: prometheus-config-volume
+              mountPath: /etc/prometheus
+      volumes:
+        - name: prometheus-config-volume
+          configMap:
+            name: prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: terraform-ai-system
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9090
+      targetPort: 9090
+      name: web
+  selector:
+    app: prometheus

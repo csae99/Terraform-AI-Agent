@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: terraform-ai-system
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'severity']
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 4h
+      receiver: 'super-admin-webhook'
+    receivers:
+      - name: 'super-admin-webhook'
+        webhook_configs:
+          - url: 'http://terraform-ai-dashboard:5000/api/admin/incidents/webhook'
+            send_resolved: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: terraform-ai-system
+  labels:
+    app.kubernetes.io/name: alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.26.0
+          args:
+            - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
+          ports:
+            - containerPort: 9093
+              name: web
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: alertmanager-config-vol
+              mountPath: /etc/alertmanager
+      volumes:
+        - name: alertmanager-config-vol
+          configMap:
+            name: alertmanager-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: terraform-ai-system
+  labels:
+    app.kubernetes.io/name: alertmanager
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9093
+      targetPort: 9093
+      name: web
+  selector:
+    app: alertmanager

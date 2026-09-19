@@ -52,6 +52,8 @@ function switchAdminTab(tab) {
     else if (tab === 'patterns') loadPatterns();
     else if (tab === 'agents') loadAgentOperations();
     else if (tab === 'llm-router') loadLLMRouter();
+    else if (tab === 'security') loadSecurityDashboard();
+    else if (tab === 'incidents') loadIncidentsDashboard();
 }
 
 function refreshAdminData() {
@@ -1842,5 +1844,856 @@ async function submitLLMRouteTest() {
         btn.innerHTML = `Run Probe Ping`;
     }
 }
+
+
+// ─── 11. Risk, Security & AI Governance (Milestone 4) ───────────────────────
+let _securityData = { overview: null, alerts: [], policies: [], findings: [], traces: [] };
+
+async function loadSecurityDashboard() {
+    await Promise.all([
+        loadSecurityOverview(),
+        loadSecurityAlerts(),
+        loadSecurityPolicies(),
+        loadSecurityFindings(),
+        loadGovernanceTraces()
+    ]);
+}
+
+async function loadSecurityOverview() {
+    try {
+        const res = await fetch('/api/admin/security/overview');
+        if (!res.ok) throw new Error("Failed to load security overview");
+        const data = await res.json();
+        _securityData.overview = data;
+
+        const critEl = document.getElementById('sec-vital-critical');
+        if (critEl) critEl.innerText = data.critical_findings || 0;
+        const highEl = document.getElementById('sec-vital-high');
+        if (highEl) highEl.innerText = data.high_findings || 0;
+
+        const blockEl = document.getElementById('sec-vital-blocked');
+        if (blockEl) blockEl.innerText = data.blocked_deployments || 0;
+        const appEl = document.getElementById('sec-vital-approved');
+        if (appEl) appEl.innerText = data.approved_deployments || 0;
+
+        const compEl = document.getElementById('sec-vital-compliance');
+        if (compEl) {
+            const score = data.compliance_score_pct || 0;
+            compEl.innerText = `${score.toFixed(1)}%`;
+            compEl.style.color = score >= 85 ? '#34d399' : (score >= 70 ? '#fbbf24' : '#f87171');
+        }
+
+        const actPolEl = document.getElementById('sec-vital-active-policies');
+        if (actPolEl) actPolEl.innerText = data.active_policies || 0;
+        const blkPolEl = document.getElementById('sec-vital-blocking-policies');
+        if (blkPolEl) blkPolEl.innerText = data.blocking_policies || 0;
+
+        const resEl = document.getElementById('sec-vital-resolved');
+        if (resEl) resEl.innerText = data.total_resolved_findings || 0;
+        const openEl = document.getElementById('sec-vital-total-open');
+        if (openEl) openEl.innerText = data.total_open_findings || 0;
+    } catch (e) {
+        console.error("loadSecurityOverview error:", e);
+    }
+}
+
+async function loadSecurityAlerts() {
+    try {
+        const res = await fetch('/api/admin/security/alerts?limit=25');
+        if (!res.ok) throw new Error("Failed to load security alerts");
+        const data = await res.json();
+        _securityData.alerts = data.alerts || [];
+
+        const container = document.getElementById('sec-live-alerts-container');
+        if (!container) return;
+
+        if (_securityData.alerts.length === 0) {
+            container.innerHTML = `<div style="font-size: 0.8rem; color: #94a3b8; padding: 0.5rem;">No active threat incidents or policy blocks logged.</div>`;
+            return;
+        }
+
+        container.innerHTML = _securityData.alerts.map(a => {
+            const isBlock = a.type === 'BLOCKED_DEPLOYMENT';
+            const badgeClass = isBlock ? 'badge-danger' : (a.severity === 'critical' ? 'badge-danger' : (a.severity === 'high' ? 'badge-warning' : 'badge'));
+            const icon = isBlock ? 'fa-shield-virus' : 'fa-exclamation-triangle';
+            const timeStr = a.timestamp ? new Date(a.timestamp).toLocaleTimeString() : '';
+
+            return `
+                <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.25); border-left: 3px solid ${isBlock ? '#ef4444' : '#f59e0b'}; border-radius: 4px; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0;">
+                        <i class="fas ${icon}" style="color: ${isBlock ? '#ef4444' : '#f59e0b'}; flex-shrink: 0;"></i>
+                        <span class="badge ${badgeClass}" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; text-transform: uppercase;">${a.type.replace('_', ' ')}</span>
+                        <strong style="color: #fff; white-space: nowrap;">${escapeHtml(a.org_name)}:</strong>
+                        <span style="color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(a.message)}</span>
+                    </div>
+                    <span style="font-size: 0.7rem; color: #94a3b8; font-family: monospace; margin-left: 0.75rem; white-space: nowrap;">${timeStr}</span>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error("loadSecurityAlerts error:", e);
+    }
+}
+
+async function loadSecurityPolicies() {
+    try {
+        const res = await fetch('/api/admin/security/policies');
+        if (!res.ok) throw new Error("Failed to load security policies");
+        const data = await res.json();
+        _securityData.policies = data.policies || [];
+
+        const countLabel = document.getElementById('sec-policies-count-label');
+        if (countLabel) countLabel.innerText = `${_securityData.policies.length} Rules Configured`;
+
+        const list = document.getElementById('sec-policies-list');
+        if (!list) return;
+
+        list.innerHTML = _securityData.policies.map(p => {
+            const enf = p.enforcement || 'blocking';
+            const sevColor = p.severity === 'critical' ? '#ef4444' : (p.severity === 'high' ? '#f59e0b' : '#38bdf8');
+
+            return `
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 0.6rem 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem;">
+                        <div>
+                            <span style="font-size: 0.75rem; font-family: monospace; color: #a855f7; font-weight: 700;">${p.rule_id}</span>
+                            <strong style="font-size: 0.82rem; color: #fff; margin-left: 0.4rem;">${escapeHtml(p.name)}</strong>
+                            <span class="badge" style="font-size: 0.65rem; background: rgba(255,255,255,0.08); color: ${sevColor}; margin-left: 0.35rem; text-transform: uppercase;">${p.severity}</span>
+                        </div>
+                        <select onchange="updatePolicyEnforcement('${p.rule_id}', this.value)" class="form-input" style="padding: 0.2rem 0.4rem; font-size: 0.75rem; border-color: ${enf === 'blocking' ? '#ef4444' : (enf === 'advisory' ? '#fbbf24' : 'var(--border)')};">
+                            <option value="blocking" ${enf === 'blocking' ? 'selected' : ''}>⛔ Blocking</option>
+                            <option value="advisory" ${enf === 'advisory' ? 'selected' : ''}>⚠️ Advisory</option>
+                            <option value="disabled" ${enf === 'disabled' ? 'selected' : ''}>⚪ Disabled</option>
+                        </select>
+                    </div>
+                    <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.2rem;">${escapeHtml(p.description)}</div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error("loadSecurityPolicies error:", e);
+    }
+}
+
+async function updatePolicyEnforcement(ruleId, mode) {
+    try {
+        const res = await fetch(`/api/admin/security/policies/${ruleId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enforcement: mode, is_enabled: mode !== 'disabled' })
+        });
+        if (!res.ok) throw new Error("Failed to update policy");
+        showToast(`Policy '${ruleId}' enforcement updated to ${mode.toUpperCase()}`, "success");
+        await loadSecurityOverview();
+    } catch (e) {
+        showToast(e.message, "error");
+        await loadSecurityPolicies();
+    }
+}
+
+async function loadSecurityFindings() {
+    try {
+        const res = await fetch('/api/admin/security/findings');
+        if (!res.ok) throw new Error("Failed to load findings");
+        const data = await res.json();
+        _securityData.findings = data.findings || [];
+        renderSecurityFindings(_securityData.findings);
+    } catch (e) {
+        console.error("loadSecurityFindings error:", e);
+    }
+}
+
+function renderSecurityFindings(findings) {
+    const tbody = document.getElementById('sec-findings-tbody');
+    if (!tbody) return;
+
+    if (!findings || findings.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #888; padding: 2rem;">No security vulnerabilities found matching current filters.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = findings.map(f => {
+        const sevClass = f.severity === 'critical' ? 'badge-danger' : (f.severity === 'high' ? 'badge-warning' : (f.severity === 'medium' ? 'badge-info' : 'badge'));
+        let statusBadge = '';
+        if (f.status === 'open') statusBadge = '<span class="badge badge-warning">OPEN</span>';
+        else if (f.status === 'blocked') statusBadge = '<span class="badge badge-danger">BLOCKED</span>';
+        else if (f.status === 'resolved') statusBadge = '<span class="badge badge-success">RESOLVED</span>';
+        else statusBadge = '<span class="badge" style="background: rgba(148, 163, 184, 0.2); color: #cbd5e1;">SUPPRESSED</span>';
+
+        const canResolve = f.status === 'open' || f.status === 'blocked';
+
+        return `
+            <tr>
+                <td><span class="badge ${sevClass}" style="text-transform: uppercase; font-size: 0.7rem;">${f.severity}</span></td>
+                <td><strong style="font-family: monospace; color: #a855f7;">${f.rule_id}</strong></td>
+                <td>
+                    <strong style="color: #fff;">${escapeHtml(f.title)}</strong>
+                    <div style="font-size: 0.75rem; color: #94a3b8;">${escapeHtml(f.resource_type)} &bull; ${escapeHtml(f.file_path || 'main.tf')}</div>
+                </td>
+                <td>
+                    <span style="color: #cbd5e1;">${escapeHtml(f.project_slug)}</span>
+                    <div style="font-size: 0.7rem; color: #94a3b8;">${escapeHtml(f.org_name)}</div>
+                </td>
+                <td><span class="badge" style="font-size: 0.7rem; background: rgba(255,255,255,0.08);">${escapeHtml(f.detector)}</span></td>
+                <td>${statusBadge}</td>
+                <td style="text-align: right;">
+                    ${canResolve ? `
+                        <button onclick="updateFindingStatus(${f.id}, 'resolved')" class="btn-sm" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #6ee7b7; padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: var(--radius-sm); cursor: pointer;">Resolve</button>
+                        <button onclick="updateFindingStatus(${f.id}, 'suppressed')" class="btn-sm" style="background: rgba(148, 163, 184, 0.15); border: 1px solid var(--border); color: #cbd5e1; padding: 0.25rem 0.45rem; font-size: 0.75rem; border-radius: var(--radius-sm); cursor: pointer;">Suppress</button>
+                    ` : `
+                        <button onclick="updateFindingStatus(${f.id}, 'open')" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: #94a3b8; padding: 0.25rem 0.45rem; font-size: 0.75rem; border-radius: var(--radius-sm); cursor: pointer;">Reopen</button>
+                    `}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterSecurityFindings() {
+    const search = (document.getElementById('sec-finding-search')?.value || '').toLowerCase();
+    const severity = document.getElementById('sec-severity-filter')?.value || 'all';
+    const status = document.getElementById('sec-status-filter')?.value || 'all';
+
+    let filtered = _securityData.findings || [];
+    if (search) {
+        filtered = filtered.filter(f => 
+            (f.title || '').toLowerCase().includes(search) ||
+            (f.rule_id || '').toLowerCase().includes(search) ||
+            (f.resource_type || '').toLowerCase().includes(search) ||
+            (f.project_slug || '').toLowerCase().includes(search)
+        );
+    }
+    if (severity !== 'all') {
+        filtered = filtered.filter(f => f.severity === severity);
+    }
+    if (status !== 'all') {
+        filtered = filtered.filter(f => f.status === status);
+    }
+    renderSecurityFindings(filtered);
+}
+
+async function updateFindingStatus(findingId, status) {
+    try {
+        const res = await fetch(`/api/admin/security/findings/${findingId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        if (!res.ok) throw new Error("Failed to update finding status");
+        showToast(`Finding #${findingId} marked as ${status.toUpperCase()}`, "success");
+        await Promise.all([loadSecurityFindings(), loadSecurityOverview()]);
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+async function loadGovernanceTraces() {
+    try {
+        const res = await fetch('/api/admin/security/governance?limit=25');
+        if (!res.ok) throw new Error("Failed to load governance traces");
+        const data = await res.json();
+        _securityData.traces = data.traces || [];
+
+        const list = document.getElementById('sec-governance-traces-list');
+        if (!list) return;
+
+        if (_securityData.traces.length === 0) {
+            list.innerHTML = `<div style="font-size: 0.8rem; color: #94a3b8; padding: 0.5rem;">No governance decision audit traces logged.</div>`;
+            return;
+        }
+
+        list.innerHTML = _securityData.traces.map(t => {
+            const isBlock = t.decision === 'blocked';
+            const isManual = t.decision === 'flagged_for_human';
+            const badgeClass = isBlock ? 'badge-danger' : (isManual ? 'badge-warning' : 'badge-success');
+            const scoreColor = t.risk_score >= 70 ? '#ef4444' : (t.risk_score >= 40 ? '#fbbf24' : '#34d399');
+
+            return `
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 0.65rem 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                        <div>
+                            <span class="badge ${badgeClass}" style="text-transform: uppercase; font-size: 0.7rem;">${t.decision.replace('_', ' ')}</span>
+                            <strong style="color: #fff; margin-left: 0.4rem; font-size: 0.82rem;">${escapeHtml(t.project_slug)}</strong>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 0.75rem; color: #94a3b8;">Risk Score:</span>
+                            <strong style="color: ${scoreColor}; font-size: 0.85rem; margin-left: 0.25rem;">${(t.risk_score || 0).toFixed(0)}/100</strong>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.78rem; color: #cbd5e1; margin-bottom: 0.35rem;">${escapeHtml(t.summary)}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.35rem;">
+                        <span>Auditor: <strong style="color: #cbd5e1;">${escapeHtml(t.agent_name)}</strong> (Confidence: ${Math.round((t.confidence_score || 0.9) * 100)}%)</span>
+                        <span style="font-family: monospace;">${t.run_id || ''}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error("loadGovernanceTraces error:", e);
+    }
+}
+
+async function openSecurityScanModal() {
+    const modal = document.getElementById('modal-run-security-scan');
+    if (!modal) return;
+    modal.style.display = 'flex';
+
+    // Populate project select
+    const sel = document.getElementById('sec-scan-project-select');
+    if (sel) {
+        sel.innerHTML = '<option value="">Loading workspaces...</option>';
+        try {
+            const res = await fetch('/api/admin/overview');
+            const data = await res.json();
+            const projects = (data && data.recent_projects) || [
+                { slug: "production-k8s-vpc", name: "Production K8s VPC" },
+                { slug: "microservices-alb", name: "Microservices ALB" },
+                { slug: "dev-sandbox-redis", name: "Dev Sandbox Redis" }
+            ];
+            sel.innerHTML = projects.map(p => `<option value="${p.slug}">${escapeHtml(p.slug)} (${escapeHtml(p.name || p.slug)})</option>`).join('');
+        } catch (e) {
+            sel.innerHTML = `
+                <option value="production-k8s-vpc">production-k8s-vpc</option>
+                <option value="microservices-alb">microservices-alb</option>
+                <option value="dev-sandbox-redis">dev-sandbox-redis</option>
+            `;
+        }
+    }
+
+    const resBox = document.getElementById('sec-scan-result');
+    if (resBox) resBox.style.display = 'none';
+}
+
+async function executeSecurityScan() {
+    const slug = document.getElementById('sec-scan-project-select')?.value;
+    if (!slug) {
+        showToast("Please select a target workspace", "warning");
+        return;
+    }
+
+    const btn = document.getElementById('btn-execute-sec-scan');
+    const resBox = document.getElementById('sec-scan-result');
+    const decEl = document.getElementById('sec-scan-res-decision');
+    const scoreEl = document.getElementById('sec-scan-res-score');
+    const sumEl = document.getElementById('sec-scan-res-summary');
+    const factEl = document.getElementById('sec-scan-res-factors');
+
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Scanning HCL & Policies...`;
+
+    try {
+        const res = await fetch('/api/admin/security/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_slug: slug })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Security scan failed");
+
+        resBox.style.display = 'block';
+        const isBlock = data.decision === 'blocked';
+        decEl.className = isBlock ? 'badge badge-danger' : (data.decision === 'flagged_for_human' ? 'badge badge-warning' : 'badge badge-success');
+        decEl.innerText = data.decision.toUpperCase().replace('_', ' ');
+
+        scoreEl.innerText = `Risk Score: ${data.composite_risk_score}/100 (${data.risk_level})`;
+        scoreEl.style.color = data.composite_risk_score >= 70 ? '#ef4444' : (data.composite_risk_score >= 40 ? '#fbbf24' : '#34d399');
+
+        sumEl.innerText = data.summary;
+        factEl.innerHTML = (data.risk_factors || []).map(f => `<div>&bull; ${escapeHtml(f)}</div>`).join('');
+
+        showToast(`Audit complete: Risk Score ${data.composite_risk_score}/100`, "success");
+        await Promise.all([loadSecurityOverview(), loadSecurityFindings(), loadGovernanceTraces(), loadSecurityAlerts()]);
+    } catch (e) {
+        showToast(e.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `Execute Security Scan`;
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── MILESTONE 5: KUBERNETES GLOBAL FLEET & CONTROL (Priority 8) ───────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let currentViewingPod = null;
+
+async function loadK8sFleet() {
+    try {
+        const [vitalsRes, podsRes, crdsRes, driftRes] = await Promise.all([
+            fetch('/api/admin/k8s/cluster'),
+            fetch('/api/admin/k8s/pods'),
+            fetch('/api/admin/k8s/crds'),
+            fetch('/api/admin/k8s/drift')
+        ]);
+
+        if (vitalsRes.ok) {
+            const vitals = await vitalsRes.json();
+            renderK8sVitals(vitals);
+        }
+        if (podsRes.ok) {
+            const data = await podsRes.json();
+            renderK8sPods(data.pods || []);
+        }
+        if (crdsRes.ok) {
+            const data = await crdsRes.json();
+            renderK8sCRDs(data.crds || []);
+        }
+        if (driftRes.ok) {
+            const data = await driftRes.json();
+            renderK8sDrift(data);
+        }
+    } catch (e) {
+        console.error("Error loading K8s fleet:", e);
+        showToast("Failed to load Kubernetes fleet data", "error");
+    }
+}
+
+function renderK8sVitals(vitals) {
+    const cpuEl = document.getElementById('k8s-vital-cpu');
+    const cpuPctEl = document.getElementById('k8s-vital-cpu-pct');
+    if (cpuEl) cpuEl.innerText = `${vitals.cpu_allocated_cores} / ${vitals.cpu_capacity_cores} Cores`;
+    if (cpuPctEl) cpuPctEl.innerText = `${vitals.cpu_allocated_pct}%`;
+
+    const memEl = document.getElementById('k8s-vital-memory');
+    const memPctEl = document.getElementById('k8s-vital-memory-pct');
+    if (memEl) memEl.innerText = `${(vitals.memory_allocated_mb / 1024).toFixed(1)} / ${(vitals.memory_capacity_mb / 1024).toFixed(1)} GB`;
+    if (memPctEl) memPctEl.innerText = `${vitals.memory_allocated_pct}%`;
+
+    const podsEl = document.getElementById('k8s-vital-pods');
+    if (podsEl) podsEl.innerText = `${vitals.active_pods_count} / ${vitals.pod_capacity} Pods`;
+
+    const verEl = document.getElementById('k8s-vital-version');
+    const uptimeEl = document.getElementById('k8s-vital-uptime');
+    if (verEl) verEl.innerText = `${vitals.control_plane_status.split(' ')[0]} (${vitals.k8s_version})`;
+    if (uptimeEl) uptimeEl.innerText = `Cluster Uptime: ${vitals.cluster_uptime} | Node: ${vitals.node_name}`;
+}
+
+function renderK8sPods(pods) {
+    const tbody = document.getElementById('k8s-pods-tbody');
+    if (!tbody) return;
+
+    if (!pods.length) {
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: #94a3b8; padding: 1.5rem;">No active pods in namespace.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = pods.map(p => {
+        const isRunning = p.status === 'Running';
+        const statusBadge = isRunning 
+            ? `<span class="badge badge-success"><i class="fas fa-check-circle"></i> Running</span>`
+            : `<span class="badge badge-warning">${escapeHtml(p.status)}</span>`;
+
+        const restartBadge = p.restarts > 0
+            ? `<span style="color: #fbbf24; font-weight: 600;">${p.restarts} restarts</span>`
+            : `<span style="color: #94a3b8;">0</span>`;
+
+        return `
+            <tr>
+                <td style="font-weight: 600; color: #fff; font-family: monospace;">
+                    <i class="fas fa-cube" style="color: #38bdf8; margin-right: 0.35rem;"></i>${escapeHtml(p.name)}
+                </td>
+                <td><code style="color: #94a3b8;">${escapeHtml(p.namespace)}</code></td>
+                <td><span style="color: #cbd5e1;">${escapeHtml(p.kind)}</span></td>
+                <td><strong style="color: #34d399;">${escapeHtml(p.replicas)}</strong></td>
+                <td>${statusBadge}</td>
+                <td>${restartBadge}</td>
+                <td><code style="color: #38bdf8;">${escapeHtml(p.cpu_request)}</code></td>
+                <td><code style="color: #a78bfa;">${escapeHtml(p.memory_request)}</code></td>
+                <td><span style="font-size: 0.8rem; color: #94a3b8;">${escapeHtml(p.node)}</span></td>
+                <td><span style="font-size: 0.8rem; color: #94a3b8;">${escapeHtml(p.age)}</span></td>
+                <td>
+                    <button onclick="viewPodLogs('${escapeHtml(p.name)}')" class="btn-sm" style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8; padding: 0.25rem 0.55rem; font-size: 0.75rem; border-radius: var(--radius-sm); cursor: pointer;">
+                        <i class="fas fa-terminal"></i> Logs
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderK8sCRDs(crds) {
+    const container = document.getElementById('k8s-crds-container');
+    if (!container) return;
+
+    container.innerHTML = crds.map(c => `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.65rem 0.85rem;">
+            <div>
+                <div style="font-weight: 600; color: #fff; font-size: 0.9rem;">
+                    <code style="color: #38bdf8;">${escapeHtml(c.kind)}</code> <span style="font-size: 0.75rem; color: #94a3b8;">(${escapeHtml(c.group)}/${escapeHtml(c.version)})</span>
+                </div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.2rem;">
+                    Scope: ${escapeHtml(c.scope)} | Reconciled: ${escapeHtml(c.last_reconciled)}
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <span class="badge" style="background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid #34d399;">
+                    ${c.active_instances} Instances
+                </span>
+                <div style="font-size: 0.7rem; color: #cbd5e1; margin-top: 0.2rem;">${escapeHtml(c.status)}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderK8sDrift(drift) {
+    const badge = document.getElementById('k8s-drift-count-badge');
+    const list = document.getElementById('k8s-drifted-list');
+    const healed = document.getElementById('k8s-healed-count');
+
+    if (badge) {
+        badge.innerText = `${drift.drifted_count} In Drift`;
+        badge.style.background = drift.drifted_count > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+        badge.style.color = drift.drifted_count > 0 ? '#f87171' : '#34d399';
+        badge.style.borderColor = drift.drifted_count > 0 ? '#ef4444' : '#10b981';
+    }
+
+    if (healed) healed.innerText = drift.auto_healed_count;
+
+    if (list) {
+        if (!drift.drifted_projects || !drift.drifted_projects.length) {
+            list.innerHTML = `<span style="font-size: 0.8rem; color: #34d399;"><i class="fas fa-check-circle"></i> Zero drift detected across all managed infrastructure.</span>`;
+        } else {
+            list.innerHTML = drift.drifted_projects.map(slug => `
+                <span class="badge badge-danger" style="font-family: monospace;">
+                    <i class="fas fa-exclamation-triangle"></i> ${escapeHtml(slug)}
+                </span>
+            `).join('');
+        }
+    }
+}
+
+async function viewPodLogs(podName) {
+    currentViewingPod = podName;
+    const modal = document.getElementById('modal-pod-logs');
+    const title = document.getElementById('pod-logs-title');
+    const pre = document.getElementById('pod-logs-content');
+
+    if (title) title.innerText = podName;
+    if (pre) pre.innerText = "Connecting to Kubernetes log stream buffer...";
+    if (modal) modal.style.display = 'flex';
+
+    await refreshCurrentPodLogs();
+}
+
+async function refreshCurrentPodLogs() {
+    if (!currentViewingPod) return;
+    const pre = document.getElementById('pod-logs-content');
+    try {
+        const res = await fetch(`/api/admin/k8s/pods/${encodeURIComponent(currentViewingPod)}/logs?lines=50`);
+        const data = await res.json();
+        if (pre) pre.innerText = data.logs || "No logs received from container.";
+    } catch (e) {
+        if (pre) pre.innerText = `Error streaming logs: ${e.message}`;
+    }
+}
+
+async function triggerDriftReconciliation() {
+    try {
+        const res = await fetch('/api/admin/k8s/drift/reconcile', { method: 'POST' });
+        const data = await res.json();
+        showToast(data.message || "Drift reconciliation cycle initiated", "success");
+        await loadK8sFleet();
+    } catch (e) {
+        showToast(`Failed to trigger reconciliation: ${e.message}`, "error");
+    }
+}
+
+function changeK8sCluster() {
+    const sel = document.getElementById('k8s-cluster-selector');
+    showToast(`Switched active context to: ${sel.value}`, "info");
+    loadK8sFleet();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── MILESTONE 5: INCIDENTS & OBSERVABILITY CENTER (Priority 9) ────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let allIncidentsCache = [];
+let currentViewingIncidentId = null;
+
+async function loadIncidentsDashboard() {
+    await Promise.all([loadIncidentsOverview(), loadIncidentsList()]);
+}
+
+async function loadIncidentsOverview() {
+    try {
+        const res = await fetch('/api/admin/incidents/overview');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const openEl = document.getElementById('inc-vital-open');
+        const totalEl = document.getElementById('inc-vital-total');
+        const p1El = document.getElementById('inc-vital-p1');
+        const mttrEl = document.getElementById('inc-vital-mttr');
+        const resEl = document.getElementById('inc-vital-resolved');
+
+        if (openEl) openEl.innerText = data.open_incidents;
+        if (totalEl) totalEl.innerText = data.total_incidents;
+        if (p1El) p1El.innerText = data.p1_outages;
+        if (mttrEl) mttrEl.innerText = `${data.mttr_minutes}m`;
+        if (resEl) resEl.innerText = data.resolved_incidents;
+    } catch (e) {
+        console.error("Error loading incidents overview:", e);
+    }
+}
+
+async function loadIncidentsList() {
+    try {
+        const res = await fetch('/api/admin/incidents');
+        if (!res.ok) return;
+        const data = await res.json();
+        allIncidentsCache = data.incidents || [];
+        filterIncidents();
+    } catch (e) {
+        console.error("Error loading incidents list:", e);
+    }
+}
+
+function filterIncidents() {
+    const search = (document.getElementById('inc-search')?.value || '').toLowerCase().trim();
+    const sev = document.getElementById('inc-severity-filter')?.value || 'all';
+    const st = document.getElementById('inc-status-filter')?.value || 'all';
+
+    const filtered = allIncidentsCache.filter(inc => {
+        if (sev !== 'all' && inc.severity.toUpperCase() !== sev.toUpperCase()) return false;
+        if (st !== 'all' && inc.status.toLowerCase() !== st.toLowerCase()) return false;
+        if (search) {
+            const matchesId = inc.id.toLowerCase().includes(search);
+            const matchesTitle = inc.title.toLowerCase().includes(search);
+            const matchesOrg = (inc.affected_org_name || '').toLowerCase().includes(search);
+            if (!matchesId && !matchesTitle && !matchesOrg) return false;
+        }
+        return true;
+    });
+
+    renderIncidentsTable(filtered);
+}
+
+function renderIncidentsTable(incidents) {
+    const tbody = document.getElementById('incidents-tbody');
+    if (!tbody) return;
+
+    if (!incidents.length) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 2rem;">No incidents found matching current filters.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = incidents.map(inc => {
+        let sevColor = '#94a3b8';
+        let sevBg = 'rgba(148, 163, 184, 0.15)';
+        if (inc.severity === 'P1') { sevColor = '#f87171'; sevBg = 'rgba(239, 68, 68, 0.2)'; }
+        else if (inc.severity === 'P2') { sevColor = '#fbbf24'; sevBg = 'rgba(245, 158, 11, 0.2)'; }
+        else if (inc.severity === 'P3') { sevColor = '#38bdf8'; sevBg = 'rgba(56, 189, 248, 0.2)'; }
+
+        let stBadge = `<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid #ef4444;">Open</span>`;
+        if (inc.status === 'acknowledged') stBadge = `<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid #f59e0b;">Acknowledged</span>`;
+        else if (inc.status === 'mitigating') stBadge = `<span class="badge" style="background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid #38bdf8;">Mitigating</span>`;
+        else if (inc.status === 'resolved') stBadge = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid #10b981;">Resolved</span>`;
+
+        const createdDate = inc.created_at ? new Date(inc.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now';
+
+        return `
+            <tr>
+                <td><code style="color: #38bdf8; font-weight: 700;">${escapeHtml(inc.id)}</code></td>
+                <td>
+                    <span class="badge" style="background: ${sevBg}; color: ${sevColor}; font-weight: 700; border: 1px solid ${sevColor};">
+                        ${escapeHtml(inc.severity)}
+                    </span>
+                </td>
+                <td>
+                    <div style="font-weight: 600; color: #fff; margin-bottom: 0.2rem;">${escapeHtml(inc.title)}</div>
+                    <div style="font-size: 0.75rem; color: #94a3b8; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${escapeHtml(inc.summary)}
+                    </div>
+                </td>
+                <td>
+                    <strong style="color: #cbd5e1;">${escapeHtml(inc.affected_org_name)}</strong>
+                    <div style="font-size: 0.75rem; color: #94a3b8;">Scope: ${escapeHtml(inc.impact_scope)}</div>
+                </td>
+                <td><code style="color: #a78bfa;">${escapeHtml(inc.source)}</code></td>
+                <td>${stBadge}</td>
+                <td><span style="font-size: 0.8rem; color: #94a3b8;">${createdDate}</span></td>
+                <td style="text-align: right;">
+                    <button onclick="openIncidentModal('${escapeHtml(inc.id)}')" class="btn-sm" style="background: #ef4444; border: none; color: #fff; font-weight: 600; padding: 0.3rem 0.7rem; font-size: 0.8rem; border-radius: var(--radius-sm); cursor: pointer;">
+                        <i class="fas fa-stethoscope"></i> Triage / RCA
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function openIncidentModal(incidentId) {
+    currentViewingIncidentId = incidentId;
+    const modal = document.getElementById('modal-incident-inspector');
+    if (!modal) return;
+
+    try {
+        const res = await fetch(`/api/admin/incidents/${encodeURIComponent(incidentId)}`);
+        if (!res.ok) throw new Error("Incident not found");
+        const inc = await res.json();
+
+        document.getElementById('inc-modal-id').innerText = inc.id;
+        document.getElementById('inc-modal-title').innerText = inc.title;
+        document.getElementById('inc-modal-org').innerText = inc.affected_org_name;
+        document.getElementById('inc-modal-source').innerText = inc.source;
+        document.getElementById('inc-modal-summary').innerText = inc.summary;
+
+        const badge = document.getElementById('inc-modal-badge');
+        if (badge) {
+            badge.innerText = inc.severity;
+            badge.style.background = inc.severity === 'P1' ? '#ef4444' : (inc.severity === 'P2' ? '#f59e0b' : '#3b82f6');
+        }
+
+        // RCA
+        const rca = inc.root_cause_analysis || {};
+        document.getElementById('inc-rca-cause').innerText = rca.root_cause || "Pending AI analysis";
+        document.getElementById('inc-rca-trigger').innerText = rca.trigger || "Awaiting telemetry";
+        document.getElementById('inc-rca-blast').innerText = rca.blast_radius || "Calculating scope...";
+        document.getElementById('inc-rca-fix').innerText = rca.suggested_remediation || "Synthesizing fix from pattern memory...";
+
+        // Timeline
+        const tlContainer = document.getElementById('inc-modal-timeline');
+        if (tlContainer) {
+            const tl = inc.timeline || [];
+            if (!tl.length) {
+                tlContainer.innerHTML = `<div style="font-size: 0.8rem; color: #94a3b8;">No events logged yet.</div>`;
+            } else {
+                tlContainer.innerHTML = tl.map(e => `
+                    <div style="background: rgba(0,0,0,0.2); border-left: 2px solid #38bdf8; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                        <span style="color: #94a3b8;">[${new Date(e.timestamp).toLocaleTimeString()}]</span>
+                        <strong style="color: #38bdf8;"> ${escapeHtml(e.author)}:</strong>
+                        <span style="color: #cbd5e1;"> ${escapeHtml(e.notes || e.action)}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Status select
+        const sel = document.getElementById('inc-modal-status-select');
+        if (sel) sel.value = inc.status;
+
+        modal.style.display = 'flex';
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+async function triggerIncidentRCA() {
+    if (!currentViewingIncidentId) return;
+    try {
+        showToast("Synthesizing AI Root Cause Analysis...", "info");
+        const res = await fetch(`/api/admin/incidents/${encodeURIComponent(currentViewingIncidentId)}/rca`, { method: 'POST' });
+        const rca = await res.json();
+
+        document.getElementById('inc-rca-cause').innerText = rca.root_cause;
+        document.getElementById('inc-rca-trigger').innerText = rca.trigger;
+        document.getElementById('inc-rca-blast').innerText = rca.blast_radius;
+        document.getElementById('inc-rca-fix').innerText = rca.suggested_remediation;
+        showToast("AI RCA synthesized successfully", "success");
+    } catch (e) {
+        showToast(`RCA generation failed: ${e.message}`, "error");
+    }
+}
+
+async function saveIncidentStatus() {
+    if (!currentViewingIncidentId) return;
+    const status = document.getElementById('inc-modal-status-select')?.value;
+    const notes = document.getElementById('inc-modal-notes')?.value;
+
+    try {
+        const res = await fetch(`/api/admin/incidents/${encodeURIComponent(currentViewingIncidentId)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status, notes })
+        });
+        if (!res.ok) throw new Error("Failed to update status");
+        showToast(`Incident status saved: ${status.toUpperCase()}`, "success");
+        closeModal('modal-incident-inspector');
+        await loadIncidentsDashboard();
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+// ─── Webhooks Dispatcher Modal Controllers ────────────────────────────────────
+
+async function openWebhookModal() {
+    const modal = document.getElementById('modal-webhook-config');
+    if (modal) modal.style.display = 'flex';
+    await loadWebhooks();
+}
+
+async function loadWebhooks() {
+    const container = document.getElementById('webhooks-list-container');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/incidents/webhooks/list');
+        const data = await res.json();
+        const hooks = data.webhooks || [];
+
+        if (!hooks.length) {
+            container.innerHTML = `<div style="font-size: 0.8rem; color: #94a3b8;">No alert webhooks configured.</div>`;
+            return;
+        }
+
+        container.innerHTML = hooks.map(h => `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem;">
+                <div>
+                    <strong style="color: #fff; font-size: 0.9rem;">${escapeHtml(h.name)}</strong>
+                    <span class="badge" style="margin-left: 0.4rem; font-size: 0.7rem; background: rgba(99,102,241,0.2); color: #a5b4fc;">${escapeHtml(h.type.toUpperCase())}</span>
+                    <div style="font-size: 0.75rem; color: #94a3b8; font-family: monospace; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${escapeHtml(h.url)}
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="badge badge-success" style="font-size: 0.7rem;">Active (Min: ${escapeHtml(h.min_severity)})</span>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<div style="color: #ef4444; font-size: 0.8rem;">Error loading webhooks: ${e.message}</div>`;
+    }
+}
+
+async function addNewWebhook() {
+    const name = document.getElementById('webhook-add-name')?.value.trim();
+    const type = document.getElementById('webhook-add-type')?.value;
+    const url = document.getElementById('webhook-add-url')?.value.trim();
+
+    if (!name || !url) {
+        showToast("Please enter a name and webhook URL", "error");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/incidents/webhooks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, type, url, min_severity: "P2" })
+        });
+        if (!res.ok) throw new Error("Failed to add webhook");
+        showToast("Notification channel configured", "success");
+        document.getElementById('webhook-add-name').value = '';
+        document.getElementById('webhook-add-url').value = '';
+        await loadWebhooks();
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+async function testWebhookPing() {
+    try {
+        const res = await fetch('/api/admin/incidents/webhooks/test', { method: 'POST' });
+        const data = await res.json();
+        showToast(`Webhook ping successful (${data.latency_ms}ms latency)`, "success");
+    } catch (e) {
+        showToast(`Webhook test failed: ${e.message}`, "error");
+    }
+}
+
+
 
 
