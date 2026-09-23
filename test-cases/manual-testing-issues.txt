@@ -1,15 +1,14 @@
 The issues found after manual testing of Manual-test.md:
 FYI: These tests were done on another machine
-- So I created this infra "Create an AWS S3 bucket named test-vault-storage with versioning enabled and a lifecycle rule to transition objects to Glacier after 30 days
-- You can see it logs at "logs-comphresensive-matrix-1-2-3-4.json"
+- So I created this infra "Create an AWS EC2 instance with t3.xlarge instance type and 50 gb storage .Also create other necessary resources such as vpc , security group , pem key and other things necessary"
+- You can see it logs at "logs.json"
 - I had set DEFAULT_MODEL=gemini/gemini-2.5-flash-lite in .env
 
 Things I found wrong in it after genration: 
 
-- It created two diffrent storage folders in modules which has same main.tf which should not be happening.
-- also in visual topology it is showing visual topology of project structure I dont think this is how the visual topology be showed about project structure.
-- In Observability & Analytics , the Financial saving is set $600 , there were 2 self healing rounds which shows it saved 5 hrs on what basis it shows 5hrs and success rate is 100% dont know how this works , please care to explain.
-- In Billings and plan , as I created a new account it is a free-tier plan which provides 5 free runs but after this run i did the run count is still 0 and everything in Cost Attribution & Resource Consumption shows as 0 , this function is also not working.
+- There is some error releated to pattern manager in the logs.json , look into it and it also created a extracted_151.tf which showed the project structure in it.
+- I ran in total 6 infra builds with "testuser1" and FYI testuser1 is a new user so it has free-tier plan applied which allow maximum of 5 free runs and after that it is supposed to purchase a upgraded plan to create new build but even after completing 5 runs it was able to run 6th run on free-tier plan , this should not be happening.
+- Audit trails of all users should be visible to admin thats right i agree to it but when i created new user testuser2 i was able to see audit trails of testuser1 this should not be happening. am i right ?
+- When I upgraded the plan to pro developer and i selected razor pay as payment gateway but payment gateway didn't pop though plan got converted to pro developer. payment gateway is not working look into it . FYI I have added razorpay test api key credentials in .env.
 
-
-These are thing I want you to look into before moving to next phase
+These are thing I want you to look into and tell me your thoughts on it
