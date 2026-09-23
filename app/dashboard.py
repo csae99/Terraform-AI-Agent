@@ -499,6 +499,14 @@ async def generate_infrastructure(request: Request, background_tasks: Background
         if force_consensus:
             credentials["force_consensus"] = True
 
+        # Billing Execution Quota Enforcement
+        from billing.usage_tracking import BillingTracker
+        quota_res = BillingTracker.check_quota(user_id=user.id, org_id=org_id)
+        if not quota_res.get("allowed", True):
+            quota_err = quota_res.get("error", "Monthly execution quota reached. Upgrade your plan to continue.")
+            logger.warning(f"[Quota Limit Exceeded] User {user.id} (Org: {org_id}): {quota_err}")
+            raise HTTPException(status_code=402, detail=quota_err)
+
         # Kill Switch Enforcement
         if apply and KillSwitchManager.is_active("deployments_disabled"):
             logger.warning("[Emergency Kill Switch] Global deployments disabled. Overriding apply to False.")
@@ -861,10 +869,15 @@ async def get_audit_logs(org_id: Optional[int] = None, slug: Optional[str] = Non
     # If org_id is provided, verify membership
     if org_id:
         user_role = OrgTracker.get_user_role(org_id, user.id)
-        if not user_role:
+        if not user_role and not getattr(user, "is_superuser", False):
             raise HTTPException(status_code=403, detail="Access denied: Not a member of this organization")
-    
-    logs = AuditTracker.get_logs(org_id=org_id, resource_slug=slug, limit=100)
+        logs = AuditTracker.get_logs(org_id=org_id, resource_slug=slug, limit=100)
+    elif getattr(user, "is_superuser", False):
+        # Super-Admin can inspect all platform-wide logs
+        logs = AuditTracker.get_logs(resource_slug=slug, limit=100)
+    else:
+        # Standard users only see their own audit trail events
+        logs = AuditTracker.get_logs(user_id=user.id, resource_slug=slug, limit=100)
     return logs
 
 @app.get("/api/engine/status")
@@ -1002,12 +1015,15 @@ async def export_compliance_package(org_id: Optional[int] = None, format: str = 
 
     if org_id:
         user_role = OrgTracker.get_user_role(org_id, user.id)
-        if not user_role:
+        if not user_role and not getattr(user, "is_superuser", False):
             raise HTTPException(status_code=403, detail="Access denied: Not a member of this organization")
         logs = AuditTracker.get_logs(org_id=org_id, limit=500)
         projects = ProjectTracker.load_all(org_id=org_id)
-    else:
+    elif getattr(user, "is_superuser", False):
         logs = AuditTracker.get_logs(limit=500)
+        projects = ProjectTracker.load_all()
+    else:
+        logs = AuditTracker.get_logs(user_id=user.id, limit=500)
         projects = ProjectTracker.load_all(owner_id=user.id)
 
     if format.lower() == "csv":

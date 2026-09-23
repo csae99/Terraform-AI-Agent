@@ -17,3 +17,4 @@ celery
 redis
 boto3
 requests
+razorpay

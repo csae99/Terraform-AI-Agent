@@ -12,7 +12,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.815955Z"
+      "last_used": "2026-09-23T18:00:03.940485Z"
     },
     {
       "id": 2,
@@ -26,7 +26,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.817043Z"
+      "last_used": "2026-09-23T18:00:03.941494Z"
     },
     {
       "id": 3,
@@ -40,7 +40,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.818706Z"
+      "last_used": "2026-09-23T18:00:03.942404Z"
     },
     {
       "id": 4,
@@ -54,7 +54,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.819871Z"
+      "last_used": "2026-09-23T18:00:03.943216Z"
     },
     {
       "id": 5,
@@ -68,7 +68,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.820841Z"
+      "last_used": "2026-09-23T18:00:03.944052Z"
     },
     {
       "id": 6,
@@ -82,7 +82,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.821903Z"
+      "last_used": "2026-09-23T18:00:03.944840Z"
     },
     {
       "id": 7,
@@ -96,7 +96,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.823045Z"
+      "last_used": "2026-09-23T18:00:03.945634Z"
     },
     {
       "id": 8,
@@ -110,7 +110,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.824359Z"
+      "last_used": "2026-09-23T18:00:03.946511Z"
     },
     {
       "id": 9,
@@ -124,7 +124,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.825800Z"
+      "last_used": "2026-09-23T18:00:03.947493Z"
     },
     {
       "id": 10,
@@ -138,7 +138,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.827104Z"
+      "last_used": "2026-09-23T18:00:03.948618Z"
     },
     {
       "id": 11,
@@ -152,7 +152,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.828333Z"
+      "last_used": "2026-09-23T18:00:03.949533Z"
     },
     {
       "id": 12,
@@ -166,7 +166,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.829606Z"
+      "last_used": "2026-09-23T18:00:03.950398Z"
     },
     {
       "id": 13,
@@ -176,11 +176,11 @@
       "severity": "HIGH",
       "description": "Terraform code references a resource that is not defined in the configuration.",
       "fix": "Ensure the referenced resource is defined in the same module scope. If referencing a module output, use module.<name>.<output>. Check for typos in resource names.",
-      "success_count": 1,
-      "failure_count": 0,
-      "confidence": 1.0,
+      "success_count": 5,
+      "failure_count": 3,
+      "confidence": 0.8,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.830831Z"
+      "last_used": "2026-09-23T18:01:05.411459Z"
     },
     {
       "id": 14,
@@ -194,7 +194,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.832098Z"
+      "last_used": "2026-09-23T18:00:03.952240Z"
     },
     {
       "id": 15,
@@ -208,7 +208,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.833400Z"
+      "last_used": "2026-09-23T18:00:03.953201Z"
     },
     {
       "id": 16,
@@ -222,7 +222,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.835892Z"
+      "last_used": "2026-09-23T18:00:03.954136Z"
     },
     {
       "id": 17,
@@ -236,7 +236,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.837344Z"
+      "last_used": "2026-09-23T18:00:03.954967Z"
     },
     {
       "id": 18,
@@ -250,7 +250,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.838716Z"
+      "last_used": "2026-09-23T18:00:03.955805Z"
     },
     {
       "id": 19,
@@ -260,11 +260,11 @@
       "severity": "HIGH",
       "description": "Terraform detected a circular dependency between resources.",
       "fix": "Break the cycle by removing unnecessary depends_on, using data sources instead of direct references, or restructuring resources to eliminate mutual dependencies.",
-      "success_count": 1,
+      "success_count": 4,
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.840142Z"
+      "last_used": "2026-09-23T18:01:05.450746Z"
     },
     {
       "id": 20,
@@ -278,7 +278,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.841493Z"
+      "last_used": "2026-09-23T18:00:03.957454Z"
     },
     {
       "id": 21,
@@ -292,7 +292,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.842809Z"
+      "last_used": "2026-09-23T18:00:03.958425Z"
     },
     {
       "id": 22,
@@ -306,7 +306,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.844388Z"
+      "last_used": "2026-09-23T18:00:03.959365Z"
     },
     {
       "id": 23,
@@ -320,7 +320,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.845858Z"
+      "last_used": "2026-09-23T18:00:03.960389Z"
     },
     {
       "id": 24,
@@ -334,7 +334,7 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.847100Z"
+      "last_used": "2026-09-23T18:00:03.961402Z"
     },
     {
       "id": 25,
@@ -348,7 +348,7 @@
       "failure_count": 0,
       "confidence": 0.8,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.848432Z"
+      "last_used": "2026-09-23T18:00:03.962478Z"
     },
     {
       "id": 26,
@@ -362,9 +362,11 @@
       "failure_count": 0,
       "confidence": 1.0,
       "status": "trusted",
-      "last_used": "2026-09-15T17:38:24.849603Z"
+      "last_used": "2026-09-23T18:00:03.963575Z"
     },
     {
+      "id": 27,
+      "signature": "test_err_simulation_unique_key_999",
       "error_substring": "test_err_simulation_unique_key_999",
       "category": "test",
       "severity": "LOW",
@@ -374,7 +376,7 @@
       "failure_count": 1,
       "confidence": 0.45,
       "status": "candidate",
-      "last_used": "2026-09-15T18:31:20.952081Z"
+      "last_used": "2026-09-23T18:00:03.964897Z"
     }
   ]
 }

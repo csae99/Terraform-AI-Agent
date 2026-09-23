@@ -717,7 +717,13 @@ async function generateInfra() {
         
         if (!response.ok) {
             const errData = await response.json().catch(() => ({ detail: response.statusText }));
-            throw new Error(errData.detail || `Server error: ${response.status}`);
+            const msg = errData.detail || `Server error: ${response.status}`;
+            if (response.status === 402 || msg.toLowerCase().includes("quota")) {
+                if (typeof openUpgradeModal === 'function') {
+                    openUpgradeModal();
+                }
+            }
+            throw new Error(msg);
         }
         showToast("Generation started! Watch the live stream.", "info");
         startPollingLogs();
@@ -1349,7 +1355,14 @@ async function upgradeSubscription(planId) {
             const orderData = await res.json();
             if (!res.ok) throw new Error(orderData.detail || "Failed to create Razorpay order");
 
-            if (orderData.simulated || typeof Razorpay === 'undefined') {
+            if (typeof Razorpay === 'undefined') {
+                throw new Error("Razorpay Checkout SDK is not loaded. Please disable ad-blockers or check your connection.");
+            }
+
+            if (orderData.simulated) {
+                const confirmed = confirm(`Razorpay Simulation Mode: No active API keys configured. Confirm simulated test payment to upgrade to ${planId.toUpperCase()}?`);
+                if (!confirmed) return;
+
                 // Verification in simulation / local testing mode
                 const verifyRes = await apiFetch('/api/billing/razorpay/verify', {
                     method: 'POST',

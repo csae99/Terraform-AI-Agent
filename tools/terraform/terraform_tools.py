@@ -237,32 +237,56 @@ class TerraformTools:
             lang = (match.group(1) or "").lower()
             content = match.group(2).strip()
             
-            # Skip blocks that are explicitly not Terraform/HCL (e.g. mermaid, json, yaml, md)
-            if lang in ["mermaid", "json", "markdown", "md", "yaml", "yml", "bash", "sh", "txt"]:
+            # Skip blocks that are explicitly not Terraform/HCL (e.g. mermaid, json, yaml, md, text)
+            if lang in ["mermaid", "json", "markdown", "md", "yaml", "yml", "bash", "sh", "txt", "text", "tree", "console"]:
                 continue
                 
             # Skip empty blocks or obviously non-code blocks
             if not content or len(content) < 10:
                 continue
 
+            # Detect and skip directory trees or structure diagrams (e.g. ├──, └──, │)
+            if any(marker in content for marker in ["├──", "└──", "│   ", "+--", "|--"]):
+                continue
+
+            # Check for genuine HCL / Terraform constructs
+            hcl_patterns = [
+                r'\bresource\s+"[^"]+"\s+"[^"]+"',
+                r'\bdata\s+"[^"]+"\s+"[^"]+"',
+                r'\bvariable\s+"[^"]+"',
+                r'\boutput\s+"[^"]+"',
+                r'\bmodule\s+"[^"]+"',
+                r'\bprovider\s+"[^"]+"',
+                r'\blocals\s*\{',
+                r'\bterraform\s*\{',
+            ]
+            is_hcl = any(re.search(pat, content) for pat in hcl_patterns)
+
             filename = None
             # Look backwards from the start of the code block for a markdown filename (e.g., `main.tf`)
             start_pos = match.start()
             prev_text = text[max(0, start_pos-200):start_pos]
-            preceding_matches = re.findall(r'([a-zA-Z0-9_-]+\.(?:tf|tfvars|md|json))', prev_text)
+            preceding_matches = re.findall(r'([a-zA-Z0-9_/-]+\.(?:tf|tfvars|md|json))', prev_text)
             
             if preceding_matches:
                 filename = preceding_matches[-1]
             else:
                 # Try to find a filename comment like `# main.tf` or `// variables.tf` inside the code
-                filename_match = re.search(r'^[/#\s]+([a-zA-Z0-9_-]+\.(?:tf|tfvars|md|json))(?:\s|$)', content, re.MULTILINE)
+                filename_match = re.search(r'^[/#\s]+([a-zA-Z0-9_/-]+\.(?:tf|tfvars|md|json))(?:\s|$)', content, re.MULTILINE)
                 if filename_match:
                     filename = filename_match.group(1)
-                else:
+                elif is_hcl:
                     filename = f"extracted_{start_pos}.tf"
+                else:
+                    # Non-HCL block with no identifiable filename - skip writing
+                    continue
                     
             # Exclude non-project files like the financial report or mermaid diagrams
             if filename.lower() in ["financial_report.md", "mermaid.js", "mermaid.md"]:
+                continue
+
+            # If filename was generated or ends with .tf, ensure it contains valid HCL structure
+            if filename.endswith(".tf") and not is_hcl and not ("=" in content and "{" in content):
                 continue
             
             # Write using the standard method to ensure HCL sanitization and directories are created

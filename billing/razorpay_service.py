@@ -57,6 +57,7 @@ class RazorpayBillingService:
 
         # If live Razorpay keys are present, use official SDK or REST API
         if key_id and key_secret and not key_id.startswith("rzp_test_placeholder"):
+            # 1. Try official SDK first if installed
             try:
                 import razorpay
                 client = razorpay.Client(auth=(key_id, key_secret))
@@ -80,11 +81,49 @@ class RazorpayBillingService:
                     "plan_id": plan_id,
                     "simulated": False
                 }
-            except Exception as e:
-                # Fallback to simulated mode if SDK or credentials error
-                pass
+            except ImportError:
+                # 2. SDK not installed: fallback to direct HTTP Basic Auth REST API call
+                try:
+                    import requests
+                    order_payload = {
+                        "amount": amount_in_units,
+                        "currency": currency,
+                        "receipt": receipt_id,
+                        "notes": {
+                            "plan": plan_id,
+                            "user_id": str(user_id or ""),
+                            "org_id": str(org_id or "")
+                        }
+                    }
+                    resp = requests.post(
+                        "https://api.razorpay.com/v1/orders",
+                        auth=(key_id, key_secret),
+                        json=order_payload,
+                        timeout=10
+                    )
+                    if resp.status_code in (200, 201):
+                        order = resp.json()
+                        return {
+                            "order_id": order["id"],
+                            "amount": order["amount"],
+                            "currency": order["currency"],
+                            "key_id": key_id,
+                            "plan_name": plan["name"],
+                            "plan_id": plan_id,
+                            "simulated": False
+                        }
+                    else:
+                        err_msg = f"Razorpay API error ({resp.status_code}): {resp.text}"
+                        print(f"[Razorpay] {err_msg}")
+                        raise RuntimeError(err_msg)
+                except Exception as rest_e:
+                    print(f"[Razorpay] REST order creation failed: {rest_e}")
+                    raise
+            except Exception as sdk_e:
+                print(f"[Razorpay] SDK order creation failed: {sdk_e}")
+                raise
 
-        # Simulated order for development/testing
+        # Simulated order for development/testing when no API keys are provided
         mock_order_id = f"order_mock_{uuid.uuid4().hex[:14]}"
         return {
             "order_id": mock_order_id,

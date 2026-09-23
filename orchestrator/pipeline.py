@@ -1039,8 +1039,10 @@ def run_full_pipeline(
     if retry.current_round > 0 and final_status in ("generated", "deployed", "pr_opened", "success"):
         pm = _get_pattern_manager()
         if pm:
-            for pat_sub in retry.patterns_applied:
-                pm.record_success(pat_sub)
+            for pat_item in retry.patterns_applied:
+                pat_sub = pat_item.get("error_substring") if isinstance(pat_item, dict) else pat_item
+                if pat_sub:
+                    pm.record_success(pat_sub)
 
     print("\n" + "=" * 50)
     print("                FINAL AGENT REPORTS")

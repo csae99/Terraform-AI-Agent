@@ -8,7 +8,7 @@ lookup functionality for agents during self-healing loops.
 import os
 import json
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from tools.project.tracker import SessionLocal, PatternMemoryModel
 from memory.vector_knowledge import VectorKnowledgeEngine
 
@@ -255,11 +255,17 @@ class PatternManager:
             
         self._persist()
 
-    def record_success(self, error_substring: str) -> None:
+    def record_success(self, error_substring: Any) -> None:
         """Reinforce pattern confidence on successful fix."""
         from datetime import datetime
+        if isinstance(error_substring, dict):
+            error_substring = error_substring.get("error_substring") or error_substring.get("description") or ""
+        if not error_substring or not isinstance(error_substring, str):
+            return
+
+        err_target = error_substring.strip().lower()
         existing = next(
-            (p for p in self._patterns if p["error_substring"].lower() == error_substring.lower()),
+            (p for p in self._patterns if str(p.get("error_substring", "")).strip().lower() == err_target),
             None
         )
         if existing:
@@ -272,15 +278,21 @@ class PatternManager:
             self._persist()
             print(f"[PatternManager] Reinforced pattern '{error_substring}' confidence={existing['confidence']} (success_count={existing['success_count']})")
 
-    def record_failure(self, error_substring: str) -> None:
+    def record_failure(self, error_substring: Any) -> None:
         """Alias for decay_pattern."""
         self.decay_pattern(error_substring)
 
-    def decay_pattern(self, error_substring: str) -> None:
+    def decay_pattern(self, error_substring: Any) -> None:
         """Decay the confidence of a pattern because it failed to resolve the issue."""
         from datetime import datetime
+        if isinstance(error_substring, dict):
+            error_substring = error_substring.get("error_substring") or error_substring.get("description") or ""
+        if not error_substring or not isinstance(error_substring, str):
+            return
+
+        err_target = error_substring.strip().lower()
         existing = next(
-            (p for p in self._patterns if p["error_substring"].lower() == error_substring.lower()),
+            (p for p in self._patterns if str(p.get("error_substring", "")).strip().lower() == err_target),
             None
         )
         if existing:

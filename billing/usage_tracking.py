@@ -125,8 +125,8 @@ class BillingTracker:
         Checks whether the user/org has remaining execution quota for the current billing cycle.
         Returns {"allowed": True/False, "plan": str, "used": int, "limit": int}
         """
-        # Check if billing quota enforcement is globally bypassed via ENV
-        if os.environ.get("ENFORCE_BILLING_QUOTAS", "false").lower() == "false":
+        # Check if billing quota enforcement is globally bypassed via ENV (defaults to enabled)
+        if os.environ.get("ENFORCE_BILLING_QUOTAS", "true").lower() in ("false", "0", "no"):
             return {"allowed": True, "reason": "Quotas bypassed in dev/test mode"}
 
         sub = cls.get_or_create_subscription(user_id=user_id, org_id=org_id)
