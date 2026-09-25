@@ -2,6 +2,7 @@ import os
 import hmac
 import hashlib
 import uuid
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from billing.usage_tracking import BillingTracker
 from billing.stripe_service import StripeBillingService
@@ -29,18 +30,27 @@ class RazorpayBillingService:
         """
         Creates a Razorpay Order for a subscription plan.
         Converts plan price to smallest currency unit (paise for INR, cents for USD).
+        Includes anti-double-charging verification if user has an active entitlement window.
         """
         plan = StripeBillingService.PLANS.get(plan_id.lower())
         if not plan:
             raise ValueError(f"Unknown plan: '{plan_id}'. Choose from: free, pro, enterprise")
 
+        # Anti-double-charging protection: check if active paid entitlement is still valid
+        if plan_id.lower() != "free":
+            sub = BillingTracker.get_or_create_subscription(user_id=user_id, org_id=org_id)
+            if sub.get("is_within_paid_period") and (sub.get("paid_plan") == plan_id.lower() or (plan_id.lower() == "pro" and sub.get("paid_plan") == "enterprise")):
+                restore_result = BillingTracker.restore_paid_plan(user_id=user_id, org_id=org_id)
+                return {
+                    "already_paid": True,
+                    "restored": True,
+                    "plan": plan_id.lower(),
+                    "paid_until": sub.get("paid_until"),
+                    "message": f"Active {plan_id.upper()} subscription restored! Valid until {sub.get('paid_until')[:10]}. No payment required."
+                }
+
         if plan["price_monthly"] == 0:
-            BillingTracker.set_plan("free", user_id=user_id, org_id=org_id)
-            return {
-                "free_tier": True,
-                "message": "Free tier activated.",
-                "plan": "free"
-            }
+            return BillingTracker.downgrade_subscription(cancel_at_period_end=True, user_id=user_id, org_id=org_id)
 
         price_usd = float(plan["price_monthly"])
         key_id = cls.get_key_id()
@@ -146,14 +156,23 @@ class RazorpayBillingService:
         """
         key_secret = cls.get_key_secret()
 
+        now = datetime.utcnow()
+        paid_until = now + timedelta(days=30)
+
         # If in simulated mode
         if razorpay_order_id.startswith("order_mock_") or not key_secret:
-            BillingTracker.set_plan(plan_id, user_id=user_id, org_id=org_id)
+            BillingTracker.set_plan(
+                plan_id, user_id=user_id, org_id=org_id,
+                paid_until=paid_until,
+                last_payment_id=razorpay_payment_id or f"pay_sim_{uuid.uuid4().hex[:8]}",
+                last_payment_gateway="razorpay"
+            )
             return {
                 "verified": True,
                 "simulated": True,
                 "plan": plan_id,
-                "message": f"Simulated payment verified. Subscription upgraded to {plan_id.upper()}."
+                "paid_until": paid_until.isoformat(),
+                "message": f"Simulated payment verified. Subscription upgraded to {plan_id.upper()} (valid for 30 days)."
             }
 
         # Cryptographic verification
@@ -161,13 +180,19 @@ class RazorpayBillingService:
         generated_signature = hmac.new(key_secret.encode("utf-8"), msg, hashlib.sha256).hexdigest()
 
         if generated_signature == razorpay_signature:
-            BillingTracker.set_plan(plan_id, user_id=user_id, org_id=org_id)
+            BillingTracker.set_plan(
+                plan_id, user_id=user_id, org_id=org_id,
+                paid_until=paid_until,
+                last_payment_id=razorpay_payment_id,
+                last_payment_gateway="razorpay"
+            )
             return {
                 "verified": True,
                 "simulated": False,
                 "plan": plan_id,
+                "paid_until": paid_until.isoformat(),
                 "payment_id": razorpay_payment_id,
-                "message": f"Payment successfully verified! Upgraded to {plan_id.upper()}."
+                "message": f"Payment successfully verified! Upgraded to {plan_id.upper()} (valid until {paid_until.strftime('%b %d, %Y')})."
             }
         else:
             return {

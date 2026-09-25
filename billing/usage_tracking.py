@@ -1,8 +1,8 @@
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean
 from tools.project.tracker import Base, SessionLocal, UserModel, OrganizationModel
 
 class UsageRecordModel(Base):
@@ -37,11 +37,18 @@ class SubscriptionModel(Base):
     org_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, unique=True)
     
     plan = Column(String, default="free")  # free, pro, enterprise
-    status = Column(String, default="active")  # active, canceled, past_due
+    status = Column(String, default="active")  # active, canceled, past_due, canceling
     
     runs_this_month = Column(Integer, default=0)
     monthly_limit = Column(Integer, default=5)  # 5 for free, 100 for pro, -1 for unlimited
     
+    # Paid entitlement lifecycle (anti-double-charging & graceful downgrade)
+    paid_until = Column(DateTime, nullable=True)
+    paid_plan = Column(String, nullable=True)  # Highest tier purchased (e.g. 'pro', 'enterprise')
+    cancel_at_period_end = Column(Boolean, default=False)
+    last_payment_gateway = Column(String, nullable=True)  # razorpay, stripe
+    last_payment_id = Column(String, nullable=True)
+
     stripe_customer_id = Column(String, nullable=True)
     stripe_subscription_id = Column(String, nullable=True)
     
@@ -51,12 +58,31 @@ class SubscriptionModel(Base):
 
 
 def _init_billing_tables():
-    """Ensure billing tables exist in database."""
-    from sqlalchemy import inspect
+    """Ensure billing tables exist in database and perform incremental migrations."""
+    from sqlalchemy import inspect, text
     session = SessionLocal()
     try:
         db_engine = session.bind
         Base.metadata.create_all(bind=db_engine, tables=[UsageRecordModel.__table__, SubscriptionModel.__table__])
+        # Auto-migrate existing subscriptions tables to include lifecycle columns
+        inspector = inspect(db_engine)
+        if "subscriptions" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("subscriptions")]
+            new_columns = [
+                ("paid_until", "TIMESTAMP"),
+                ("paid_plan", "VARCHAR"),
+                ("cancel_at_period_end", "BOOLEAN DEFAULT 0"),
+                ("last_payment_gateway", "VARCHAR"),
+                ("last_payment_id", "VARCHAR")
+            ]
+            with db_engine.connect() as conn:
+                for col_name, col_type in new_columns:
+                    if col_name not in columns:
+                        try:
+                            conn.execute(text(f"ALTER TABLE subscriptions ADD COLUMN {col_name} {col_type}"))
+                            conn.commit()
+                        except Exception as e:
+                            print(f"[Billing DB] Column migration notice for {col_name}: {e}")
     except Exception as e:
         print(f"[Billing DB] Table initialization note: {e}")
     finally:
@@ -77,10 +103,31 @@ class BillingTracker:
     }
 
     @classmethod
+    def _check_expired_subscription(cls, session, user_id: Optional[int] = None, org_id: Optional[int] = None):
+        """Transitions subscription to Free if cancel_at_period_end is active and paid_until has passed."""
+        query = session.query(SubscriptionModel)
+        if org_id:
+            sub = query.filter(SubscriptionModel.org_id == org_id).first()
+        elif user_id:
+            sub = query.filter(SubscriptionModel.user_id == user_id).first()
+        else:
+            sub = None
+
+        if sub and sub.cancel_at_period_end and sub.paid_until:
+            if datetime.utcnow() > sub.paid_until:
+                sub.plan = "free"
+                sub.monthly_limit = cls.PLAN_LIMITS.get("free", 5)
+                sub.cancel_at_period_end = False
+                sub.status = "active"
+                sub.updated_at = datetime.utcnow()
+                session.commit()
+
+    @classmethod
     def get_or_create_subscription(cls, user_id: Optional[int] = None, org_id: Optional[int] = None) -> Dict[str, Any]:
         """Retrieves active subscription or creates a default Free tier."""
         session = SessionLocal()
         try:
+            cls._check_expired_subscription(session, user_id=user_id, org_id=org_id)
             query = session.query(SubscriptionModel)
             if org_id:
                 sub = query.filter(SubscriptionModel.org_id == org_id).first()
@@ -98,11 +145,15 @@ class BillingTracker:
                     plan=plan,
                     status="active",
                     runs_this_month=0,
-                    monthly_limit=limit
+                    monthly_limit=limit,
+                    cancel_at_period_end=False
                 )
                 session.add(sub)
                 session.commit()
                 session.refresh(sub)
+
+            now = datetime.utcnow()
+            is_within_paid_period = bool(sub.paid_until and sub.paid_until > now)
 
             return {
                 "id": sub.id,
@@ -114,7 +165,13 @@ class BillingTracker:
                 "monthly_limit": sub.monthly_limit,
                 "unlimited": sub.monthly_limit == -1,
                 "remaining_runs": "Unlimited" if sub.monthly_limit == -1 else max(0, sub.monthly_limit - sub.runs_this_month),
-                "billing_cycle_start": sub.billing_cycle_start.isoformat() if sub.billing_cycle_start else ""
+                "billing_cycle_start": sub.billing_cycle_start.isoformat() if sub.billing_cycle_start else "",
+                "paid_until": sub.paid_until.isoformat() if sub.paid_until else "",
+                "paid_plan": sub.paid_plan or "",
+                "cancel_at_period_end": bool(sub.cancel_at_period_end),
+                "is_within_paid_period": is_within_paid_period,
+                "last_payment_gateway": sub.last_payment_gateway or "",
+                "last_payment_id": sub.last_payment_id or ""
             }
         finally:
             session.close()
@@ -210,8 +267,10 @@ class BillingTracker:
             session.close()
 
     @classmethod
-    def set_plan(cls, plan: str, user_id: Optional[int] = None, org_id: Optional[int] = None):
-        """Upgrades or modifies subscription tier."""
+    def set_plan(cls, plan: str, user_id: Optional[int] = None, org_id: Optional[int] = None,
+                 paid_until: Optional[datetime] = None, last_payment_id: Optional[str] = None,
+                 last_payment_gateway: Optional[str] = None):
+        """Upgrades or modifies subscription tier with entitlement tracking."""
         session = SessionLocal()
         try:
             query = session.query(SubscriptionModel)
@@ -222,26 +281,145 @@ class BillingTracker:
             else:
                 sub = None
 
-            limit = cls.PLAN_LIMITS.get(plan.lower(), 5)
+            plan_name = plan.lower()
+            limit = cls.PLAN_LIMITS.get(plan_name, 5)
+            now = datetime.utcnow()
 
             if sub:
-                sub.plan = plan.lower()
+                sub.plan = plan_name
                 sub.monthly_limit = limit
                 sub.status = "active"
-                sub.updated_at = datetime.utcnow()
+                sub.cancel_at_period_end = False
+                if plan_name != "free":
+                    sub.paid_plan = plan_name
+                    if paid_until:
+                        sub.paid_until = paid_until
+                    elif not sub.paid_until or sub.paid_until < now:
+                        sub.paid_until = now + timedelta(days=30)
+                if last_payment_id:
+                    sub.last_payment_id = last_payment_id
+                if last_payment_gateway:
+                    sub.last_payment_gateway = last_payment_gateway
+                sub.updated_at = now
             else:
+                effective_paid_until = paid_until or ((now + timedelta(days=30)) if plan_name != "free" else None)
                 sub = SubscriptionModel(
                     user_id=user_id if not org_id else None,
                     org_id=org_id,
-                    plan=plan.lower(),
+                    plan=plan_name,
                     status="active",
                     runs_this_month=0,
-                    monthly_limit=limit
+                    monthly_limit=limit,
+                    paid_plan=plan_name if plan_name != "free" else None,
+                    paid_until=effective_paid_until,
+                    cancel_at_period_end=False,
+                    last_payment_id=last_payment_id,
+                    last_payment_gateway=last_payment_gateway
                 )
                 session.add(sub)
 
             session.commit()
             return cls.get_or_create_subscription(user_id=user_id, org_id=org_id)
+        finally:
+            session.close()
+
+    @classmethod
+    def downgrade_subscription(cls, cancel_at_period_end: bool = True, user_id: Optional[int] = None, org_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Handles downgrading to the Free tier.
+        If cancel_at_period_end is True (recommended):
+            Retains current paid plan and remaining runs until paid_until.
+            Sets cancel_at_period_end = True and status = 'canceling'.
+        If cancel_at_period_end is False (immediate downgrade):
+            Switches to free immediately (limit = 5), but preserves paid_until and paid_plan
+            so user can restore at zero charge if they change their mind before paid_until.
+        """
+        session = SessionLocal()
+        try:
+            query = session.query(SubscriptionModel)
+            if org_id:
+                sub = query.filter(SubscriptionModel.org_id == org_id).first()
+            elif user_id:
+                sub = query.filter(SubscriptionModel.user_id == user_id).first()
+            else:
+                sub = None
+
+            if not sub:
+                return cls.get_or_create_subscription(user_id=user_id, org_id=org_id)
+
+            now = datetime.utcnow()
+            has_paid_period = bool(sub.paid_until and sub.paid_until > now)
+
+            if cancel_at_period_end and has_paid_period:
+                sub.cancel_at_period_end = True
+                sub.status = "canceling"
+                sub.updated_at = now
+                session.commit()
+                return {
+                    "success": True,
+                    "mode": "period_end",
+                    "plan": sub.plan,
+                    "cancel_at_period_end": True,
+                    "paid_until": sub.paid_until.isoformat() if sub.paid_until else "",
+                    "message": f"Your {sub.plan.upper()} subscription will remain active until {sub.paid_until.strftime('%b %d, %Y')}. You will not be charged again."
+                }
+            else:
+                # Immediate downgrade
+                sub.plan = "free"
+                sub.monthly_limit = cls.PLAN_LIMITS.get("free", 5)
+                sub.cancel_at_period_end = False
+                sub.status = "active"
+                sub.updated_at = now
+                session.commit()
+                return {
+                    "success": True,
+                    "mode": "immediate",
+                    "plan": "free",
+                    "cancel_at_period_end": False,
+                    "paid_until": sub.paid_until.isoformat() if sub.paid_until else "",
+                    "can_restore": has_paid_period,
+                    "message": "Switched to Free tier immediately." + (f" Note: You can restore your Pro entitlement anytime before {sub.paid_until.strftime('%b %d, %Y')} at no extra charge." if has_paid_period else "")
+                }
+        finally:
+            session.close()
+
+    @classmethod
+    def restore_paid_plan(cls, user_id: Optional[int] = None, org_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Restores a previously paid plan if paid_until is still in the future.
+        Guarantees users are never double-charged for an active cycle!
+        """
+        session = SessionLocal()
+        try:
+            query = session.query(SubscriptionModel)
+            if org_id:
+                sub = query.filter(SubscriptionModel.org_id == org_id).first()
+            elif user_id:
+                sub = query.filter(SubscriptionModel.user_id == user_id).first()
+            else:
+                sub = None
+
+            if not sub or not sub.paid_until or sub.paid_until <= datetime.utcnow():
+                return {"restored": False, "reason": "No active paid entitlement found"}
+
+            restore_tier = sub.paid_plan or "pro"
+            limit = cls.PLAN_LIMITS.get(restore_tier, 100)
+
+            sub.plan = restore_tier
+            sub.monthly_limit = limit
+            sub.cancel_at_period_end = False
+            sub.status = "active"
+            sub.updated_at = datetime.utcnow()
+            session.commit()
+
+            return {
+                "restored": True,
+                "plan": restore_tier,
+                "paid_until": sub.paid_until.isoformat(),
+                "monthly_limit": limit,
+                "remaining_runs": "Unlimited" if limit == -1 else max(0, limit - sub.runs_this_month),
+                "message": f"Welcome back! Restored your {restore_tier.upper()} plan without charge. Active until {sub.paid_until.strftime('%b %d, %Y')}."
+            }
         finally:
             session.close()
 

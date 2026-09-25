@@ -1006,6 +1006,39 @@ async def razorpay_verify_payment(request: Request, user=Depends(get_current_use
 
     return result
 
+@app.post("/api/billing/downgrade")
+async def downgrade_subscription_endpoint(request: Request, user=Depends(get_current_user)):
+    from billing import BillingTracker
+    data = await request.json()
+    org_id = data.get("org_id")
+    cancel_at_period_end = data.get("cancel_at_period_end", True)
+
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role not in ("owner", "admin"):
+            raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can modify organization subscription")
+        return BillingTracker.downgrade_subscription(cancel_at_period_end=cancel_at_period_end, org_id=org_id)
+
+    return BillingTracker.downgrade_subscription(cancel_at_period_end=cancel_at_period_end, user_id=user.id)
+
+@app.post("/api/billing/restore")
+async def restore_subscription_endpoint(request: Request, user=Depends(get_current_user)):
+    from billing import BillingTracker
+    data = await request.json()
+    org_id = data.get("org_id")
+
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role not in ("owner", "admin"):
+            raise HTTPException(status_code=403, detail="Only Organization Owners and Admins can modify organization subscription")
+        result = BillingTracker.restore_paid_plan(org_id=org_id)
+    else:
+        result = BillingTracker.restore_paid_plan(user_id=user.id)
+
+    if not result.get("restored"):
+        raise HTTPException(status_code=400, detail=result.get("reason", "No valid paid entitlement found to restore."))
+    return result
+
 @app.get("/api/compliance/export")
 async def export_compliance_package(org_id: Optional[int] = None, format: str = "json", user=Depends(get_current_user)):
     from fastapi.responses import JSONResponse, PlainTextResponse
@@ -2392,7 +2425,70 @@ async def alertmanager_webhook(request: Request):
         payload = {}
     return {"status": "received", "alerts_processed": len(payload.get("alerts", []))}
 
+# ── MILESTONE 3: FINOPS & REVENUE ANALYTICS APIS ─────────────────────────────
 
+
+@app.get("/api/admin/llm/metrics")
+async def admin_legacy_llm_metrics(user=Depends(require_superadmin)):
+    from tools.project.tracker import LLMRoutingManager
+    state = LLMRoutingManager.get_routing_state()
+    providers = [p["provider"] for p in state.get("providers", [])]
+    total_calls = sum(p.get("calls", 0) for p in state.get("providers", []))
+    return {
+        "total_records": max(len(providers), total_calls),
+        "providers": providers,
+        "active_mode": state.get("active_mode", "auto")
+    }
+
+
+# ── MILESTONE 4: RISK, SECURITY & AI GOVERNANCE APIS ─────────────────────────
+
+@app.get("/api/admin/security/overview")
+async def admin_security_overview(user=Depends(require_superadmin)):
+    from policy.security_governance import SecurityGovernanceManager
+    return SecurityGovernanceManager.get_overview()
+
+@app.get("/api/admin/security/alerts")
+async def admin_security_alerts(limit: int = 25, user=Depends(require_superadmin)):
+    from policy.security_governance import SecurityGovernanceManager
+    return SecurityGovernanceManager.get_alerts(limit=limit)
+
+@app.get("/api/admin/security/policies")
+async def admin_security_policies(user=Depends(require_superadmin)):
+    from policy.security_governance import SecurityGovernanceManager
+    return SecurityGovernanceManager.get_policies()
+
+@app.put("/api/admin/security/policies/{rule_id}")
+async def admin_security_update_policy(rule_id: str, request: Request, user=Depends(require_superadmin)):
+    from policy.security_governance import SecurityGovernanceManager
+    body = await request.json()
+    enforcement = body.get("enforcement", "advisory")
+    is_enabled = body.get("is_enabled", True)
+    return SecurityGovernanceManager.update_policy(rule_id, enforcement=enforcement, is_enabled=is_enabled)
+
+@app.get("/api/admin/security/findings")
+async def admin_security_findings(severity: Optional[str] = None, status: Optional[str] = None, user=Depends(require_superadmin)):
+    from policy.security_governance import SecurityGovernanceManager
+    return SecurityGovernanceManager.get_findings(severity=severity, status=status)
+
+@app.patch("/api/admin/security/findings/{finding_id}")
+async def admin_security_update_finding(finding_id: int, request: Request, user=Depends(require_superadmin)):
+    from policy.security_governance import SecurityGovernanceManager
+    body = await request.json()
+    status = body.get("status", "open")
+    return SecurityGovernanceManager.update_finding_status(finding_id, status=status)
+
+@app.get("/api/admin/security/governance")
+async def admin_security_governance(limit: int = 25, user=Depends(require_superadmin)):
+    from policy.security_governance import SecurityGovernanceManager
+    return SecurityGovernanceManager.get_governance_traces(limit=limit)
+
+@app.post("/api/admin/security/scan")
+async def admin_security_scan(request: Request, user=Depends(require_superadmin)):
+    from policy.security_governance import SecurityGovernanceManager
+    body = await request.json()
+    project_slug = body.get("project_slug", "default-workspace")
+    return SecurityGovernanceManager.run_security_scan(project_slug=project_slug)
 
 
 if __name__ == "__main__":

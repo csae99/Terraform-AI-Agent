@@ -6,5 +6,6 @@ output/
 *.exe
 *.pyc
 .env
-.dockerignore
-Dockerfile
+.gemini/
+scratch/
+.pytest_cache/

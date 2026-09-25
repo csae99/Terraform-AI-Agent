@@ -68,9 +68,25 @@ class StripeBillingService:
         Creates a checkout session for plan upgrade.
         If STRIPE_SECRET_KEY is configured, initializes Stripe Checkout; otherwise generates a mock checkout.
         """
+        from datetime import datetime, timedelta
         plan = cls.PLANS.get(plan_id.lower())
         if not plan:
             raise ValueError(f"Unknown plan: '{plan_id}'. Choose from: free, pro, enterprise")
+
+        if plan_id.lower() != "free":
+            sub = BillingTracker.get_or_create_subscription(user_id=user_id, org_id=org_id)
+            if sub.get("is_within_paid_period") and (sub.get("paid_plan") == plan_id.lower() or (plan_id.lower() == "pro" and sub.get("paid_plan") == "enterprise")):
+                restore_result = BillingTracker.restore_paid_plan(user_id=user_id, org_id=org_id)
+                return {
+                    "already_paid": True,
+                    "restored": True,
+                    "plan": plan_id.lower(),
+                    "paid_until": sub.get("paid_until"),
+                    "message": f"Active {plan_id.upper()} subscription restored! Valid until {sub.get('paid_until')[:10]}. No payment required."
+                }
+
+        if plan["price_monthly"] == 0:
+            return BillingTracker.downgrade_subscription(cancel_at_period_end=True, user_id=user_id, org_id=org_id)
 
         stripe_key = os.environ.get("STRIPE_SECRET_KEY")
 
@@ -101,11 +117,19 @@ class StripeBillingService:
                 pass
 
         # Simulated checkout for development/local demo
-        BillingTracker.set_plan(plan_id, user_id=user_id, org_id=org_id)
+        now = datetime.utcnow()
+        paid_until = now + timedelta(days=30)
         mock_id = f"cs_test_{str(uuid.uuid4())[:16]}"
+        BillingTracker.set_plan(
+            plan_id, user_id=user_id, org_id=org_id,
+            paid_until=paid_until,
+            last_payment_id=mock_id,
+            last_payment_gateway="stripe"
+        )
         return {
             "checkout_url": return_url or "http://localhost:5000/?upgrade=success",
             "session_id": mock_id,
             "simulated": True,
+            "paid_until": paid_until.isoformat(),
             "message": f"Successfully upgraded account to {plan['name']} tier."
         }

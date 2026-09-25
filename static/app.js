@@ -1231,6 +1231,8 @@ async function loadExecutiveAnalytics() {
 // ── Phase 12: Billing & Usage Metering Handlers ────────────────────────
 // ════════════════════════════════════════════════════════════════════════
 
+let currentSubscription = null;
+
 async function loadBillingInfo() {
     try {
         const url = activeOrgId ? `/api/billing/subscription?org_id=${activeOrgId}` : '/api/billing/subscription';
@@ -1241,12 +1243,26 @@ async function loadBillingInfo() {
         const statement = data.current_statement || {};
         const consumption = statement.consumption || {};
 
+        currentSubscription = sub;
+
         const planMeta = plans[sub.plan] || { name: sub.plan, price_monthly: 0, monthly_runs: 5, features: [] };
 
         document.getElementById('billing-current-plan-name').innerText = planMeta.name;
         document.getElementById('billing-monthly-price').innerHTML = `$${planMeta.price_monthly}<span style="font-size: 1rem; color: #aaa;">/mo</span>`;
         document.getElementById('billing-plan-description').innerText = planMeta.features[0] || "Active subscription tier.";
-        document.getElementById('billing-status-badge').innerText = sub.status.toUpperCase();
+        
+        const badge = document.getElementById('billing-status-badge');
+        if (sub.cancel_at_period_end) {
+            badge.innerText = "CANCELS AT PERIOD END";
+            badge.style.background = "rgba(245, 158, 11, 0.2)";
+            badge.style.color = "#fbbf24";
+            badge.style.border = "1px solid #f59e0b";
+        } else {
+            badge.innerText = (sub.status || "ACTIVE").toUpperCase();
+            badge.style.background = "";
+            badge.style.color = "";
+            badge.style.border = "";
+        }
 
         // Quota Bar
         const used = sub.runs_this_month || 0;
@@ -1324,8 +1340,56 @@ function openUpgradeModal() {
     if (modal) modal.style.display = 'flex';
 }
 
+async function confirmDowngrade(cancelAtPeriodEnd) {
+    try {
+        const payload = { cancel_at_period_end: cancelAtPeriodEnd };
+        if (activeOrgId) payload.org_id = activeOrgId;
+        const res = await apiFetch('/api/billing/downgrade', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Failed to update subscription");
+
+        showToast(data.message || "Subscription updated successfully", "success");
+        closeModal('modal-downgrade-confirm');
+        closeModal('modal-upgrade-plan');
+        await loadBillingInfo();
+    } catch (err) {
+        showToast(err.message || "Downgrade failed", "error");
+    }
+}
+
 async function upgradeSubscription(planId) {
     if (planId === 'free') {
+        // If user already on paid plan, warn before downgrading
+        if (currentSubscription && currentSubscription.plan && currentSubscription.plan !== 'free') {
+            const currentPlanName = (currentSubscription.plan || 'PRO').toUpperCase();
+            const remaining = currentSubscription.remaining_runs !== undefined ? currentSubscription.remaining_runs : '0';
+            const limit = currentSubscription.monthly_limit || 100;
+            const paidUntil = currentSubscription.paid_until ? new Date(currentSubscription.paid_until).toLocaleDateString() : 'End of period';
+
+            const summaryElem = document.getElementById('downgrade-summary-text');
+            if (summaryElem) {
+                summaryElem.innerText = `You are currently subscribed to the ${currentPlanName} plan with ${remaining} remaining runs out of ${limit}.`;
+            }
+            const planElem = document.getElementById('downgrade-current-plan');
+            if (planElem) planElem.innerText = currentPlanName;
+            const remElem = document.getElementById('downgrade-remaining-runs');
+            if (remElem) remElem.innerText = `${remaining} runs remaining`;
+            const untilElem = document.getElementById('downgrade-paid-until');
+            if (untilElem) untilElem.innerText = paidUntil;
+
+            const modal = document.getElementById('modal-downgrade-confirm');
+            if (modal) modal.style.display = 'flex';
+            return;
+        }
+
+        if (currentSubscription && currentSubscription.plan === 'free') {
+            showToast("You are already on the Free tier.", "info");
+            return;
+        }
+
         try {
             const payload = { plan: 'free', gateway: currentPaymentGateway };
             if (activeOrgId) payload.org_id = activeOrgId;
@@ -1354,6 +1418,14 @@ async function upgradeSubscription(planId) {
             });
             const orderData = await res.json();
             if (!res.ok) throw new Error(orderData.detail || "Failed to create Razorpay order");
+
+            // Anti-Double-Charging Check: If user already paid for this plan and entitlement is valid, restore immediately
+            if (orderData.already_paid || orderData.restored) {
+                showToast(orderData.message || `Restored your ${planId.toUpperCase()} plan without charge!`, "success");
+                closeModal('modal-upgrade-plan');
+                await loadBillingInfo();
+                return;
+            }
 
             if (typeof Razorpay === 'undefined') {
                 throw new Error("Razorpay Checkout SDK is not loaded. Please disable ad-blockers or check your connection.");
@@ -1433,6 +1505,14 @@ async function upgradeSubscription(planId) {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || "Upgrade request failed");
+
+            // Anti-Double-Charging Check: If restored
+            if (data.already_paid || data.restored) {
+                showToast(data.message || `Restored your ${planId.toUpperCase()} plan without charge!`, "success");
+                closeModal('modal-upgrade-plan');
+                await loadBillingInfo();
+                return;
+            }
 
             if (data.checkout_url && !data.simulated) {
                 window.location.href = data.checkout_url;
