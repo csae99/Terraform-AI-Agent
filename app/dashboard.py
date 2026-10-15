@@ -814,6 +814,122 @@ async def get_project_gitops(slug: str, user=Depends(get_current_user)):
         "live_github_info": live_pr_info
     }
 
+@app.post("/api/projects/{slug}/gitops/push")
+async def push_project_gitops(slug: str, request: Request, user=Depends(get_current_user)):
+    """Pushes workspace IaC to a remote Git repository and opens a Pull Request on-demand."""
+    if KillSwitchManager.is_active("gitops_disabled"):
+        raise HTTPException(status_code=403, detail="GitOps automation is temporarily disabled by global emergency kill switch.")
+
+    project = get_authorized_project(slug, user, require_admin=False)
+    org_id = project.get("org_id")
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role == "viewer":
+            raise HTTPException(status_code=403, detail="Viewers are restricted from pushing GitOps releases")
+
+    project_dir = os.path.join(OUTPUT_DIR, slug)
+    if not os.path.isdir(project_dir):
+        raise HTTPException(status_code=404, detail=f"Project workspace directory '{slug}' not found on disk")
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    repo_url = (data.get("repo_url") or data.get("git_repo") or "").strip()
+    target_branch = (data.get("target_branch") or "main").strip()
+    git_token = (data.get("git_token") or data.get("token") or os.environ.get("GITHUB_TOKEN") or os.environ.get("GIT_TOKEN") or "").strip() or None
+    custom_branch = (data.get("branch_name") or data.get("feature_branch") or "").strip()
+
+    if not repo_url:
+        raise HTTPException(status_code=400, detail="Repository URL is required to push to Git")
+
+    # 1. Feature branch creation / checkout
+    if custom_branch:
+        GitOpsTools.init_git_repo(project_dir)
+        import subprocess
+        res = subprocess.run(["git", "checkout", "-b", custom_branch], cwd=project_dir, capture_output=True, text=True)
+        if res.returncode != 0:
+            subprocess.run(["git", "checkout", custom_branch], cwd=project_dir, capture_output=True, text=True)
+        git_branch_name = custom_branch
+    else:
+        branch_res = GitOpsTools.create_feature_branch(project_dir, slug, base_branch=target_branch)
+        git_branch_name = branch_res.get("branch_name", f"ai/{slug}-{int(time.time())}")
+
+    # 2. Stage & Commit files
+    prompt = project.get("prompt") or ""
+    commit_res = GitOpsTools.commit_files(project_dir, slug, prompt=prompt)
+
+    # 3. Remote Push
+    push_res = GitOpsTools.push_branch(project_dir, repo_url, git_branch_name, token=git_token)
+    if not push_res.get("success") and not push_res.get("simulated"):
+        logger.warning(f"Git push returned warning for {slug}: {push_res.get('error')}")
+
+    # 4. Synthesize PR Body with Architecture & Cost Summaries
+    cost_summary = ""
+    financial_report_path = os.path.join(project_dir, "FINANCIAL_REPORT.md")
+    if os.path.exists(financial_report_path):
+        try:
+            with open(financial_report_path, "r", encoding="utf-8") as f:
+                cost_summary = f.read()
+        except Exception:
+            pass
+
+    pr_body = GitOpsTools.generate_pr_body(
+        slug=slug,
+        prompt=prompt,
+        cost_summary=cost_summary,
+        mermaid_diagram=project.get("mermaid_diagram", ""),
+        decision_trace=project.get("decision_trace", [])
+    )
+
+    # 5. Open Pull Request via REST API / Simulation
+    pr_res = GitOpsTools.create_pull_request(
+        repo_url=repo_url,
+        branch_name=git_branch_name,
+        target_branch=target_branch,
+        title=f"feat(iac): provision {slug}",
+        body=pr_body,
+        token=git_token
+    )
+
+    if not pr_res.get("success"):
+        raise HTTPException(status_code=400, detail=pr_res.get("error", "Failed to create Pull Request"))
+
+    pr_url = pr_res.get("pr_url")
+    pr_number = pr_res.get("pr_number")
+
+    # 6. Persist GitOps status
+    ProjectTracker.save(
+        slug=slug,
+        git_repo=repo_url,
+        git_branch=git_branch_name,
+        pr_url=pr_url,
+        pr_number=pr_number,
+        pr_status="open",
+        approval_status="pending"
+    )
+
+    # 7. Enterprise Audit Trail Logging
+    AuditTracker.log_action(
+        action="gitops_pr_created",
+        user_id=user.id,
+        org_id=org_id,
+        resource_slug=slug,
+        details=f"User '{user.username}' pushed workspace to '{repo_url}' and opened PR #{pr_number}"
+    )
+
+    return {
+        "success": True,
+        "message": f"Successfully pushed to Git and opened Pull Request #{pr_number}!",
+        "git_repo": repo_url,
+        "git_branch": git_branch_name,
+        "pr_url": pr_url,
+        "pr_number": pr_number,
+        "pr_status": "open",
+        "approval_status": "pending"
+    }
+
 @app.post("/api/projects/{slug}/approve")
 async def approve_project(slug: str, user=Depends(get_current_user)):
     if KillSwitchManager.is_active("gitops_disabled"):

@@ -281,8 +281,9 @@ async function switchModalTab(tabId) {
         renderFileTabs(currentCodeFiles);
     } else if (tabId === 'adr' && currentProject) {
         renderAdrTimeline(currentProject);
-    } else if (tabId === 'gitops' && currentProject) {
-        loadGitOpsDetails(currentProject.slug);
+    } else if (tabId === 'gitops') {
+        const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+        if (slug) loadGitOpsDetails(slug);
     } else if (tabId === 'visual' && currentProject?.mermaid_diagram) {
         const container = document.getElementById('mermaid-container');
         const diagramId = 'mermaid-tab-' + Date.now();
@@ -1027,48 +1028,141 @@ async function removeOrgMember(targetUserId) {
 }
 
 // ─── GitOps & Approval Handlers ─────────────────────────────────
+let activeGitOpsData = null;
+
 async function loadGitOpsDetails(slug) {
+    const connectView = document.getElementById('gitops-connect-view');
+    const statusView = document.getElementById('gitops-status-view');
+    const cancelBtn = document.getElementById('btn-cancel-gitops-connect');
+
     try {
         const res = await apiFetch(`/api/projects/${slug}/gitops`);
-        const data = await res.json();
-        
-        const badge = document.getElementById('gitops-approval-badge');
-        const branchEl = document.getElementById('gitops-branch-name');
-        const prLinkEl = document.getElementById('gitops-pr-link');
-        const approverEl = document.getElementById('gitops-approved-by');
-        const approveBtn = document.getElementById('btn-approve-pr');
-        const mergeBtn = document.getElementById('btn-merge-deploy');
+        const data = res.ok ? await res.json() : {};
+        activeGitOpsData = data;
 
-        branchEl.innerText = data.git_branch || 'Not configured';
-        approverEl.innerText = data.approved_by || 'None (Pending Review)';
+        // Check if GitOps / PR is active
+        if (data && data.pr_url) {
+            // Show Status View, Hide Connect View
+            if (connectView) connectView.style.display = 'none';
+            if (statusView) statusView.style.display = 'flex';
 
-        if (data.pr_url) {
+            const badge = document.getElementById('gitops-approval-badge');
+            const branchEl = document.getElementById('gitops-branch-name');
+            const prLinkEl = document.getElementById('gitops-pr-link');
+            const approverEl = document.getElementById('gitops-approved-by');
+            const approveBtn = document.getElementById('btn-approve-pr');
+            const mergeBtn = document.getElementById('btn-merge-deploy');
+
+            branchEl.innerText = data.git_branch || 'Not configured';
+            approverEl.innerText = data.approved_by || 'None (Pending Review)';
             prLinkEl.innerHTML = `<a href="${data.pr_url}" target="_blank" style="color: #60a5fa; text-decoration: underline; font-weight: 600;">PR #${data.pr_number || 'View'} ↗</a>`;
-        } else {
-            prLinkEl.innerText = 'No Pull Request';
-        }
 
-        const appStatus = data.approval_status || 'none';
-        const prStatus = data.pr_status || 'none';
+            const appStatus = data.approval_status || 'none';
+            const prStatus = data.pr_status || 'none';
 
-        if (appStatus === 'approved') {
-            badge.innerText = '✅ Approved';
-            badge.className = 'status-badge status-deployed';
-            if (approveBtn) approveBtn.disabled = true;
-            if (mergeBtn) mergeBtn.disabled = (prStatus === 'merged');
-        } else if (appStatus === 'pending') {
-            badge.innerText = '⏳ Pending Approval';
-            badge.className = 'status-badge status-generating';
-            if (approveBtn) approveBtn.disabled = false;
-            if (mergeBtn) mergeBtn.disabled = true;
+            if (appStatus === 'approved') {
+                badge.innerText = '✅ Approved';
+                badge.className = 'status-badge status-deployed';
+                if (approveBtn) approveBtn.disabled = true;
+                if (mergeBtn) mergeBtn.disabled = (prStatus === 'merged');
+            } else if (appStatus === 'pending') {
+                badge.innerText = '⏳ Pending Approval';
+                badge.className = 'status-badge status-generating';
+                if (approveBtn) approveBtn.disabled = false;
+                if (mergeBtn) mergeBtn.disabled = true;
+            } else {
+                badge.innerText = prStatus === 'merged' ? '🚀 Merged' : 'None';
+                badge.className = 'status-badge';
+                if (approveBtn) approveBtn.disabled = true;
+                if (mergeBtn) mergeBtn.disabled = true;
+            }
         } else {
-            badge.innerText = prStatus === 'merged' ? '🚀 Merged' : 'None';
-            badge.className = 'status-badge';
-            if (approveBtn) approveBtn.disabled = true;
-            if (mergeBtn) mergeBtn.disabled = true;
+            // Show Connect View, Hide Status View
+            if (statusView) statusView.style.display = 'none';
+            if (connectView) connectView.style.display = 'block';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+
+            // Prepopulate form if some repo info is known
+            const repoInput = document.getElementById('modal-gitops-repo');
+            const branchInput = document.getElementById('modal-gitops-target-branch');
+            const featBranchInput = document.getElementById('modal-gitops-branch-name');
+            if (repoInput && !repoInput.value) repoInput.value = (data && data.git_repo) || '';
+            if (branchInput && !branchInput.value) branchInput.value = (data && data.git_branch) || 'main';
+            if (featBranchInput && !featBranchInput.value) featBranchInput.value = `ai/${slug}`;
         }
     } catch (e) {
         console.error("Failed to load GitOps details", e);
+        if (statusView) statusView.style.display = 'none';
+        if (connectView) connectView.style.display = 'block';
+    }
+}
+
+function showGitOpsConnectForm() {
+    const connectView = document.getElementById('gitops-connect-view');
+    const statusView = document.getElementById('gitops-status-view');
+    const cancelBtn = document.getElementById('btn-cancel-gitops-connect');
+    if (connectView) connectView.style.display = 'block';
+    if (statusView) statusView.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = activeGitOpsData && activeGitOpsData.pr_url ? 'inline-block' : 'none';
+
+    if (activeGitOpsData && currentProject) {
+        const repoInput = document.getElementById('modal-gitops-repo');
+        if (repoInput && !repoInput.value) repoInput.value = activeGitOpsData.git_repo || '';
+    }
+}
+
+function cancelGitOpsConnect() {
+    if (activeGitOpsData && activeGitOpsData.pr_url) {
+        const connectView = document.getElementById('gitops-connect-view');
+        const statusView = document.getElementById('gitops-status-view');
+        if (connectView) connectView.style.display = 'none';
+        if (statusView) statusView.style.display = 'flex';
+    }
+}
+
+async function submitGitOpsPush() {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return;
+    const repoUrl = document.getElementById('modal-gitops-repo').value.trim();
+    const targetBranch = document.getElementById('modal-gitops-target-branch').value.trim() || 'main';
+    const gitToken = document.getElementById('modal-gitops-token').value.trim();
+    const branchName = document.getElementById('modal-gitops-branch-name').value.trim();
+    const pushBtn = document.getElementById('btn-modal-gitops-push');
+    const statusEl = document.getElementById('gitops-push-status');
+
+    if (!repoUrl) {
+        showToast('Please provide a Git repository URL', 'error');
+        document.getElementById('modal-gitops-repo').focus();
+        return;
+    }
+
+    const origHtml = pushBtn.innerHTML;
+    pushBtn.disabled = true;
+    pushBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Pushing...';
+    if (statusEl) statusEl.innerText = 'Creating branch, staging IaC, and pushing...';
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/gitops/push`, {
+            method: 'POST',
+            body: JSON.stringify({
+                repo_url: repoUrl,
+                target_branch: targetBranch,
+                git_token: gitToken,
+                branch_name: branchName
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to push to Git');
+        showToast(data.message || 'Successfully created Pull Request!', 'success');
+        if (statusEl) statusEl.innerText = '';
+        await loadGitOpsDetails(slug);
+        await fetchProjects();
+    } catch (e) {
+        showToast(e.message, 'error');
+        if (statusEl) statusEl.innerText = `Error: ${e.message}`;
+    } finally {
+        pushBtn.disabled = false;
+        pushBtn.innerHTML = origHtml;
     }
 }
 

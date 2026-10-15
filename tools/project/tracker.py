@@ -615,6 +615,53 @@ class ProjectTracker:
             session.close()
 
     @staticmethod
+    def _infer_metadata(slug):
+        """Infer project metadata from filesystem when not yet in database and persist it."""
+        project_dir = os.path.join(ProjectTracker.OUTPUT_DIR, slug)
+        provider = "Local"
+        main_tf = os.path.join(project_dir, "main.tf")
+        if os.path.exists(main_tf):
+            try:
+                with open(main_tf, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if 'provider "aws"' in content or "hashicorp/aws" in content:
+                    provider = "AWS"
+                elif 'provider "azurerm"' in content or "hashicorp/azurerm" in content:
+                    provider = "Azure"
+                elif 'provider "google"' in content or "hashicorp/google" in content:
+                    provider = "GCP"
+            except IOError:
+                pass
+
+        has_state = os.path.exists(os.path.join(project_dir, "terraform.tfstate"))
+        status = "deployed" if has_state else "generated"
+
+        estimated_cost = 0.0
+        budget = 100.0
+        report_path = os.path.join(project_dir, "FINANCIAL_REPORT.md")
+        if os.path.exists(report_path):
+            try:
+                with open(report_path, "r", encoding="utf-8") as f:
+                    report_content = f.read()
+                cost_match = re.search(r"Projected Cost.*?\$([0-9.]+)", report_content)
+                if cost_match:
+                    estimated_cost = float(cost_match.group(1))
+                budget_match = re.search(r"Allocated Budget.*?\$([0-9.]+)", report_content)
+                if budget_match:
+                    budget = float(budget_match.group(1))
+            except IOError:
+                pass
+
+        return ProjectTracker.save(
+            slug=slug,
+            prompt=f"Provision infrastructure for {slug}",
+            status=status,
+            budget=budget,
+            estimated_cost=estimated_cost,
+            provider=provider
+        )
+
+    @staticmethod
     def get_diff(slug, snapshot_name=None):
         """
         Generate a unified diff between current code and a snapshot.

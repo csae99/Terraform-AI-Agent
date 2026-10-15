@@ -126,6 +126,20 @@ Before beginning tests, ensure your local environment is configured:
   - [ ] Organization Owner approval transitions status to `✅ Approved` with approver's name.
   - [ ] Clicking **Merge & Deploy** marks the release as `🚀 Merged`.
 
+#### 5b. Post-Provisioning GitOps Enrollment (On-Demand Push from Workspace)
+- **Objective**: Verify that any existing workspace generated *without* GitOps Mode can be connected and pushed to Git directly from the **🔀 GitOps & PR** tab.
+- **Action**:
+  1. Generate an infrastructure workspace with **GitOps Mode unchecked** (or open an existing one like `aws-s3-glacier-vault-storage`).
+  2. In the workspace modal, switch to the **🔀 GitOps & PR** tab.
+  3. Verify the tab displays the **Connect to Git & Create Pull Request** card with repository input fields.
+  4. Enter a test Repository URL (e.g., `https://github.com/my-org/cloud-infra.git`), Target Branch `main`, and click **Push Code & Create PR**.
+- **Expectation**:
+  - [ ] The system creates the feature branch, commits all generated `.tf` and FinOps files, and synthesizes a Pull Request.
+  - [ ] Toast notification confirms success: *"Successfully pushed to Git and opened Pull Request #..."*.
+  - [ ] The tab transitions into the **Release & Pull Request Status** view with active branch and PR link.
+  - [ ] The **Enterprise Approval Gate** (`Approve PR` and `Merge & Deploy`) becomes active.
+  - [ ] Clicking **Re-push / Change Repo** allows toggling back to re-enter credentials or target another branch.
+
 ---
 
 ### 6. 📜 Enterprise Audit Trail & SOC2 Log Export (Phase 11 & 12)
