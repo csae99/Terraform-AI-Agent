@@ -1,11 +1,76 @@
-venv/
-venv313/
-__pycache__/
-.git/
-output/
-*.exe
+# Version control
+.git
+.git/**
+.gitignore
+.gitattributes
+
+# Virtual environments & Python cache (prevents 870MB+ transfer)
+venv
+venv/**
+venv*
+venv*/**
+.venv
+.venv/**
+env
+env/**
+__pycache__
+__pycache__/**
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.pytest_cache/**
+.coverage
+htmlcov
+htmlcov/**
+
+# Environment secrets
 .env
-.gemini/
-scratch/
-.pytest_cache/
+.env.*
+!.env.example
+
+# Local Terraform workspaces & caches (prevents 1GB+ transfer)
+output
+output/**
+backups
+backups/**
+.terraform
+.terraform/**
+*.tfstate
+*.tfstate.*
+.infracost
+.infracost/**
+
+# Windows executables (prevents 160MB+ transfer)
+*.exe
+*.dll
+*.bin
+
+# Database files & local stores
+*.db
+*.sqlite
+*.sqlite3
+
+# Log dumps, traces & temporary text files
+*.log
+*.txt
+!requirements.txt
+aks-cluster-output.json
+
+# Markdown documentation & design docs
+*.md
+docs
+docs/**
+
+# IDE, OS metadata & scratch scripts
+.gemini
+.gemini/**
+.idea
+.idea/**
+.vscode
+.vscode/**
+.DS_Store
+Thumbs.db
+scratch
+scratch/**
+

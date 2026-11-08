@@ -66,7 +66,7 @@ class TerraformGenerationTasks:
             '  }\n'
             '\n'
             '## REQUIRED FILES\n'
-            '- Root files: Define the `terraform { required_providers { } }` block and `provider` block exactly once in `versions.tf` or root `main.tf`. DO NOT duplicate provider blocks in submodules.\n'
+            '- Root files: Define the `terraform { required_providers { } }` block and `provider` block exactly once in `providers.tf`. NEVER create `versions.tf` or duplicate provider blocks in submodules or other root files. If `providers.tf` exists, modify it directly; do not create duplicate provider files.\n'
             '- Root `variables.tf`: Input variables (e.g., region).\n'
             '- Root `outputs.tf`: Key outputs (endpoints, IDs, ARNs).\n'
             '\n'

@@ -377,6 +377,20 @@
       "confidence": 0.45,
       "status": "candidate",
       "last_used": "2026-09-23T18:00:03.964897Z"
+    },
+    {
+      "id": 28,
+      "signature": "DuplicateProviderConfiguration",
+      "error_substring": "Duplicate required providers configuration",
+      "category": "syntax_provider_collision",
+      "severity": "CRITICAL",
+      "description": "Multiple files define required_providers or default provider blocks (e.g. providers.tf and versions.tf co-existing).",
+      "fix": "Consolidate all provider and version definitions into 'providers.tf' exclusively. Use `Delete Terraform File` tool to delete 'versions.tf'.",
+      "success_count": 1,
+      "failure_count": 0,
+      "confidence": 1.0,
+      "status": "trusted",
+      "last_used": "2026-10-24T15:55:00.000000Z"
     }
   ]
 }

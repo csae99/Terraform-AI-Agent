@@ -50,6 +50,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
       - RUNNING_IN_DOCKER=true
+      - PYTHONDONTWRITEBYTECODE=1
+      - TF_PLUGIN_CACHE_DIR=/tmp/terraform-plugin-cache
     env_file:
       - .env
     volumes:
@@ -74,6 +76,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
       - RUNNING_IN_DOCKER=true
+      - PYTHONDONTWRITEBYTECODE=1
+      - TF_PLUGIN_CACHE_DIR=/tmp/terraform-plugin-cache
     env_file:
       - .env
     volumes:

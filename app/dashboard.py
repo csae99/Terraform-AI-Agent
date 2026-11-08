@@ -176,7 +176,7 @@ def _run_subprocess_sync(cmd, env, cwd, temp_slug):
 # --- Background Task ---
 async def run_agent_workflow(prompt: str, budget: float, apply: bool, credentials: dict = None, ai_config: dict = None, new_project: bool = False,
                              gitops: bool = False, git_repo: str = None, git_token: str = None, target_branch: str = "main", engine: str = "terraform",
-                             force_consensus: bool = False, plan_tier: str = "free"):
+                             force_consensus: bool = False, plan_tier: str = "free", target_slug: str = None):
     # Use absolute path to main.py so it works regardless of CWD
     main_script = os.path.join(_project_root, "app", "main.py")
     cmd = [sys.executable, main_script, prompt, "--budget", str(budget), "--auto-fix"]
@@ -184,6 +184,8 @@ async def run_agent_workflow(prompt: str, budget: float, apply: bool, credential
         cmd.append("--apply")
     if new_project:
         cmd.append("--new-project")
+    if target_slug:
+        cmd.extend(["--target-slug", target_slug])
     if gitops:
         cmd.append("--gitops")
     if git_repo:
@@ -214,7 +216,10 @@ async def run_agent_workflow(prompt: str, budget: float, apply: bool, credential
             cmd.extend(["--model-key", ai_config.get("key")])
 
     temp_slug = "active-run"
-    active_logs[temp_slug] = "🚀 Starting Multi-Agent Workflow...\n"
+    log_header = f"🚀 Starting Evolution Workflow for '{target_slug}'...\n" if target_slug else "🚀 Starting Multi-Agent Workflow...\n"
+    active_logs[temp_slug] = log_header
+    if target_slug:
+        active_logs[target_slug] = log_header
     
     env = os.environ.copy()
     if credentials:
@@ -575,6 +580,24 @@ async def test_run(background_tasks: BackgroundTasks, user=Depends(get_current_u
 async def test_logs(user=Depends(get_current_user)):
     return {"logs": active_logs.get("active-run", "")}
 
+@app.get("/api/runs/status")
+async def get_runs_status(user=Depends(get_current_user_optional)):
+    """Return execution status of the active agent workflow/evolution."""
+    logs = active_logs.get("active-run", "")
+    if not logs:
+        return {"running": False, "status": "idle", "logs": ""}
+    is_finished = (
+        "✅ Workflow Finished" in logs
+        or "❌ Error" in logs
+        or "❌ Workflow Finished" in logs
+    )
+    return {
+        "running": not is_finished,
+        "status": "completed" if is_finished else "running",
+        "success": "✅ Workflow Finished" in logs,
+        "logs": logs[-2000:]
+    }
+
 
 # --- Auth API ---
 @app.post("/api/auth/register")
@@ -635,8 +658,14 @@ def get_project_code(slug: str, user=Depends(get_current_user)):
     project_dir = os.path.join(OUTPUT_DIR, slug)
     os.makedirs(project_dir, exist_ok=True)
 
+    def _is_active_workspace_file(file_path: str) -> bool:
+        rel = os.path.relpath(file_path, project_dir).replace("\\", "/")
+        parts = rel.split("/")
+        ignored_dirs = {"backups", ".backups", ".terraform", ".git", "__pycache__"}
+        return not any(part in ignored_dirs for part in parts)
+
     pattern = os.path.join(project_dir, "**", "*.tf")
-    tf_files_found = glob.glob(pattern, recursive=True)
+    tf_files_found = [f for f in glob.glob(pattern, recursive=True) if _is_active_workspace_file(f)]
     
     # Remove obvious hallucinated/invalid files safely
     for tf_file in tf_files_found[:]:
@@ -684,7 +713,7 @@ def get_project_code(slug: str, user=Depends(get_current_user)):
                     extracted = TerraformTools.extract_and_write_files_from_text(log_content, slug)
                     if extracted:
                         logger.info(f"Dynamically extracted {len(extracted)} files for project '{slug}' from {src}")
-                        tf_files_found = glob.glob(pattern, recursive=True)
+                        tf_files_found = [f for f in glob.glob(pattern, recursive=True) if _is_active_workspace_file(f)]
                         break
                     else:
                         extraction_errors.append(f"Source {src} exists but extracted 0 files.")
@@ -699,6 +728,8 @@ def get_project_code(slug: str, user=Depends(get_current_user)):
 
     tf_files = {}
     for tf in sorted(tf_files_found):
+        if not _is_active_workspace_file(tf):
+            continue
         rel = os.path.relpath(tf, project_dir).replace("\\", "/")
         if rel.startswith(f"{slug}/"):
             display_name = rel[len(slug)+1:]
@@ -718,14 +749,52 @@ async def get_snapshots(slug: str, user=Depends(get_current_user)):
     get_authorized_project(slug, user, require_admin=False)
     project_dir = os.path.join(OUTPUT_DIR, slug)
     backups_dir = os.path.join(project_dir, "backups")
-    if not os.path.exists(backups_dir):
-        return []
+    legacy_dir = os.path.join(OUTPUT_DIR, ".backups")
     
+    seen = set()
     snapshots = []
-    for d in sorted(os.listdir(backups_dir)):
-        if os.path.isdir(os.path.join(backups_dir, d)):
-            # Name is like {slug}_{timestamp}. Return id and timestamp
-            snapshots.append({"id": d, "timestamp": d.split("_")[-1] if "_" in d else d})
+
+    def _format_snapshot_time(d: str) -> str:
+        parts = d.split("_")
+        if len(parts) >= 2:
+            date_cand = parts[-2]
+            time_cand = parts[-1]
+            if len(date_cand) == 8 and len(time_cand) == 6 and date_cand.isdigit() and time_cand.isdigit():
+                try:
+                    dt = datetime.strptime(f"{date_cand}_{time_cand}", "%Y%m%d_%H%M%S")
+                    return dt.strftime("%b %d, %H:%M:%S")
+                except Exception:
+                    pass
+            elif len(time_cand) == 6 and time_cand.isdigit():
+                return f"{time_cand[:2]}:{time_cand[2:4]}:{time_cand[4:]}"
+        return parts[-1] if "_" in d else d
+    
+    # Primary: output/{slug}/backups/
+    if os.path.exists(backups_dir):
+        for d in sorted(os.listdir(backups_dir)):
+            if os.path.isdir(os.path.join(backups_dir, d)) and d not in seen:
+                seen.add(d)
+                snapshots.append({
+                    "id": d,
+                    "timestamp": _format_snapshot_time(d),
+                    "raw_id": d
+                })
+
+    # Fallback: legacy output/.backups/{slug}_{timestamp}
+    if os.path.exists(legacy_dir):
+        for d in sorted(os.listdir(legacy_dir)):
+            if os.path.isdir(os.path.join(legacy_dir, d)) and d.startswith(slug) and d not in seen:
+                seen.add(d)
+                snapshots.append({
+                    "id": d,
+                    "timestamp": _format_snapshot_time(d),
+                    "raw_id": d
+                })
+
+    # Sort newest snapshot first
+    snapshots.sort(key=lambda x: x["id"], reverse=True)
+    if snapshots:
+        snapshots[0]["is_latest"] = True
     return snapshots
 
 @app.get("/api/projects/{slug}/diff/{snapshot_id}")
@@ -733,6 +802,87 @@ async def get_snapshot_diff(slug: str, snapshot_id: str, user=Depends(get_curren
     get_authorized_project(slug, user, require_admin=False)
     diff = ProjectTracker.get_diff(slug, snapshot_id)
     return {"diff": diff}
+
+@app.post("/api/projects/{slug}/evolve")
+async def evolve_project(
+    slug: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user=Depends(get_current_user)
+):
+    project = get_authorized_project(slug, user, require_admin=False)
+    
+    # 1. RBAC check: Viewers cannot mutate or evolve infrastructure
+    org_id = project.get("org_id")
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role == "viewer":
+            raise HTTPException(status_code=403, detail="Viewer role does not have permission to evolve infrastructure")
+
+    # 2. Emergency Kill Switch check
+    if KillSwitchManager.is_active("generation_disabled"):
+        raise HTTPException(status_code=403, detail="Infrastructure generation has been disabled by platform administrator")
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    follow_up_prompt = data.get("prompt", "").strip()
+    if not follow_up_prompt:
+        raise HTTPException(status_code=400, detail="Follow-up evolution prompt is required")
+
+    apply = data.get("apply", False)
+    if apply and KillSwitchManager.is_active("deployments_disabled"):
+        raise HTTPException(status_code=403, detail="Live infrastructure deployments have been disabled by platform administrator")
+
+    budget = float(data.get("budget", project.get("budget", 100.0) or 100.0))
+    credentials = data.get("credentials", {})
+    if isinstance(credentials, dict):
+        credentials["owner_id"] = user.id
+    else:
+        credentials = {"owner_id": user.id}
+
+    ai_config = data.get("ai_config", {})
+    engine = data.get("engine", project.get("engine", "terraform") or "terraform")
+
+    # 3. Create pre-evolution snapshot if project directory exists
+    snapshot_name = None
+    project_dir = os.path.join(OUTPUT_DIR, slug)
+    if os.path.isdir(project_dir):
+        snapshot_name = ProjectTracker.create_snapshot(slug, reason="pre-evolution")
+
+    # 4. Audit Trail
+    AuditTracker.log_action(
+        action="workspace_evolved",
+        user_id=user.id,
+        org_id=org_id,
+        resource_slug=slug,
+        details=f"Evolved workspace with prompt '{follow_up_prompt[:100]}'. Baseline snapshot: {snapshot_name or 'none'}"
+    )
+
+    # Reset active logs so live tracking starts cleanly
+    active_logs["active-run"] = f"🚀 Starting Evolution Workflow for '{slug}'...\nBaseline snapshot archived: {snapshot_name or 'N/A'}\n"
+
+    # 5. Dispatch background evolution workflow targeting this specific slug
+    background_tasks.add_task(
+        run_agent_workflow,
+        prompt=follow_up_prompt,
+        budget=budget,
+        apply=apply,
+        credentials=credentials,
+        ai_config=ai_config,
+        new_project=False,
+        engine=engine,
+        target_slug=slug
+    )
+
+    return {
+        "status": "started",
+        "slug": slug,
+        "pre_snapshot": snapshot_name,
+        "message": f"Evolution workflow started for workspace '{slug}'"
+    }
 
 @app.get("/api/projects/{slug}/logs/{log_type}")
 async def get_project_logs(slug: str, log_type: str, user=Depends(get_current_user)):
@@ -883,7 +1033,40 @@ async def push_project_gitops(slug: str, request: Request, user=Depends(get_curr
         decision_trace=project.get("decision_trace", [])
     )
 
-    # 5. Open Pull Request via REST API / Simulation
+    # 5. Handle Direct Push or Open Pull Request
+    if git_branch_name == target_branch:
+        clean_repo = repo_url.rstrip("/").removesuffix(".git")
+        pr_url = f"{clean_repo}/tree/{target_branch}"
+        pr_number = None
+
+        ProjectTracker.save(
+            slug=slug,
+            git_repo=repo_url,
+            git_branch=git_branch_name,
+            pr_url=pr_url,
+            pr_number=None,
+            pr_status="merged",
+            approval_status="approved"
+        )
+
+        AuditTracker.log_action(
+            action="gitops_direct_push",
+            user_id=user.id,
+            org_id=org_id,
+            resource_slug=slug,
+            details=f"User '{user.username}' pushed directly to branch '{target_branch}' on '{repo_url}'"
+        )
+
+        return {
+            "success": True,
+            "direct_push": True,
+            "message": f"Successfully pushed directly to '{target_branch}'!",
+            "git_repo": repo_url,
+            "git_branch": git_branch_name,
+            "pr_url": pr_url,
+            "pr_number": None
+        }
+
     pr_res = GitOpsTools.create_pull_request(
         repo_url=repo_url,
         branch_name=git_branch_name,
@@ -979,6 +1162,238 @@ async def merge_and_deploy(slug: str, background_tasks: BackgroundTasks, user=De
         "status": "deployed",
         "merge_details": merge_res
     }
+
+@app.get("/api/projects/{slug}/deployment-status")
+async def get_deployment_status(slug: str, user=Depends(get_current_user)):
+    """Returns deployment state, detected cloud provider, and available logs for a workspace."""
+    project = get_authorized_project(slug, user, require_admin=False)
+    project_dir = os.path.join(OUTPUT_DIR, slug)
+    dir_exists = os.path.isdir(project_dir)
+    
+    available_logs = []
+    logs_dir = os.path.join(project_dir, "logs") if dir_exists else None
+    if logs_dir and os.path.isdir(logs_dir):
+        for f in os.listdir(logs_dir):
+            if f.endswith(".log"):
+                available_logs.append(f[:-4])
+
+    detected_provider = "aws"
+    if dir_exists:
+        for fname in ["providers.tf", "main.tf"]:
+            fpath = os.path.join(project_dir, fname)
+            if os.path.isfile(fpath):
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        content = f.read().lower()
+                        if "azurerm" in content:
+                            detected_provider = "azure"
+                            break
+                        elif "google" in content:
+                            detected_provider = "gcp"
+                            break
+                        elif "aws" in content or "floci" in content:
+                            detected_provider = "aws"
+                            break
+                except Exception:
+                    pass
+
+    status = project.get("status", "generated")
+    is_deployed = (status == "deployed")
+
+    return {
+        "slug": slug,
+        "status": status,
+        "is_deployed": is_deployed,
+        "deployed_at": project.get("deployed_at"),
+        "deployed_by": project.get("deployed_by"),
+        "detected_provider": detected_provider,
+        "available_logs": available_logs
+    }
+
+@app.post("/api/projects/{slug}/deploy")
+async def deploy_project(slug: str, request: Request, user=Depends(get_current_user)):
+    """Executes live terraform plan or apply on an existing workspace directory."""
+    if KillSwitchManager.is_active("deployments_disabled"):
+        raise HTTPException(status_code=403, detail="Infrastructure deployments are temporarily disabled by global emergency kill switch.")
+
+    project = get_authorized_project(slug, user, require_admin=False)
+    org_id = project.get("org_id")
+    if org_id:
+        user_role = OrgTracker.get_user_role(org_id, user.id)
+        if user_role == "viewer":
+            raise HTTPException(status_code=403, detail="Viewers are restricted from deploying infrastructure.")
+
+    project_dir = os.path.join(OUTPUT_DIR, slug)
+    if not os.path.isdir(project_dir):
+        raise HTTPException(status_code=404, detail=f"Project workspace directory '{slug}' not found on disk")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    action = (body.get("action") or "apply").strip().lower()
+    if action not in ["apply", "plan"]:
+        raise HTTPException(status_code=400, detail="Invalid action. Must be 'plan' or 'apply'.")
+
+    engine_name = body.get("engine") or project.get("engine") or "terraform"
+    credentials = body.get("credentials") or {}
+
+    from tools.engine import EngineFactory
+    engine = EngineFactory.get_engine(engine_name)
+
+    # Temporarily apply cloud credentials to environment
+    original_env = {}
+    for k, v in credentials.items():
+        if v:
+            original_env[k] = os.environ.get(k)
+            os.environ[k] = str(v)
+
+    try:
+        logs_dir = os.path.join(project_dir, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+
+        if action == "plan":
+            result = engine.plan(project_dir)
+            log_file = os.path.join(logs_dir, f"{engine.name}_plan.log")
+        else:
+            result = engine.apply(project_dir, auto_approve=True)
+            log_file = os.path.join(logs_dir, f"{engine.name}_apply.log")
+
+        combined_output = f"STDOUT:\n{result.get('stdout', '')}\n\nSTDERR:\n{result.get('stderr', '')}"
+        try:
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write(combined_output)
+        except Exception as log_err:
+            logger.warning(f"Failed to write deployment log: {log_err}")
+
+        now_iso = datetime.now().isoformat()
+
+        if result.get("success"):
+            if action == "apply":
+                ProjectTracker.save(
+                    slug=slug,
+                    status="deployed",
+                    deployed_at=now_iso,
+                    deployed_by=user.username
+                )
+                AuditTracker.log_action(
+                    action="workspace_live_deployed",
+                    user_id=user.id,
+                    org_id=org_id,
+                    resource_slug=slug,
+                    details=f"User '{user.username}' successfully deployed infrastructure for '{slug}'"
+                )
+            else:
+                AuditTracker.log_action(
+                    action="workspace_plan_executed",
+                    user_id=user.id,
+                    org_id=org_id,
+                    resource_slug=slug,
+                    details=f"User '{user.username}' executed terraform plan for '{slug}'"
+                )
+        else:
+            AuditTracker.log_action(
+                action=f"workspace_{action}_failed",
+                user_id=user.id,
+                org_id=org_id,
+                resource_slug=slug,
+                details=f"User '{user.username}' attempted terraform {action} for '{slug}', but execution failed with exit code {result.get('exit_code')}"
+            )
+
+        return {
+            "success": result.get("success", False),
+            "action": action,
+            "status": "deployed" if (result.get("success") and action == "apply") else project.get("status", "generated"),
+            "exit_code": result.get("exit_code", 0),
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "deployed_at": now_iso if (result.get("success") and action == "apply") else project.get("deployed_at")
+        }
+    finally:
+        for k, v in credentials.items():
+            if k in original_env:
+                if original_env[k] is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = original_env[k]
+
+@app.post("/api/projects/{slug}/destroy")
+async def destroy_project(slug: str, request: Request, user=Depends(get_current_user)):
+    """Executes live terraform destroy on an existing workspace directory."""
+    if KillSwitchManager.is_active("deployments_disabled"):
+        raise HTTPException(status_code=403, detail="Infrastructure destructions are temporarily disabled by global emergency kill switch.")
+
+    project = get_authorized_project(slug, user, require_admin=True)
+    org_id = project.get("org_id")
+
+    project_dir = os.path.join(OUTPUT_DIR, slug)
+    if not os.path.isdir(project_dir):
+        raise HTTPException(status_code=404, detail=f"Project workspace directory '{slug}' not found on disk")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    engine_name = body.get("engine") or project.get("engine") or "terraform"
+    credentials = body.get("credentials") or {}
+
+    from tools.engine import EngineFactory
+    engine = EngineFactory.get_engine(engine_name)
+
+    original_env = {}
+    for k, v in credentials.items():
+        if v:
+            original_env[k] = os.environ.get(k)
+            os.environ[k] = str(v)
+
+    try:
+        logs_dir = os.path.join(project_dir, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+
+        result = engine.destroy(project_dir, auto_approve=True)
+        log_file = os.path.join(logs_dir, f"{engine.name}_destroy.log")
+        combined_output = f"STDOUT:\n{result.get('stdout', '')}\n\nSTDERR:\n{result.get('stderr', '')}"
+        try:
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write(combined_output)
+        except Exception:
+            pass
+
+        if result.get("success"):
+            ProjectTracker.save(slug=slug, status="destroyed")
+            AuditTracker.log_action(
+                action="workspace_infrastructure_destroyed",
+                user_id=user.id,
+                org_id=org_id,
+                resource_slug=slug,
+                details=f"User '{user.username}' successfully destroyed infrastructure for '{slug}'"
+            )
+        else:
+            AuditTracker.log_action(
+                action="workspace_destroy_failed",
+                user_id=user.id,
+                org_id=org_id,
+                resource_slug=slug,
+                details=f"User '{user.username}' attempted to destroy infrastructure for '{slug}', but execution failed"
+            )
+
+        return {
+            "success": result.get("success", False),
+            "status": "destroyed" if result.get("success") else project.get("status", "deployed"),
+            "exit_code": result.get("exit_code", 0),
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "message": "Infrastructure successfully destroyed" if result.get("success") else "Destroy execution failed"
+        }
+    finally:
+        for k, v in credentials.items():
+            if k in original_env:
+                if original_env[k] is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = original_env[k]
 
 @app.get("/api/audit-logs")
 async def get_audit_logs(org_id: Optional[int] = None, slug: Optional[str] = None, user=Depends(get_current_user)):

@@ -113,11 +113,15 @@ class TerraformTools:
             return f"Workspace '{slug}' does not exist, cannot backup."
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        dst = os.path.join("output", f".backups", f"{slug}_{timestamp}")
+        dst = os.path.join("output", slug, "backups", f"{slug}_{timestamp}")
         
         try:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copytree(src, dst)
+            shutil.copytree(
+                src, 
+                dst, 
+                ignore=shutil.ignore_patterns(".terraform", ".git", "__pycache__", "*.pyc", "backups")
+            )
             return f"Backup created at {dst}"
         except Exception as e:
             return f"Backup failed: {str(e)}"
@@ -133,6 +137,53 @@ class TerraformTools:
             return f"Workspace {slug} restored from {backup_path}"
         except Exception as e:
             return f"Restore failed: {str(e)}"
+
+    @staticmethod
+    def _delete_terraform_file(project_slug: str, relative_file_path: str) -> str:
+        """Safely delete an obsolete or duplicate file inside the project workspace."""
+        slug = TerraformTools._sanitize_slug(project_slug)
+        output_dir = os.path.abspath(os.path.join("output", slug))
+        clean_rel = relative_file_path.strip().lstrip("/\\")
+        target_path = os.path.abspath(os.path.join(output_dir, clean_rel))
+
+        # Path traversal guard
+        if not target_path.startswith(output_dir):
+            return f"Security violation: path traversal detected for '{relative_file_path}'"
+
+        if not os.path.exists(target_path):
+            return f"File '{relative_file_path}' does not exist in workspace '{slug}'."
+
+        try:
+            if os.path.isfile(target_path):
+                os.remove(target_path)
+                return f"Successfully deleted '{relative_file_path}' from workspace '{slug}'."
+            elif os.path.isdir(target_path):
+                shutil.rmtree(target_path)
+                return f"Successfully deleted directory '{relative_file_path}' from workspace '{slug}'."
+            return f"Target '{relative_file_path}' could not be deleted."
+        except Exception as e:
+            return f"Failed to delete '{relative_file_path}': {str(e)}"
+
+    @staticmethod
+    def _normalize_workspace_provider_files(project_slug: str) -> list:
+        """Deduplicate root provider files (e.g. providers.tf vs versions.tf)."""
+        slug = TerraformTools._sanitize_slug(project_slug)
+        output_dir = os.path.join("output", slug)
+        actions = []
+        if not os.path.isdir(output_dir):
+            return actions
+
+        providers_path = os.path.join(output_dir, "providers.tf")
+        versions_path = os.path.join(output_dir, "versions.tf")
+
+        if os.path.isfile(providers_path) and os.path.isfile(versions_path):
+            try:
+                os.remove(versions_path)
+                actions.append(f"Auto-resolved duplicate provider configuration: removed obsolete 'versions.tf' in favor of canonical 'providers.tf'")
+            except Exception as e:
+                actions.append(f"Warning: could not remove duplicate versions.tf: {e}")
+
+        return actions
 
     @staticmethod
     def _search_terraform_documentation(query: str) -> str:
@@ -303,6 +354,11 @@ class TerraformTools:
     def write_terraform_file(filename: str, content: str, project_slug: str = "workspace") -> str:
         """Writes terraform code to a file. Provide ONLY the project name (slug) for project_slug, e.g. 'my-vpc'."""
         return TerraformTools._write_terraform_file(filename, content, project_slug)
+
+    @tool("Delete Terraform File")
+    def delete_terraform_file(filename: str, project_slug: str = "workspace") -> str:
+        """Deletes an obsolete, redundant, or conflicting Terraform file (e.g. duplicate versions.tf or old module). Provide relative filename and project_slug."""
+        return TerraformTools._delete_terraform_file(project_slug, filename)
 
     @tool("Validate Terraform Code")
     def validate_terraform_code(project_slug: str = "workspace") -> str:

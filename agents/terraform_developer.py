@@ -15,9 +15,10 @@ class TerraformDeveloper(BaseAgent):
                       'for EVERY SINGLE FILE. If you do not use the tool, the file is not created, and you fail. '
                       'For every module referenced in root main.tf, you MUST create the full module directory with '
                       'main.tf, variables.tf, and outputs.tf. '
+                      'If a file is redundant, duplicate, or obsolete (such as duplicate provider files), use the `Delete Terraform File` tool to remove it. '
                       'You never stop early — if the architecture has 4 modules, you write at least 12 files '
                       'plus root files. Incomplete projects are failures.',
-            tools=[TerraformTools.write_terraform_file, TerraformTools.search_terraform_documentation],
+            tools=[TerraformTools.write_terraform_file, TerraformTools.delete_terraform_file, TerraformTools.search_terraform_documentation],
             verbose=True,
             allow_delegation=False,
             max_iter=30,

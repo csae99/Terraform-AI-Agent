@@ -168,6 +168,7 @@ def run_full_pipeline(
     owner_id: str = None,
     org_id: int = None,
     new_project: bool = False,
+    target_slug: str = None,
     cli_flags: list = None,
     test_local: bool = False,
     gitops: bool = False,
@@ -177,7 +178,7 @@ def run_full_pipeline(
     engine: str = "terraform",
     force_consensus: bool = False,
     plan_tier: str = None,
-) -> dict:
+):
     """Execute the full multi-agent Terraform pipeline.
 
     This is the single authoritative entry-point for both the CLI
@@ -254,8 +255,46 @@ def run_full_pipeline(
     detected_provider = readiness["provider"]
     print(f"Cloud Readiness: {detected_provider} Ready")
 
+    # If target_slug is specified, load existing HCL files as evolution baseline
+    existing_files_summary = ""
+    if target_slug and os.path.isdir(os.path.join("output", target_slug)):
+        existing_dir = os.path.join("output", target_slug)
+        # Capture pre-evolution snapshot before modifications
+        try:
+            from tools.project.tracker import ProjectTracker
+            ProjectTracker.create_snapshot(target_slug, reason="pre-evolution")
+            print(f"  📸 Pre-evolution baseline snapshot captured for '{target_slug}'")
+        except Exception as e:
+            print(f"  ⚠️ Warning: Failed to create pre-evolution snapshot: {e}")
+
+        tf_files = []
+        for root, _, files in os.walk(existing_dir):
+            if "backups" in root or ".terraform" in root or ".git" in root: continue
+            for f in files:
+                if f.endswith(".tf"):
+                    rel = os.path.relpath(os.path.join(root, f), existing_dir)
+                    try:
+                        with open(os.path.join(root, f), "r", encoding="utf-8") as _f:
+                            tf_files.append(f"### File: {rel}\n```hcl\n{_f.read().strip()}\n```")
+                    except Exception:
+                        pass
+        if tf_files:
+            existing_files_summary = "\n\n" + "="*40 + "\nEXISTING WORKSPACE CODE (EVOLUTION CONTEXT):\n" + "\n\n".join(tf_files) + "\n" + "="*40 + "\n"
+
+    effective_prompt = prompt
+    if existing_files_summary:
+        effective_prompt = (
+            f"You are modifying and evolving an EXISTING Terraform workspace '{target_slug}'.\n"
+            f"USER FOLLOW-UP REQUIREMENTS:\n{prompt}\n"
+            f"{existing_files_summary}\n"
+            f"IMPORTANT EVOLUTION RULES:\n"
+            f"1. Do NOT regenerate the whole project from scratch. Preserve existing modules and resource definitions. Only modify the specific resources or files necessary to fulfill the user's requirements.\n"
+            f"2. Check existing root files. If `providers.tf` exists, DO NOT create `versions.tf`. Keep all provider configurations in `providers.tf` exclusively.\n"
+            f"3. NEVER duplicate provider blocks or required_providers blocks across multiple files."
+        )
+
     architect_agent = architect_agent_cls.get_agent()
-    arch_task = TerraformGenerationTasks.design_architecture_task(architect_agent, prompt)
+    arch_task = TerraformGenerationTasks.design_architecture_task(architect_agent, effective_prompt)
 
     t_arch_start = _time_perf.time()
     try:
@@ -280,19 +319,28 @@ def run_full_pipeline(
     import time
     time.sleep(10)
 
-    slug = get_project_slug(arch_result, prompt)
-    base_slug = slug
-    if new_project:
-        counter = 1
-        while ProjectTracker.load(slug) is not None or os.path.exists(os.path.join("output", slug)):
-            slug = f"{base_slug}-{counter}"
-            counter += 1
+    if target_slug:
+        slug = target_slug
+        base_slug = target_slug
+    else:
+        slug = get_project_slug(arch_result, prompt)
+        base_slug = slug
+        if new_project:
+            counter = 1
+            while ProjectTracker.load(slug) is not None or os.path.exists(os.path.join("output", slug)):
+                slug = f"{base_slug}-{counter}"
+                counter += 1
     # Replace references to the base slug in the architecture design document with the actual slug
     if slug != base_slug:
         arch_result = re.sub(re.escape(base_slug), slug, arch_result, flags=re.IGNORECASE)
     mermaid_diagram = extract_mermaid(arch_result)
     output_base = os.path.join("output", slug)
     os.makedirs(output_base, exist_ok=True)
+    try:
+        from tools.gitops.gitops_tools import GitOpsTools
+        GitOpsTools.ensure_gitignore(output_base)
+    except Exception:
+        pass
     print(f"\nBuilding Project Workspace: {output_base}/")
 
     try:
@@ -633,6 +681,12 @@ def run_full_pipeline(
         # ── Security analysis for self-healing ───────────────────
         audit_results = auditor.run_comprehensive_scan(output_base)
         
+        # Pre-validation normalization: Deduplicate provider files if both providers.tf and versions.tf exist
+        norm_actions = TerraformTools._normalize_workspace_provider_files(slug)
+        for act in norm_actions:
+            print(f"  🧹 [Auto-Normalizer] {act}")
+            retry.record_decision("provider_files_normalized", action=act, reason="Removed duplicate provider file")
+
         # Ensure terraform/opentofu is syntactically valid before considering this round a success
         val_result = TerraformTools._validate_terraform_code(slug, engine_name=engine_target)
         if "Failed" in val_result:

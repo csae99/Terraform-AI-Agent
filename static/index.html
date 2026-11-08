@@ -255,6 +255,7 @@
                     <span id="modal-drift-status" class="status-badge" style="display: none;"></span>
                 </div>
                 <div class="modal-header-actions">
+                    <button class="tab-btn" style="background: rgba(99, 102, 241, 0.2); border: 1px solid #6366f1; color: #a5b4fc;" onclick="switchModalTab('evolution')">⚡ Evolve</button>
                     <button class="tab-btn btn-warning" onclick="checkDrift()">🔍 Scan for Drift</button>
                     <button class="tab-btn btn-danger" onclick="deleteProject()">🗑️ Delete</button>
                     <button class="tab-btn" onclick="closeModal()">Close</button>
@@ -266,7 +267,7 @@
                     <button class="modal-tab" onclick="switchModalTab('visual')">🗺️ Visual Topology</button>
                     <button class="modal-tab" onclick="switchModalTab('evolution')">🕒 Evolution History</button>
                     <button class="modal-tab" onclick="switchModalTab('financial')">💰 FinOps Report</button>
-                    <button class="modal-tab" onclick="switchModalTab('logs')">📋 Deployment Logs</button>
+                    <button class="modal-tab" onclick="switchModalTab('logs')">🚀 Live Deploy & Logs</button>
                     <button class="modal-tab" onclick="switchModalTab('diagnostics')">🔬 Diagnostics & Telemetry</button>
                     <button class="modal-tab" onclick="switchModalTab('gitops')">🔀 GitOps & PR</button>
                     <button class="modal-tab" onclick="switchModalTab('adr')">🧠 Architecture Decisions</button>
@@ -282,6 +283,43 @@
                 </div>
 
                 <div id="modal-tab-evolution" class="modal-tab-content" style="display: none;">
+                    <!-- Evolve Workspace Panel -->
+                    <div class="evolve-panel" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-magic" style="color: #818cf8; font-size: 1.1rem;"></i>
+                                <h3 style="margin: 0; font-size: 1.05rem; color: #fff;">Evolve Infrastructure Workspace</h3>
+                            </div>
+                            <span id="evolve-status-pill" class="status-badge" style="display: none; background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4);">
+                                <i class="fas fa-spinner fa-spin"></i> Evolving...
+                            </span>
+                        </div>
+                        <p style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: var(--text-secondary);">
+                            Submit follow-up instructions to surgically mutate or expand this workspace. A pre-evolution baseline snapshot will be preserved automatically.
+                        </p>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <textarea id="evolve-prompt-input" class="form-input" rows="2" placeholder="e.g. Add a customer-managed KMS key and enable server-side encryption for the S3 bucket" style="width: 100%; resize: vertical; font-family: inherit; font-size: 0.9rem; line-height: 1.4;"></textarea>
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">
+                                        <input type="checkbox" id="evolve-live-apply">
+                                        <span>Live Deploy Changes</span>
+                                    </label>
+                                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                        <label class="meta-label" style="margin: 0;">Engine</label>
+                                        <select id="evolve-engine-select" class="form-input form-input-sm" style="font-weight: 600;">
+                                            <option value="terraform" selected>🟣 Terraform</option>
+                                            <option value="opentofu">🧅 OpenTofu</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button id="btn-submit-evolve" class="tab-btn active" style="padding: 0.5rem 1.25rem; font-weight: 600;" onclick="submitEvolveWorkspace()">
+                                    <i class="fas fa-bolt"></i> ⚡ Evolve Workspace
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="evolution-layout">
                         <div class="snapshot-sidebar">
                             <h4>Snapshots</h4>
@@ -298,7 +336,170 @@
                 </div>
 
                 <div id="modal-tab-logs" class="modal-tab-content" style="display: none;">
-                     <div id="modal-tab-logs-content"></div>
+                    <div class="deploy-layout" style="display: flex; flex-direction: column; gap: 1.5rem; padding: 1rem 0;">
+                        <!-- State A: Live Cloud Provisioning Form (Shown when not deployed) -->
+                        <div id="deploy-provision-view" style="display: block; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.5rem;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-cloud-upload-alt" style="font-size: 1.4rem; color: #34d399;"></i>
+                                    </div>
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 1.15rem; color: #fff;">Live Cloud Provisioning (On-Demand Apply)</h3>
+                                        <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">Deploy this workspace's generated Terraform configuration directly to your target cloud or run a dry-run plan.</p>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label class="meta-label" style="margin: 0;">Engine</label>
+                                    <select id="deploy-engine" class="form-input form-input-sm" style="width: 130px;">
+                                        <option value="terraform" selected>🟣 Terraform</option>
+                                        <option value="opentofu">🧅 OpenTofu</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Provider Selection Tabs -->
+                            <div class="cred-tabs" style="margin-top: 1rem;">
+                                <button type="button" class="tab-btn active" id="btn-deploy-tab-aws" onclick="switchDeployCredTab('aws')">AWS</button>
+                                <button type="button" class="tab-btn" id="btn-deploy-tab-azure" onclick="switchDeployCredTab('azure')">Azure</button>
+                                <button type="button" class="tab-btn" id="btn-deploy-tab-gcp" onclick="switchDeployCredTab('gcp')">GCP</button>
+                                <button type="button" class="tab-btn" id="btn-deploy-tab-local" onclick="switchDeployCredTab('local')">LocalStack / Floci</button>
+                            </div>
+
+                            <!-- AWS Credentials Sub-Panel -->
+                            <div id="deploy-cred-aws" class="config-grid-3" style="margin-top: 1rem;">
+                                <div>
+                                    <label class="meta-label">Access Key ID</label>
+                                    <input type="password" id="deploy-aws-key" class="form-input form-input-sm" placeholder="AKIA... (Optional if in .env)">
+                                </div>
+                                <div>
+                                    <label class="meta-label">Secret Key</label>
+                                    <input type="password" id="deploy-aws-secret" class="form-input form-input-sm" placeholder="wJalrX... (Optional if in .env)">
+                                </div>
+                                <div>
+                                    <label class="meta-label">Region</label>
+                                    <input type="text" id="deploy-aws-region" class="form-input form-input-sm" placeholder="us-east-1" value="us-east-1">
+                                </div>
+                            </div>
+
+                            <!-- Azure Credentials Sub-Panel -->
+                            <div id="deploy-cred-azure" class="config-grid-2" style="display: none; margin-top: 1rem;">
+                                <div>
+                                    <label class="meta-label">Client ID</label>
+                                    <input type="password" id="deploy-az-client-id" class="form-input form-input-sm" placeholder="Azure Client ID">
+                                </div>
+                                <div>
+                                    <label class="meta-label">Client Secret</label>
+                                    <input type="password" id="deploy-az-client-secret" class="form-input form-input-sm" placeholder="Azure Client Secret">
+                                </div>
+                                <div>
+                                    <label class="meta-label">Tenant ID</label>
+                                    <input type="password" id="deploy-az-tenant-id" class="form-input form-input-sm" placeholder="Azure Tenant ID">
+                                </div>
+                                <div>
+                                    <label class="meta-label">Subscription ID</label>
+                                    <input type="password" id="deploy-az-subscription-id" class="form-input form-input-sm" placeholder="Azure Subscription ID">
+                                </div>
+                            </div>
+
+                            <!-- GCP Credentials Sub-Panel -->
+                            <div id="deploy-cred-gcp" style="display: none; margin-top: 1rem;">
+                                <label class="meta-label">Google Service Account JSON</label>
+                                <textarea id="deploy-gcp-json" class="form-input form-input-sm" rows="3" placeholder='{"type": "service_account", ...}'></textarea>
+                            </div>
+
+                            <!-- LocalStack / Floci Sub-Panel -->
+                            <div id="deploy-cred-local" style="display: none; margin-top: 1rem; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: var(--radius-sm); border: 1px dashed var(--border-color);">
+                                <p style="margin: 0; font-size: 0.85rem; color: #94a3b8;">
+                                    <i class="fas fa-server" style="color: #38bdf8;"></i> Uses local cloud emulation endpoint at <code>http://localhost:4566</code>. Ensure the local Floci container is active.
+                                </p>
+                            </div>
+
+                            <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem;">
+                                <button id="btn-deploy-plan" onclick="submitLiveDeploy('plan')" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; font-weight: 500; padding: 0.65rem 1.2rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-search"></i> Run Plan (Dry-Run)
+                                </button>
+                                <button id="btn-deploy-apply" onclick="submitLiveDeploy('apply')" class="btn-sm" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #fff; font-weight: 600; padding: 0.65rem 1.4rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-rocket"></i> Deploy Infrastructure (Apply)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- State B: Active Live Deployment Overview (Shown when deployed) -->
+                        <div id="deploy-active-view" style="display: none; flex-direction: column; gap: 1rem;">
+                            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); display: flex; align-items: center; justify-content: center;">
+                                            <i class="fas fa-check-circle" style="font-size: 1.2rem; color: #34d399;"></i>
+                                        </div>
+                                        <div>
+                                            <h3 style="margin: 0; font-size: 1.1rem; color: #fff;">Active Cloud Deployment</h3>
+                                            <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">This workspace has been provisioned and is live in the cloud.</p>
+                                        </div>
+                                    </div>
+                                    <span id="deploy-status-badge" class="status-badge status-deployed">Live Deployed</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                                    <div>
+                                        <span class="meta-label">Cloud Provider</span>
+                                        <div id="deploy-active-provider" style="font-weight: 600; color: #38bdf8; text-transform: uppercase;">AWS</div>
+                                    </div>
+                                    <div>
+                                        <span class="meta-label">Deployed At</span>
+                                        <div id="deploy-active-time" style="font-weight: 500; color: #e2e8f0;">-</div>
+                                    </div>
+                                    <div>
+                                        <span class="meta-label">Deployed By</span>
+                                        <div id="deploy-active-by" style="font-weight: 500; color: #a7f3d0;">-</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Live Actions Toolbar -->
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                                <div style="display: flex; gap: 0.75rem;">
+                                    <button onclick="checkProjectDrift(currentProject.slug)" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                        <i class="fas fa-sync-alt"></i> Check Drift
+                                    </button>
+                                    <button onclick="submitLiveDeploy('plan')" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                        <i class="fas fa-search"></i> Re-Plan
+                                    </button>
+                                    <button onclick="submitLiveDeploy('apply')" class="btn-sm" style="background: #10b981; border: none; color: #fff; font-weight: 600; padding: 0.5rem 1.1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                        <i class="fas fa-redo"></i> Re-Apply
+                                    </button>
+                                </div>
+                                <div>
+                                    <button onclick="submitLiveDestroy()" class="btn-sm" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; font-weight: 600; padding: 0.5rem 1.1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                        <i class="fas fa-trash-alt"></i> Destroy Infrastructure
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Shared Terminal & Execution Logs Viewer -->
+                        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span class="meta-label" style="margin: 0;">Logs</span>
+                                    <div class="cred-tabs" style="margin: 0;">
+                                        <button type="button" class="tab-btn active" id="btn-log-apply" onclick="switchDeployLogType('apply')">Apply Log</button>
+                                        <button type="button" class="tab-btn" id="btn-log-plan" onclick="switchDeployLogType('plan')">Plan Log</button>
+                                        <button type="button" class="tab-btn" id="btn-log-destroy" onclick="switchDeployLogType('destroy')">Destroy Log</button>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <span id="deploy-action-status" style="font-size: 0.85rem; color: #94a3b8;"></span>
+                                    <button onclick="copyDeployLog()" class="btn-sm" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: #cbd5e1; font-size: 0.75rem; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer;">
+                                        <i class="fas fa-copy"></i> Copy
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="modal-tab-logs-content">
+                                <pre id="deploy-terminal-output" class="log-view" style="max-height: 380px; overflow-y: auto; background: #0b0f19; padding: 1rem; border-radius: 4px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; color: #e2e8f0; line-height: 1.5; white-space: pre-wrap; word-break: break-all;">No logs available.</pre>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="modal-tab-diagnostics" class="modal-tab-content" style="display: none;">
@@ -815,6 +1016,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=13.2"></script>
+    <script src="/static/app.js?v=13.4"></script>
 </body>
 </html>

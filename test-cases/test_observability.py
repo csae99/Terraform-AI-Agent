@@ -16,7 +16,8 @@ def test_decision_trace_tracking():
     ctx.record_decision("fix_applied")
     ctx.record_decision("pipeline_completed")
     
-    assert ctx.decision_trace == [
+    decisions = [d["decision"] if isinstance(d, dict) else d for d in ctx.decision_trace]
+    assert decisions == [
         "pipeline_started",
         "round_1_started",
         "terraform_validation_failed",

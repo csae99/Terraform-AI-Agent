@@ -73,6 +73,10 @@ class ProjectModel(Base):
     # IaC Runtime Engine (terraform / opentofu)
     engine = Column(String, default="terraform")
     
+    # Live Deployment Columns
+    deployed_at = Column(DateTime, nullable=True)
+    deployed_by = Column(String, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -338,7 +342,9 @@ def _add_missing_columns():
             "pr_status": "VARCHAR DEFAULT 'none'",
             "approval_status": "VARCHAR DEFAULT 'none'",
             "approved_by_id": "INTEGER DEFAULT NULL",
-            "engine": "VARCHAR DEFAULT 'terraform'"
+            "engine": "VARCHAR DEFAULT 'terraform'",
+            "deployed_at": "TIMESTAMP DEFAULT NULL",
+            "deployed_by": "VARCHAR DEFAULT NULL"
         }
         for col_name, col_def in proj_new_cols.items():
             if col_name not in proj_cols:
@@ -446,7 +452,7 @@ class ProjectTracker:
              reflection_advice=None, decision_trace=None,
              git_repo=None, git_branch=None, pr_url=None, pr_number=None,
              pr_status=None, approval_status=None, approved_by_id=None,
-             engine=None):
+             engine=None, deployed_at=None, deployed_by=None, **kwargs):
         """Save or update project metadata in DB."""
         session = SessionLocal()
         try:
@@ -482,6 +488,10 @@ class ProjectTracker:
                 project.approval_status = approval_status or "none"
                 project.approved_by_id = approved_by_id
                 project.engine = engine or "terraform"
+                if deployed_at is not None:
+                    project.deployed_at = datetime.fromisoformat(deployed_at) if isinstance(deployed_at, str) else deployed_at
+                if deployed_by is not None:
+                    project.deployed_by = deployed_by
             else:
                 if prompt is not None: project.prompt = prompt
                 if status is not None: project.status = status
@@ -509,6 +519,10 @@ class ProjectTracker:
                 if approval_status is not None: project.approval_status = approval_status
                 if approved_by_id is not None: project.approved_by_id = approved_by_id
                 if engine is not None: project.engine = engine
+                if deployed_at is not None:
+                    project.deployed_at = datetime.fromisoformat(deployed_at) if isinstance(deployed_at, str) else deployed_at
+                if deployed_by is not None:
+                    project.deployed_by = deployed_by
             
             session.commit()
             return ProjectTracker.load(slug)
@@ -562,6 +576,8 @@ class ProjectTracker:
                     "approval_status": project.approval_status or "none",
                     "approved_by_id": project.approved_by_id,
                     "engine": project.engine or "terraform",
+                    "deployed_at": project.deployed_at.isoformat() if project.deployed_at and hasattr(project.deployed_at, "isoformat") else (str(project.deployed_at) if project.deployed_at else None),
+                    "deployed_by": project.deployed_by,
                     "owner_id": project.owner_id,
                     "org_id": project.org_id,
                     "created_at": project.created_at.isoformat() if project.created_at else "",
@@ -662,6 +678,34 @@ class ProjectTracker:
         )
 
     @staticmethod
+    def create_snapshot(slug: str, reason: str = "manual"):
+        """
+        Creates an immutable snapshot of the current workspace before evolution or modification.
+        Saves files to output/{slug}/backups/{slug}_{timestamp}.
+        Returns the snapshot directory name (e.g. {slug}_{timestamp}) or None.
+        """
+        import shutil
+        slug = slug.strip("/\\")
+        project_dir = os.path.join(ProjectTracker.OUTPUT_DIR, slug)
+        if not os.path.exists(project_dir):
+            return None
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        snapshot_name = f"{slug}_{timestamp}"
+        dst = os.path.join(project_dir, "backups", snapshot_name)
+        
+        try:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copytree(
+                project_dir,
+                dst,
+                ignore=shutil.ignore_patterns(".terraform", ".git", "__pycache__", "*.pyc", "backups")
+            )
+            return snapshot_name
+        except Exception:
+            return None
+
+    @staticmethod
     def get_diff(slug, snapshot_name=None):
         """
         Generate a unified diff between current code and a snapshot.
@@ -670,16 +714,26 @@ class ProjectTracker:
         import difflib
         project_dir = os.path.join(ProjectTracker.OUTPUT_DIR, slug)
         backups_dir = os.path.join(project_dir, "backups")
+        legacy_dir = os.path.join(ProjectTracker.OUTPUT_DIR, ".backups")
         
-        if not os.path.exists(backups_dir):
-            return "No backups found."
-
+        snapshot_dir = None
         if snapshot_name:
-            snapshot_dir = os.path.join(backups_dir, snapshot_name)
+            if os.path.exists(os.path.join(backups_dir, snapshot_name)):
+                snapshot_dir = os.path.join(backups_dir, snapshot_name)
+            elif os.path.exists(os.path.join(legacy_dir, snapshot_name)):
+                snapshot_dir = os.path.join(legacy_dir, snapshot_name)
         else:
-            backups = sorted([d for d in os.listdir(backups_dir) if os.path.isdir(os.path.join(backups_dir, d))])
-            if not backups: return "No snapshots."
-            snapshot_dir = os.path.join(backups_dir, backups[-1])
+            candidates = []
+            if os.path.exists(backups_dir):
+                candidates.extend([os.path.join(backups_dir, d) for d in os.listdir(backups_dir) if os.path.isdir(os.path.join(backups_dir, d))])
+            if os.path.exists(legacy_dir):
+                candidates.extend([os.path.join(legacy_dir, d) for d in os.listdir(legacy_dir) if os.path.isdir(os.path.join(legacy_dir, d)) and d.startswith(slug)])
+            if candidates:
+                candidates.sort()
+                snapshot_dir = candidates[-1]
+
+        if not snapshot_dir or not os.path.exists(snapshot_dir):
+            return "No snapshots found."
 
         diff_result = []
         all_files = set()

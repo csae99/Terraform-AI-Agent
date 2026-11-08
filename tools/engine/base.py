@@ -37,13 +37,22 @@ class IaCEngine(ABC):
     def _run_cmd(self, args: List[str], cwd: str, timeout: Optional[int] = None) -> Dict[str, Any]:
         """Execute binary command in directory and return standardized result dictionary."""
         cmd = [self.binary] + args
+        env = os.environ.copy()
+        if "TF_PLUGIN_CACHE_DIR" not in env:
+            shared_cache = os.path.join(os.path.expanduser("~"), ".terraform.d", "plugin-cache")
+            try:
+                os.makedirs(shared_cache, exist_ok=True)
+                env["TF_PLUGIN_CACHE_DIR"] = shared_cache
+            except Exception:
+                pass
         try:
             res = subprocess.run(
                 cmd,
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=timeout
+                timeout=timeout,
+                env=env
             )
             return {
                 "success": res.returncode == 0,
@@ -91,51 +100,127 @@ class IaCEngine(ABC):
             target = "."
         return self._run_cmd(["fmt", target], cwd=cwd, timeout=15)
 
-    def init(self, cwd: str, backend: bool = False) -> Dict[str, Any]:
-        """Initialize working directory."""
+    def is_initialized(self, cwd: str) -> bool:
+        """Check if working directory has already been initialized with provider plugins."""
+        tf_dir = os.path.join(cwd, ".terraform")
+        providers_dir = os.path.join(tf_dir, "providers")
+        return os.path.isdir(providers_dir) and bool(os.listdir(providers_dir))
+
+    def init(self, cwd: str, backend: bool = False, upgrade: bool = False) -> Dict[str, Any]:
+        """Initialize working directory with automatic self-healing for cross-platform provider caches."""
         args = ["init"]
         if not backend:
             args.append("-backend=false")
-        return self._run_cmd(args, cwd=cwd, timeout=120)
+        if upgrade:
+            args.append("-upgrade")
+        res = self._run_cmd(args, cwd=cwd, timeout=300)
+
+        # Self-healing: if provider plugins are missing or architecture mismatch occurred
+        # (e.g. windows_amd64 vs linux_amd64 between host mounts and Docker container)
+        err_lower = res.get("stderr", "").lower()
+        if not res["success"] and (
+            "cached in .terraform/providers" in err_lower
+            or "required plugins are not installed" in err_lower
+            or "inconsistent with the packages selected in the dependency lock file" in err_lower
+        ):
+            providers_dir = os.path.join(cwd, ".terraform", "providers")
+            if os.path.exists(providers_dir):
+                import shutil
+                try:
+                    shutil.rmtree(providers_dir, ignore_errors=True)
+                except Exception:
+                    pass
+            # Retry with -upgrade to fetch providers matching current runtime platform
+            retry_args = ["init"]
+            if not backend:
+                retry_args.append("-backend=false")
+            retry_args.append("-upgrade")
+            res = self._run_cmd(retry_args, cwd=cwd, timeout=300)
+
+        return res
 
     def validate(self, cwd: str) -> Dict[str, Any]:
         """Validate syntax and configuration consistency in directory."""
-        # Ensure init has run first
-        init_res = self.init(cwd, backend=False)
-        if not init_res["success"] and "already initialized" not in init_res.get("stderr", "").lower():
-            # If init fails, return init error
-            return {
-                "success": False,
-                "exit_code": init_res["exit_code"],
-                "stdout": init_res["stdout"],
-                "stderr": f"{self.name.capitalize()} Init Failed:\n{init_res['stderr']}",
-                "engine": self.name
-            }
-        return self._run_cmd(["validate"], cwd=cwd, timeout=60)
+        if not self.is_initialized(cwd):
+            init_res = self.init(cwd, backend=False)
+            if not init_res["success"] and "already initialized" not in init_res.get("stderr", "").lower():
+                return {
+                    "success": False,
+                    "exit_code": init_res["exit_code"],
+                    "stdout": init_res["stdout"],
+                    "stderr": f"{self.name.capitalize()} Init Failed:\n{init_res['stderr']}",
+                    "engine": self.name
+                }
+        res = self._run_cmd(["validate"], cwd=cwd, timeout=60)
+        if not res["success"] and "initialization required" in res.get("stderr", "").lower():
+            self.init(cwd, backend=False, upgrade=True)
+            res = self._run_cmd(["validate"], cwd=cwd, timeout=60)
+        return res
 
     def plan(self, cwd: str, is_destroy: bool = False, detailed_exitcode: bool = False) -> Dict[str, Any]:
         """Generate an execution plan."""
-        self.init(cwd, backend=False)
+        if not self.is_initialized(cwd):
+            init_res = self.init(cwd, backend=False)
+            if not init_res["success"] and "already initialized" not in init_res.get("stderr", "").lower():
+                return {
+                    "success": False,
+                    "exit_code": init_res["exit_code"],
+                    "stdout": init_res["stdout"],
+                    "stderr": f"{self.name.capitalize()} Init Failed:\n{init_res['stderr']}",
+                    "engine": self.name
+                }
         args = ["plan", "-no-color"]
         if is_destroy:
             args.append("-destroy")
         if detailed_exitcode:
             args.append("-detailed-exitcode")
-        return self._run_cmd(args, cwd=cwd, timeout=180)
+        res = self._run_cmd(args, cwd=cwd, timeout=180)
+        if not res["success"] and "initialization required" in res.get("stderr", "").lower():
+            self.init(cwd, backend=False, upgrade=True)
+            res = self._run_cmd(args, cwd=cwd, timeout=180)
+        return res
 
     def apply(self, cwd: str, auto_approve: bool = True) -> Dict[str, Any]:
         """Apply the changes required to reach the desired state of the configuration."""
+        if not self.is_initialized(cwd):
+            init_res = self.init(cwd, backend=False)
+            if not init_res["success"] and "already initialized" not in init_res.get("stderr", "").lower():
+                return {
+                    "success": False,
+                    "exit_code": init_res["exit_code"],
+                    "stdout": init_res["stdout"],
+                    "stderr": f"{self.name.capitalize()} Init Failed:\n{init_res['stderr']}",
+                    "engine": self.name
+                }
         args = ["apply", "-no-color"]
         if auto_approve:
             args.append("-auto-approve")
-        return self._run_cmd(args, cwd=cwd, timeout=300)
+        res = self._run_cmd(args, cwd=cwd, timeout=300)
+        if not res["success"] and "initialization required" in res.get("stderr", "").lower():
+            self.init(cwd, backend=False, upgrade=True)
+            res = self._run_cmd(args, cwd=cwd, timeout=300)
+        return res
 
     def destroy(self, cwd: str, auto_approve: bool = True) -> Dict[str, Any]:
         """Destroy all remote objects managed by a particular IaC configuration."""
+        if not self.is_initialized(cwd):
+            init_res = self.init(cwd, backend=False)
+            if not init_res["success"] and "already initialized" not in init_res.get("stderr", "").lower():
+                return {
+                    "success": False,
+                    "exit_code": init_res["exit_code"],
+                    "stdout": init_res["stdout"],
+                    "stderr": f"{self.name.capitalize()} Init Failed:\n{init_res['stderr']}",
+                    "engine": self.name
+                }
         args = ["destroy", "-no-color"]
         if auto_approve:
             args.append("-auto-approve")
-        return self._run_cmd(args, cwd=cwd, timeout=300)
+        res = self._run_cmd(args, cwd=cwd, timeout=300)
+        if not res["success"] and "initialization required" in res.get("stderr", "").lower():
+            self.init(cwd, backend=False, upgrade=True)
+            res = self._run_cmd(args, cwd=cwd, timeout=300)
+        return res
 
     def show_state(self, cwd: str) -> Dict[str, Any]:
         """Show current state representation."""

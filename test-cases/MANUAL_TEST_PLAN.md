@@ -140,6 +140,46 @@ Before beginning tests, ensure your local environment is configured:
   - [ ] The **Enterprise Approval Gate** (`Approve PR` and `Merge & Deploy`) becomes active.
   - [ ] Clicking **Re-push / Change Repo** allows toggling back to re-enter credentials or target another branch.
 
+#### 5c. Post-Provisioning Live Deploy (On-Demand Cloud Execution & Terminal Logs)
+- **Objective**: Verify that workspaces generated without initial live deployment can be planned, deployed, drift-checked, or destroyed on demand with target cloud credentials and live dark terminal logging.
+- **Action**:
+  1. Open any workspace modal generated with Live Deploy unchecked.
+  2. Switch to the **🚀 Live Deploy & Logs** tab.
+  3. Verify **State A (Deploy & Plan view)** renders with:
+     - Cloud Provider tabs (AWS, Azure, GCP, LocalStack / Simulation).
+     - Credential inputs (Access Key, Secret Key, Session Token, Region / Tenant & Subscription ID / Service Account JSON).
+     - IaC Engine dropdown (Terraform / OpenTofu).
+  4. Select **LocalStack / Mock / Dry Run** or enter cloud credentials.
+  5. Click **🔍 Dry Run (Plan)** and verify live streaming console output in the dark terminal.
+  6. Click **⚡ Live Apply (Deploy)** and observe deployment state transition to **State B (Active Deployment)**:
+     - Real-time deployment summary card (Engine, Deployed By, Deployed At timestamp).
+     - Action buttons: **🔍 Check Drift**, **🔄 Re-Plan**, **⚡ Re-Apply**, and **💥 Destroy Infrastructure**.
+  7. Test emergency kill switch compliance: Verify that when `deployments_disabled` is triggered, deployment attempts are blocked with `403 Forbidden`.
+  8. Click **💥 Destroy Infrastructure** and confirm the safety prompt to tear down resources.
+- **Expectation**:
+  - [ ] Terminal displays color-coded console output with quick "Copy Logs" button and tab filter (All Logs, Terraform/OpenTofu, Infracost).
+  - [ ] Project metadata updates with `deployed_at`, `deployed_by`, and status `deployed` or `destroyed`.
+  - [ ] Viewer/unauthorized roles are prevented from executing apply or destroy with RBAC validation.
+  - [ ] Audit trail logs `live_deploy_requested`, `live_deploy_executed`, and `live_destroy_executed` with user tags.
+
+#### 5d. In-Modal Workspace Evolution & Evolution History Diffing
+- **Objective**: Verify that existing workspaces can be surgically modified or expanded directly from the Workspace Details modal using follow-up prompts, with automatic pre-evolution snapshot archiving and interactive unified diff visualization.
+- **Action**:
+  1. Open any workspace modal (e.g., `aws-s3-glacier-vault-storage`).
+  2. Switch to the **🕒 Evolution History** tab (or click the **⚡ Evolve** button in the modal header).
+  3. Verify the **Evolve Infrastructure Workspace** card displays with prompt textarea, Live Deploy toggle, and Engine selector.
+  4. In the follow-up prompt textarea, enter:
+     > *"Add a customer-managed AWS KMS key with rotation enabled and configure bucket server-side encryption."*
+  5. Click **⚡ Evolve Workspace**.
+  6. Verify the live progress indicator and console stream launch.
+- **Expectation**:
+  - [ ] A pre-evolution baseline snapshot is automatically captured in `output/{slug}/backups/{slug}_{timestamp}` before code mutations occur.
+  - [ ] The multi-agent pipeline receives the existing `.tf` files as evolution baseline context and updates existing modules rather than generating from scratch.
+  - [ ] On completion, the left **Snapshots** sidebar populates with timestamped versions.
+  - [ ] Clicking a snapshot renders an inline, syntax-highlighted unified diff showing additions (`+` green), deletions (`-` red), and hunk ranges (`@@` blue).
+  - [ ] Audit trail logs `workspace_evolved` with user ID, target slug, and baseline snapshot ID.
+  - [ ] RBAC enforces that `Viewer` roles receive a `403 Forbidden` alert when attempting to evolve.
+
 ---
 
 ### 6. 📜 Enterprise Audit Trail & SOC2 Log Export (Phase 11 & 12)

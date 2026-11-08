@@ -52,6 +52,7 @@ def main():
     parser.add_argument("--org-id", type=str, help="Organization ID context")
     parser.add_argument("--consensus", action="store_true", help="Force multi-agent consensus debate")
     parser.add_argument("--plan-tier", type=str, default=None, help="Subscription tier context (free, pro, enterprise)")
+    parser.add_argument("--target-slug", type=str, default=None, help="Target specific existing project workspace to evolve/modify")
     args = parser.parse_args()
 
     # Handle Destructive Actions
@@ -71,6 +72,8 @@ def main():
         cli_flags.append("--auto-fix")
     if args.new_project:
         cli_flags.append("--new-project")
+    if args.target_slug:
+        cli_flags.append(f"--target-slug={args.target_slug}")
     if args.test_local:
         cli_flags.append("--test-local")
     if args.gitops:
@@ -101,6 +104,7 @@ def main():
         owner_id=owner_id,
         org_id=org_id,
         new_project=args.new_project,
+        target_slug=args.target_slug,
         cli_flags=cli_flags,
         test_local=args.test_local,
         gitops=args.gitops,

@@ -296,7 +296,7 @@ async function switchModalTab(tabId) {
             container.innerHTML = `<pre style="background:#111;padding:1rem;border-radius:4px;color:#ccc;font-size:0.8rem;overflow-x:auto">${currentProject.mermaid_diagram}</pre>`;
         }
     } else if (tabId === 'evolution' && currentProject) {
-        loadSnapshots(currentProject.slug);
+        loadSnapshots(currentProject.slug, true);
     } else if (tabId === 'financial' && currentProject) {
         const res = await apiFetch(`/api/projects/${currentProject.slug}/report`);
         const data = await res.json();
@@ -333,10 +333,9 @@ async function switchModalTab(tabId) {
         }
         
         document.getElementById('modal-financial-report').innerHTML = html;
-    } else if (tabId === 'logs' && currentProject) {
-        const res = await apiFetch(`/api/projects/${currentProject.slug}/logs/terraform_plan`);
-        const data = await res.json();
-        document.getElementById('modal-tab-logs-content').innerHTML = `<pre class="log-view">${data.content}</pre>`;
+    } else if (tabId === 'logs') {
+        const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+        if (slug) loadDeploymentTab(slug);
     } else if (tabId === 'diagnostics' && currentProject) {
         // Set rounds and duration
         const rounds = currentProject.healing_rounds_taken || 1;
@@ -611,28 +610,145 @@ function showFileContent(fileName) {
 }
 
 // ─── Snapshots / Evolution ──────────────────────────────────────
-async function loadSnapshots(slug) {
+async function loadSnapshots(slug, autoSelectLatest = true) {
     const res = await apiFetch(`/api/projects/${slug}/snapshots`);
     const snapshots = await res.json();
     const container = document.getElementById('snapshot-items');
-    container.innerHTML = snapshots.map(s => `
-        <div class="snapshot-item" onclick="viewDiff('${slug}', '${s.id}')">
-            ${s.timestamp}
+    if (!snapshots || snapshots.length === 0) {
+        container.innerHTML = '<p class="text-muted" style="font-size:0.85rem; padding: 0.5rem;">No snapshots yet. Click <strong>⚡ Evolve Workspace</strong> to modify this project and capture version history.</p>';
+        return;
+    }
+
+    container.innerHTML = snapshots.map((s, idx) => `
+        <div class="snapshot-item ${idx === 0 ? 'active' : ''}" id="snap-${s.id}" onclick="viewDiff('${slug}', '${s.id}')">
+            <i class="fas fa-history" style="margin-right: 0.35rem; color: #818cf8;"></i> ${s.timestamp}
+            ${s.is_latest || idx === 0 ? '<span style="font-size:0.65rem; background:rgba(99,102,241,0.25); color:#a5b4fc; padding:1px 5px; border-radius:4px; margin-left:4px;">Latest Baseline</span>' : ''}
         </div>
-    `).join('') || '<p>No snapshots yet.</p>';
+    `).join('');
+
+    if (autoSelectLatest && snapshots.length > 0) {
+        const target = snapshots[0];
+        viewDiff(slug, target.id);
+    }
 }
 
 async function viewDiff(slug, snapshotId) {
+    document.querySelectorAll('.snapshot-item').forEach(el => el.classList.remove('active'));
+    const activeEl = document.getElementById(`snap-${snapshotId}`);
+    if (activeEl) activeEl.classList.add('active');
+
     const res = await apiFetch(`/api/projects/${slug}/diff/${snapshotId}`);
     const data = await res.json();
     const viewer = document.getElementById('diff-viewer');
-    const coloredDiff = data.diff.split('\n').map(line => {
-        if (line.startsWith('+')) return `<span style="color:#4ade80">${line}</span>`;
-        if (line.startsWith('-')) return `<span style="color:#f87171">${line}</span>`;
-        if (line.startsWith('@@')) return `<span style="color:#60a5fa">${line}</span>`;
-        return line;
-    }).join('\n');
-    viewer.innerHTML = `<pre style="white-space:pre-wrap"><code>${coloredDiff}</code></pre>`;
+    const coloredDiff = (data.diff || 'No differences detected.').split('\n').map(line => {
+        if (line.startsWith('+') && !line.startsWith('+++')) return `<span style="color:#4ade80; display:block;">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+        if (line.startsWith('-') && !line.startsWith('---')) return `<span style="color:#f87171; display:block;">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+        if (line.startsWith('@@')) return `<span style="color:#60a5fa; display:block; font-weight:600;">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+        return `<span style="display:block;">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+    }).join('');
+    viewer.innerHTML = `<pre style="white-space:pre-wrap; font-family:'JetBrains Mono',monospace; font-size:0.82rem; line-height:1.5;"><code>${coloredDiff}</code></pre>`;
+}
+
+async function submitEvolveWorkspace() {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return showToast("No active workspace selected.", "error");
+
+    const promptInput = document.getElementById('evolve-prompt-input');
+    const prompt = promptInput?.value?.trim();
+    if (!prompt) return showToast("Please enter follow-up evolution requirements.", "error");
+
+    const apply = document.getElementById('evolve-live-apply')?.checked || false;
+    const engine = document.getElementById('evolve-engine-select')?.value || 'terraform';
+    const btn = document.getElementById('btn-submit-evolve');
+    const pill = document.getElementById('evolve-status-pill');
+
+    const credentials = {
+        AWS_ACCESS_KEY_ID: document.getElementById('aws-key')?.value || '',
+        AWS_SECRET_ACCESS_KEY: document.getElementById('aws-secret')?.value || '',
+        AWS_DEFAULT_REGION: document.getElementById('aws-region')?.value || '',
+        ARM_CLIENT_ID: document.getElementById('az-client-id')?.value || '',
+        ARM_CLIENT_SECRET: document.getElementById('az-client-secret')?.value || '',
+        ARM_SUBSCRIPTION_ID: document.getElementById('az-subscription-id')?.value || '',
+        ARM_TENANT_ID: document.getElementById('az-tenant-id')?.value || '',
+        GOOGLE_CREDENTIALS: document.getElementById('gcp-json')?.value || ''
+    };
+
+    const ai_config = {
+        provider: document.getElementById('ai-provider')?.value || '',
+        model: document.getElementById('ai-model')?.value || '',
+        key: document.getElementById('ai-key')?.value || ''
+    };
+
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Evolving...`;
+    if (pill) pill.style.display = 'inline-flex';
+
+    showToast(`🚀 Evolution started for workspace: ${slug}`, "info");
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/evolve`, {
+            method: 'POST',
+            body: JSON.stringify({ prompt, apply, engine, credentials, ai_config })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Failed to start evolution");
+        }
+
+        const data = await res.json();
+        showToast(`⚡ Evolution running. Baseline snapshot: ${data.pre_snapshot || 'saved'}`, "success");
+
+        if (promptInput) promptInput.value = '';
+
+        if (document.getElementById('live-console-modal')) {
+            document.getElementById('live-console-modal').style.display = 'flex';
+            const consoleElem = document.getElementById('live-console');
+            if (consoleElem) consoleElem.innerText = `🚀 Evolving workspace '${slug}'...\nBaseline snapshot archived: ${data.pre_snapshot || 'N/A'}\n`;
+        }
+
+        let pollCount = 0;
+        const interval = setInterval(async () => {
+            pollCount++;
+            try {
+                const statusRes = await apiFetch(`/api/runs/status`);
+                if (statusRes.ok) {
+                    const statusData = await statusRes.json();
+
+                    // Stream active evolution logs to the live console
+                    const consoleElem = document.getElementById('live-console');
+                    if (consoleElem && statusData.logs) {
+                        consoleElem.innerText = statusData.logs;
+                        consoleElem.scrollTop = consoleElem.scrollHeight;
+                    }
+
+                    if (!statusData.running || pollCount > 80) {
+                        clearInterval(interval);
+                        btn.disabled = false;
+                        btn.innerHTML = `<i class="fas fa-bolt"></i> ⚡ Evolve Workspace`;
+                        if (pill) pill.style.display = 'none';
+
+                        showToast(`✅ Workspace '${slug}' evolution completed!`, "success");
+                        await loadSnapshots(slug, true);
+                        const codeRes = await apiFetch(`/api/projects/${slug}/code`);
+                        if (codeRes.ok) {
+                            currentCodeFiles = await codeRes.json();
+                            renderFileTabs(currentCodeFiles);
+                        }
+                        await fetchProjects();
+                    }
+                }
+            } catch (pollErr) {
+                console.error("Polling error:", pollErr);
+            }
+        }, 1500);
+
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fas fa-bolt"></i> ⚡ Evolve Workspace`;
+        if (pill) pill.style.display = 'none';
+        showToast(e.message, "error");
+    }
 }
 
 // ─── Credential Tabs ────────────────────────────────────────────
@@ -1192,6 +1308,242 @@ async function mergeAndDeployProject() {
         await fetchProjects();
     } catch (e) {
         showToast(e.message, 'error');
+    }
+}
+
+// ─── Post-Provisioning Live Deploy Handlers ───────────────────────
+let activeDeployData = null;
+let activeDeployProvider = 'aws';
+let activeDeployLogType = 'apply';
+
+async function loadDeploymentTab(slug) {
+    const provisionView = document.getElementById('deploy-provision-view');
+    const activeView = document.getElementById('deploy-active-view');
+    const statusEl = document.getElementById('deploy-action-status');
+    const terminalEl = document.getElementById('deploy-terminal-output');
+
+    if (statusEl) statusEl.innerText = 'Loading deployment status...';
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/deployment-status`);
+        const data = res.ok ? await res.json() : {};
+        activeDeployData = data;
+
+        const isDeployed = data.is_deployed || (currentProject && currentProject.status === 'deployed');
+        if (isDeployed) {
+            if (provisionView) provisionView.style.display = 'none';
+            if (activeView) activeView.style.display = 'flex';
+
+            const providerEl = document.getElementById('deploy-active-provider');
+            const timeEl = document.getElementById('deploy-active-time');
+            const byEl = document.getElementById('deploy-active-by');
+            const badgeEl = document.getElementById('deploy-status-badge');
+
+            if (providerEl) providerEl.innerText = (data.detected_provider || 'aws').toUpperCase();
+            if (timeEl) timeEl.innerText = data.deployed_at ? new Date(data.deployed_at).toLocaleString() : 'Active (Earlier Run)';
+            if (byEl) byEl.innerText = data.deployed_by || (currentUser ? currentUser.username : 'Admin');
+            if (badgeEl) {
+                badgeEl.innerText = 'Live Deployed';
+                badgeEl.className = 'status-badge status-deployed';
+            }
+
+            activeDeployLogType = 'apply';
+            await loadDeployLog(slug, 'apply');
+        } else {
+            if (activeView) activeView.style.display = 'none';
+            if (provisionView) provisionView.style.display = 'block';
+
+            // Auto-select tab matching detected provider
+            const detected = data.detected_provider || 'aws';
+            switchDeployCredTab(detected);
+
+            // Pre-fill engine dropdown
+            const engineSelect = document.getElementById('deploy-engine');
+            if (engineSelect && currentProject && currentProject.engine) {
+                engineSelect.value = currentProject.engine;
+            }
+
+            activeDeployLogType = 'plan';
+            await loadDeployLog(slug, 'plan');
+        }
+
+        if (statusEl) statusEl.innerText = '';
+    } catch (e) {
+        console.error("Failed to load deployment status:", e);
+        if (statusEl) statusEl.innerText = '';
+    }
+}
+
+function switchDeployCredTab(provider) {
+    activeDeployProvider = provider;
+    ['aws', 'azure', 'gcp', 'local'].forEach(p => {
+        const panel = document.getElementById(`deploy-cred-${p}`);
+        const btn = document.getElementById(`btn-deploy-tab-${p}`);
+        if (panel) panel.style.display = (p === provider) ? (p === 'gcp' ? 'block' : p === 'local' ? 'block' : 'grid') : 'none';
+        if (btn) btn.classList.toggle('active', p === provider);
+    });
+}
+
+async function switchDeployLogType(type) {
+    activeDeployLogType = type;
+    ['apply', 'plan', 'destroy'].forEach(t => {
+        const btn = document.getElementById(`btn-log-${t}`);
+        if (btn) btn.classList.toggle('active', t === type);
+    });
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (slug) {
+        await loadDeployLog(slug, type);
+    }
+}
+
+async function loadDeployLog(slug, logType) {
+    const terminalEl = document.getElementById('deploy-terminal-output');
+    if (!terminalEl) return;
+    try {
+        const engine = document.getElementById('deploy-engine')?.value || (currentProject && currentProject.engine) || 'terraform';
+        const res = await apiFetch(`/api/projects/${slug}/logs/${engine}_${logType}`);
+        const data = await res.json();
+        if (data && data.content && data.content !== "No logs available.") {
+            terminalEl.innerText = data.content;
+        } else {
+            // Fallback to generic log_type
+            const altRes = await apiFetch(`/api/projects/${slug}/logs/terraform_${logType}`);
+            const altData = await altRes.json();
+            terminalEl.innerText = altData.content || `No ${logType} logs available for this workspace.`;
+        }
+    } catch (e) {
+        terminalEl.innerText = `No ${logType} logs recorded yet.`;
+    }
+}
+
+function copyDeployLog() {
+    const terminalEl = document.getElementById('deploy-terminal-output');
+    if (terminalEl && terminalEl.innerText) {
+        navigator.clipboard.writeText(terminalEl.innerText).then(() => {
+            showToast("Log copied to clipboard!", "success");
+        }).catch(() => {
+            showToast("Failed to copy log", "error");
+        });
+    }
+}
+
+async function submitLiveDeploy(action) {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return showToast("No active project slug found", "error");
+
+    const planBtn = document.getElementById('btn-deploy-plan');
+    const applyBtn = document.getElementById('btn-deploy-apply');
+    const statusEl = document.getElementById('deploy-action-status');
+    const terminalEl = document.getElementById('deploy-terminal-output');
+    const engine = document.getElementById('deploy-engine')?.value || 'terraform';
+
+    // Collect credentials based on active tab
+    const credentials = {};
+    if (activeDeployProvider === 'aws') {
+        const key = document.getElementById('deploy-aws-key')?.value.trim();
+        const secret = document.getElementById('deploy-aws-secret')?.value.trim();
+        const region = document.getElementById('deploy-aws-region')?.value.trim() || 'us-east-1';
+        if (key) credentials.AWS_ACCESS_KEY_ID = key;
+        if (secret) credentials.AWS_SECRET_ACCESS_KEY = secret;
+        if (region) credentials.AWS_DEFAULT_REGION = region;
+    } else if (activeDeployProvider === 'azure') {
+        const clientId = document.getElementById('deploy-az-client-id')?.value.trim();
+        const clientSec = document.getElementById('deploy-az-client-secret')?.value.trim();
+        const tenantId = document.getElementById('deploy-az-tenant-id')?.value.trim();
+        const subId = document.getElementById('deploy-az-subscription-id')?.value.trim();
+        if (clientId) credentials.ARM_CLIENT_ID = clientId;
+        if (clientSec) credentials.ARM_CLIENT_SECRET = clientSec;
+        if (tenantId) credentials.ARM_TENANT_ID = tenantId;
+        if (subId) credentials.ARM_SUBSCRIPTION_ID = subId;
+    } else if (activeDeployProvider === 'gcp') {
+        const gcpJson = document.getElementById('deploy-gcp-json')?.value.trim();
+        if (gcpJson) credentials.GOOGLE_CREDENTIALS = gcpJson;
+    }
+
+    const actionTitle = action === 'apply' ? 'Deployment (terraform apply)' : 'Plan (terraform plan)';
+    if (planBtn) planBtn.disabled = true;
+    if (applyBtn) applyBtn.disabled = true;
+    if (statusEl) statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Executing ${actionTitle}...`;
+    if (terminalEl) terminalEl.innerText = `⏳ Initializing ${engine} and running ${action} on workspace '${slug}'...\nPlease wait, this may take a few moments.\n`;
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/deploy`, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: action,
+                engine: engine,
+                credentials: credentials
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Execution failed with status ${res.status}`);
+
+        const stdout = data.stdout || '';
+        const stderr = data.stderr || '';
+        const combined = `=== Execution Result (${engine} ${action}) ===\nExit Code: ${data.exit_code}\n\nSTDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`;
+        if (terminalEl) terminalEl.innerText = combined;
+
+        if (data.success) {
+            showToast(`${action === 'apply' ? '🚀 Infrastructure successfully deployed!' : '✅ Plan generated successfully!'}`, 'success');
+            if (statusEl) statusEl.innerText = `Completed successfully (Exit Code: 0)`;
+            if (action === 'apply') {
+                await loadDeploymentTab(slug);
+                await fetchProjects();
+            }
+        } else {
+            showToast(`${actionTitle} failed. Inspect terminal output.`, 'error');
+            if (statusEl) statusEl.innerText = `Failed (Exit Code: ${data.exit_code})`;
+        }
+    } catch (err) {
+        showToast(err.message, 'error');
+        if (statusEl) statusEl.innerText = `Error: ${err.message}`;
+        if (terminalEl) terminalEl.innerText += `\n❌ Error: ${err.message}`;
+    } finally {
+        if (planBtn) planBtn.disabled = false;
+        if (applyBtn) applyBtn.disabled = false;
+    }
+}
+
+async function submitLiveDestroy() {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return showToast("No active project slug found", "error");
+
+    if (!confirm(`⚠️ ARE YOU SURE?\n\nThis will permanently destroy and remove all cloud resources managed by workspace "${slug}".\n\nThis action CANNOT be undone.`)) {
+        return;
+    }
+
+    const statusEl = document.getElementById('deploy-action-status');
+    const terminalEl = document.getElementById('deploy-terminal-output');
+    const engine = (currentProject && currentProject.engine) || 'terraform';
+
+    if (statusEl) statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Destroying infrastructure...`;
+    if (terminalEl) terminalEl.innerText = `🧹 Executing ${engine} destroy on workspace '${slug}'...\n`;
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/destroy`, {
+            method: 'POST',
+            body: JSON.stringify({ engine: engine })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Destroy failed with status ${res.status}`);
+
+        const stdout = data.stdout || '';
+        const stderr = data.stderr || '';
+        if (terminalEl) terminalEl.innerText = `=== Destroy Result (${engine}) ===\nExit Code: ${data.exit_code}\n\nSTDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`;
+
+        if (data.success) {
+            showToast("Infrastructure successfully destroyed.", "success");
+            if (statusEl) statusEl.innerText = "Destroyed";
+            await loadDeploymentTab(slug);
+            await fetchProjects();
+        } else {
+            showToast("Destroy command returned errors. Check output.", "error");
+            if (statusEl) statusEl.innerText = `Destroy failed (Exit Code: ${data.exit_code})`;
+        }
+    } catch (err) {
+        showToast(err.message, 'error');
+        if (statusEl) statusEl.innerText = `Error: ${err.message}`;
+        if (terminalEl) terminalEl.innerText += `\n❌ Error: ${err.message}`;
     }
 }
 

@@ -22,10 +22,64 @@ class GitOpsTools:
             return {"owner": match.group("owner"), "repo": match.group("repo")}
         return None
 
+    DEFAULT_GITIGNORE = """# Local .terraform directories and caches
+.terraform/
+.terraform.lock.hcl
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Sensitive variables and auto files
+*.tfvars
+*.tfvars.json
+!*.example.tfvars
+!*.example.tfvars.json
+
+# Local override files (e.g. local emulators / Floci)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI and deployment logs
+logs/
+*.log
+
+# Internal agent backups
+backups/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+"""
+
+    @staticmethod
+    def ensure_gitignore(project_dir: str) -> None:
+        """Ensure standard Terraform .gitignore exists in the project directory."""
+        if not os.path.exists(project_dir):
+            try:
+                os.makedirs(project_dir, exist_ok=True)
+            except Exception:
+                pass
+        gitignore_path = os.path.join(project_dir, ".gitignore")
+        if not os.path.exists(gitignore_path):
+            try:
+                with open(gitignore_path, "w", encoding="utf-8") as f:
+                    f.write(GitOpsTools.DEFAULT_GITIGNORE.strip() + "\n")
+            except Exception:
+                pass
+
     @staticmethod
     def init_git_repo(project_dir: str) -> Dict[str, Any]:
         """Initialize a git repository in the project directory if not already initialized."""
         try:
+            GitOpsTools.ensure_gitignore(project_dir)
             git_dir = os.path.join(project_dir, ".git")
             if not os.path.exists(git_dir):
                 subprocess.run(["git", "init"], cwd=project_dir, capture_output=True, text=True, check=True)
@@ -79,6 +133,10 @@ class GitOpsTools:
             remote_target = f"https://x-access-token:{token}@{clean_url}"
 
         try:
+            GitOpsTools.init_git_repo(project_dir)
+            if not os.path.exists(os.path.join(project_dir, ".git")):
+                return {"success": False, "error": f"Could not initialize git in {project_dir}"}
+
             # Configure or update origin remote
             subprocess.run(["git", "remote", "remove", "origin"], cwd=project_dir, capture_output=True, text=True)
             subprocess.run(["git", "remote", "add", "origin", remote_target], cwd=project_dir, capture_output=True, text=True, check=True)
@@ -219,7 +277,29 @@ class GitOpsTools:
                     "base": target_branch
                 }
             else:
-                err_detail = resp.json().get("message", resp.text)
+                try:
+                    err_json = resp.json()
+                    err_detail = err_json.get("message", resp.text)
+                    errors = err_json.get("errors")
+                    if errors and isinstance(errors, list):
+                        details = []
+                        for item in errors:
+                            if isinstance(item, dict):
+                                msg = item.get("message")
+                                field = item.get("field")
+                                code = item.get("code")
+                                if msg:
+                                    details.append(f"'{field}': {msg}" if field else msg)
+                                elif field and code:
+                                    details.append(f"'{field}' is {code} (target branch may not exist)")
+                                else:
+                                    details.append(code or str(item))
+                            else:
+                                details.append(str(item))
+                        if details:
+                            err_detail = f"{err_detail}: {'; '.join(details)}"
+                except Exception:
+                    err_detail = resp.text
                 return {"success": False, "error": f"GitHub API error ({resp.status_code}): {err_detail}"}
         except Exception as e:
             return {"success": False, "error": f"Failed to call GitHub API: {str(e)}"}
