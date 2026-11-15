@@ -96,12 +96,48 @@ async function fetchStats() {
         const stats = await response.json();
         const container = document.getElementById('global-stats');
         container.innerHTML = `
-            <div class="stat-card"><span class="stat-label">Total Projects</span><span class="stat-value">${stats.total_projects}</span></div>
-            <div class="stat-card"><span class="stat-label">Live Deployments</span><span class="stat-value">${stats.active_deployments}</span></div>
-            <div class="stat-card"><span class="stat-label">Monthly Cloud Spend</span><span class="stat-value">$${stats.total_monthly_cost}</span></div>
-            <div class="stat-card"><span class="stat-label">Security Risks</span><span class="stat-value">${stats.total_security_issues}</span></div>
-            <div class="stat-card"><span class="stat-label">Self-Healed Runs</span><span class="stat-value" style="color: var(--accent-orange);">${stats.total_healed_runs || 0}</span></div>
-            <div class="stat-card"><span class="stat-label">Avg Runtime</span><span class="stat-value" style="color: var(--accent-blue);">${stats.avg_generation_time || 0}s</span></div>
+            <div class="stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="stat-label">Total Projects</span>
+                    <i class="fas fa-cubes" style="color: #818cf8; font-size: 0.85rem; opacity: 0.8;"></i>
+                </div>
+                <span class="stat-value">${stats.total_projects}</span>
+            </div>
+            <div class="stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="stat-label">Live Deployments</span>
+                    <i class="fas fa-cloud" style="color: #34d399; font-size: 0.85rem; opacity: 0.8;"></i>
+                </div>
+                <span class="stat-value">${stats.active_deployments}</span>
+            </div>
+            <div class="stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="stat-label">Monthly Cloud Spend</span>
+                    <i class="fas fa-wallet" style="color: #38bdf8; font-size: 0.85rem; opacity: 0.8;"></i>
+                </div>
+                <span class="stat-value">$${stats.total_monthly_cost}</span>
+            </div>
+            <div class="stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="stat-label">Security Risks</span>
+                    <i class="fas fa-shield-virus" style="color: #f87171; font-size: 0.85rem; opacity: 0.8;"></i>
+                </div>
+                <span class="stat-value">${stats.total_security_issues}</span>
+            </div>
+            <div class="stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="stat-label">Self-Healed Runs</span>
+                    <i class="fas fa-wand-magic-sparkles" style="color: #fbbf24; font-size: 0.85rem; opacity: 0.8;"></i>
+                </div>
+                <span class="stat-value" style="color: var(--accent-orange);">${stats.total_healed_runs || 0}</span>
+            </div>
+            <div class="stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="stat-label">Avg Runtime</span>
+                    <i class="fas fa-stopwatch" style="color: #a78bfa; font-size: 0.85rem; opacity: 0.8;"></i>
+                </div>
+                <span class="stat-value" style="color: var(--accent-blue);">${stats.avg_generation_time || 0}s</span>
+            </div>
         `;
     } catch (e) { console.error("Stats fetch error", e); }
 }
@@ -164,15 +200,29 @@ function renderProjects(projects) {
     }).join('');
 }
 
-// ─── Search & Filter ────────────────────────────────────────────
+// ─── Search, Filter & Sort ──────────────────────────────────────
 function filterProjects() {
-    const query = (document.getElementById('search-input').value || '').toLowerCase();
-    const status = document.getElementById('status-filter').value;
-    const filtered = allProjects.filter(p => {
+    const query = (document.getElementById('search-input')?.value || '').toLowerCase();
+    const status = document.getElementById('status-filter')?.value || 'all';
+    const engine = document.getElementById('engine-filter')?.value || 'all';
+    const sortBy = document.getElementById('sort-filter')?.value || 'latest';
+
+    let filtered = allProjects.filter(p => {
         const matchesSearch = !query || p.slug.toLowerCase().includes(query) || (p.prompt || '').toLowerCase().includes(query);
         const matchesStatus = status === 'all' || p.status === status;
-        return matchesSearch && matchesStatus;
+        const pEngine = p.engine || 'terraform';
+        const matchesEngine = engine === 'all' || pEngine === engine;
+        return matchesSearch && matchesStatus && matchesEngine;
     });
+
+    if (sortBy === 'cost-desc') {
+        filtered.sort((a, b) => (parseFloat(b.estimated_cost) || 0) - (parseFloat(a.estimated_cost) || 0));
+    } else if (sortBy === 'cost-asc') {
+        filtered.sort((a, b) => (parseFloat(a.estimated_cost) || 0) - (parseFloat(b.estimated_cost) || 0));
+    } else if (sortBy === 'name') {
+        filtered.sort((a, b) => a.slug.localeCompare(b.slug));
+    }
+
     renderProjects(filtered);
 }
 
@@ -578,6 +628,8 @@ function renderAdrTimeline(project) {
 }
 
 // ─── File Tabs (Code Viewer) ────────────────────────────────────
+let currentActiveFileName = '';
+
 function renderFileTabs(files) {
     const tabsContainer = document.getElementById('file-tabs');
     const codeContainer = document.getElementById('modal-tab-code-content');
@@ -585,6 +637,7 @@ function renderFileTabs(files) {
 
     if (fileNames.length === 0) {
         tabsContainer.innerHTML = '';
+        currentActiveFileName = '';
         codeContainer.innerHTML = '<p class="empty-state">No Terraform files found.</p>';
         return;
     }
@@ -603,10 +656,54 @@ function showFile(fileName, btnEl) {
 }
 
 function showFileContent(fileName) {
+    currentActiveFileName = fileName;
     const content = currentCodeFiles[fileName] || '';
     const escaped = content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     document.getElementById('modal-tab-code-content').innerHTML =
-        `<pre style="background:#000; padding:1rem; border-radius:4px; font-size:0.8rem"><code>${escaped}</code></pre>`;
+        `<pre style="background:#000; padding:1rem; border-radius:4px; font-size:0.8rem; line-height: 1.55; overflow-x: auto;"><code>${escaped}</code></pre>`;
+}
+
+function copyCurrentCodeFile() {
+    if (!currentActiveFileName || !currentCodeFiles || !currentCodeFiles[currentActiveFileName]) {
+        return showToast("No active code file selected", "error");
+    }
+    const content = currentCodeFiles[currentActiveFileName];
+    navigator.clipboard.writeText(content).then(() => {
+        showToast(`Copied ${currentActiveFileName} to clipboard!`, "success");
+    }).catch(err => {
+        showToast("Failed to copy code: " + err, "error");
+    });
+}
+
+function downloadCurrentCodeFile() {
+    if (!currentActiveFileName || !currentCodeFiles || !currentCodeFiles[currentActiveFileName]) {
+        return showToast("No active code file selected", "error");
+    }
+    const content = currentCodeFiles[currentActiveFileName];
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    const safeName = currentActiveFileName.replace(/\//g, '_');
+    a.download = safeName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+    showToast(`Downloaded ${safeName}`, "success");
+}
+
+function downloadWorkspaceZip() {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return showToast("No active workspace selected", "error");
+    showToast(`Exporting .zip archive for ${slug}...`, "info");
+    const downloadUrl = `/api/projects/${slug}/export/zip`;
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `${slug}-infrastructure.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 }
 
 // ─── Snapshots / Evolution ──────────────────────────────────────
@@ -640,13 +737,36 @@ async function viewDiff(slug, snapshotId) {
     const res = await apiFetch(`/api/projects/${slug}/diff/${snapshotId}`);
     const data = await res.json();
     const viewer = document.getElementById('diff-viewer');
-    const coloredDiff = (data.diff || 'No differences detected.').split('\n').map(line => {
-        if (line.startsWith('+') && !line.startsWith('+++')) return `<span style="color:#4ade80; display:block;">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
-        if (line.startsWith('-') && !line.startsWith('---')) return `<span style="color:#f87171; display:block;">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
-        if (line.startsWith('@@')) return `<span style="color:#60a5fa; display:block; font-weight:600;">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
-        return `<span style="display:block;">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+    const rawDiff = data.diff || '';
+    if (!rawDiff.trim() || rawDiff.includes('No differences detected.')) {
+        viewer.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem; color: #94a3b8;">
+                <i class="fas fa-check-circle" style="font-size: 2rem; color: #10b981; margin-bottom: 0.5rem; display: block;"></i>
+                <div style="font-weight: 600; color: #fff;">In Sync with Baseline</div>
+                <p style="font-size: 0.85rem; margin-top: 0.25rem;">No modifications detected between current code and this snapshot.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const coloredDiff = rawDiff.split('\n').map(line => {
+        const safe = line.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff --git')) {
+            return `<div style="background: rgba(255, 255, 255, 0.05); color: #e2e8f0; font-weight: 700; padding: 3px 8px; font-family: monospace;">${safe}</div>`;
+        }
+        if (line.startsWith('+')) {
+            return `<div style="background: rgba(34, 197, 94, 0.12); color: #4ade80; border-left: 3px solid #22c55e; padding: 1px 8px; font-weight: 500;">${safe}</div>`;
+        }
+        if (line.startsWith('-')) {
+            return `<div style="background: rgba(239, 68, 68, 0.12); color: #f87171; border-left: 3px solid #ef4444; padding: 1px 8px; font-weight: 500;">${safe}</div>`;
+        }
+        if (line.startsWith('@@')) {
+            return `<div style="background: rgba(99, 102, 241, 0.15); color: #818cf8; font-weight: 600; padding: 3px 8px; margin: 4px 0; border-radius: 4px;">${safe}</div>`;
+        }
+        return `<div style="color: #94a3b8; padding: 1px 8px;">${safe}</div>`;
     }).join('');
-    viewer.innerHTML = `<pre style="white-space:pre-wrap; font-family:'JetBrains Mono',monospace; font-size:0.82rem; line-height:1.5;"><code>${coloredDiff}</code></pre>`;
+
+    viewer.innerHTML = `<pre style="white-space: pre-wrap; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.55; margin: 0; background: #0b1120; border-radius: 6px; padding: 0.75rem; border: 1px solid rgba(255,255,255,0.06);"><code>${coloredDiff}</code></pre>`;
 }
 
 async function submitEvolveWorkspace() {
@@ -673,10 +793,15 @@ async function submitEvolveWorkspace() {
         GOOGLE_CREDENTIALS: document.getElementById('gcp-json')?.value || ''
     };
 
+    const selectedModel = document.getElementById('infra-model')?.value || 'gemini/gemini-2.0-flash';
+    let provider = 'gemini';
+    if (selectedModel.includes('/')) {
+        provider = selectedModel.split('/')[0];
+    }
     const ai_config = {
-        provider: document.getElementById('ai-provider')?.value || '',
-        model: document.getElementById('ai-model')?.value || '',
-        key: document.getElementById('ai-key')?.value || ''
+        provider: provider,
+        model: selectedModel,
+        key: ''
     };
 
     btn.disabled = true;
@@ -751,13 +876,55 @@ async function submitEvolveWorkspace() {
     }
 }
 
+// ─── Quick Prompt Starters ──────────────────────────────────────
+function insertPromptTemplate(type) {
+    const promptInput = document.getElementById('infra-prompt');
+    const engineSelect = document.getElementById('infra-engine');
+    if (!promptInput) return;
+
+    const templates = {
+        's3_vault': {
+            text: 'Deploy an AWS S3 Glacier Vault with strict server-side encryption (AES-256), bucket versioning enabled, automatic lifecycle transition to Glacier Flexible Retrieval after 30 days, and complete public access block complying with CIS AWS Foundations Benchmark.',
+            engine: 'terraform'
+        },
+        'vpc_ha': {
+            text: 'Create a high-availability AWS Virtual Private Cloud (VPC) spanning 2 Availability Zones with public and private subnets, redundant NAT Gateways, Internet Gateway, and fine-grained Network ACLs and Route Tables.',
+            engine: 'terraform'
+        },
+        'eks_cluster': {
+            text: 'Provision a production-ready AWS EKS Kubernetes Cluster with an IAM OIDC provider, managed node group with auto-scaling (t3.medium instances), and dedicated security groups enforcing least-privilege egress/ingress.',
+            engine: 'terraform'
+        },
+        'opentofu_web': {
+            text: 'Deploy a multi-tier secure web application architecture using OpenTofu: an Application Load Balancer (ALB), Auto Scaling Group of web servers across 2 subnets, and an isolated PostgreSQL RDS database instance in private subnets.',
+            engine: 'opentofu'
+        },
+        'serverless_api': {
+            text: 'Build a serverless REST API backend using AWS API Gateway (HTTP API v2), an AWS Lambda Python runtime microservice with IAM execution role, and an Amazon DynamoDB table with on-demand capacity and point-in-time recovery.',
+            engine: 'terraform'
+        }
+    };
+
+    const chosen = templates[type];
+    if (chosen) {
+        promptInput.value = chosen.text;
+        if (engineSelect && chosen.engine) {
+            engineSelect.value = chosen.engine;
+        }
+        promptInput.focus();
+        showToast("Architecture template loaded into prompt!", "info");
+    }
+}
+
 // ─── Credential Tabs ────────────────────────────────────────────
 function switchCredTab(provider) {
     document.querySelectorAll('[id^="cred-panel-"]').forEach(p => p.style.display = 'none');
-    document.getElementById(`cred-panel-${provider}`).style.display = (provider === 'gcp') ? 'block' : 'grid';
-    // Only toggle sibling buttons
-    event.target.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    event.target.classList.add('active');
+    const panel = document.getElementById(`cred-panel-${provider}`);
+    if (panel) panel.style.display = (provider === 'gcp') ? 'block' : 'grid';
+    if (event?.target?.parentElement) {
+        event.target.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+    }
 }
 
 // ─── Refresh ────────────────────────────────────────────────────
@@ -770,7 +937,7 @@ async function refreshData() {
 
 // ─── GitOps Section Toggle ──────────────────────────────────────
 function toggleGitOpsSection() {
-    const isGitOps = document.getElementById('infra-gitops').checked;
+    const isGitOps = document.getElementById('infra-gitops')?.checked || false;
     const details = document.getElementById('gitops-section');
     if (details) {
         details.open = isGitOps;
@@ -779,43 +946,55 @@ function toggleGitOpsSection() {
 
 // ─── Generate Infrastructure ────────────────────────────────────
 async function generateInfra() {
-    const prompt = document.getElementById('infra-prompt').value;
-    const budget = document.getElementById('infra-budget').value;
-    const apply = document.getElementById('infra-apply').checked;
-    const new_project = document.getElementById('infra-new-project').checked;
-    const gitops = document.getElementById('infra-gitops').checked;
-    const git_repo = document.getElementById('gitops-repo').value.trim();
-    const target_branch = document.getElementById('gitops-branch').value.trim() || 'main';
-    const git_token = document.getElementById('gitops-token').value.trim();
+    const promptInput = document.getElementById('infra-prompt');
+    const prompt = promptInput ? promptInput.value.trim() : '';
+    const budget = document.getElementById('infra-budget')?.value || 100;
     const engine = document.getElementById('infra-engine')?.value || 'terraform';
+    const selectedModel = document.getElementById('infra-model')?.value || 'gemini/gemini-2.0-flash';
     const genBtn = document.getElementById('btn-generate');
 
     if (!prompt) return showToast("Please enter an infrastructure requirement.", "error");
 
-    const credentials = {
-        AWS_ACCESS_KEY_ID: document.getElementById('aws-key').value,
-        AWS_SECRET_ACCESS_KEY: document.getElementById('aws-secret').value,
-        AWS_DEFAULT_REGION: document.getElementById('aws-region').value,
-        ARM_CLIENT_ID: document.getElementById('az-client-id').value,
-        ARM_CLIENT_SECRET: document.getElementById('az-client-secret').value,
-        ARM_SUBSCRIPTION_ID: document.getElementById('az-subscription-id').value,
-        ARM_TENANT_ID: document.getElementById('az-tenant-id').value,
-        GOOGLE_CREDENTIALS: document.getElementById('gcp-json').value
-    };
+    const apply = document.getElementById('infra-apply')?.checked || false;
+    const new_project = document.getElementById('infra-new-project')?.checked ?? true;
+    const gitops = document.getElementById('infra-gitops')?.checked || false;
+    const git_repo = document.getElementById('gitops-repo')?.value?.trim() || '';
+    const target_branch = document.getElementById('gitops-branch')?.value?.trim() || 'main';
+    const git_token = document.getElementById('gitops-token')?.value?.trim() || '';
+
+    let provider = 'gemini';
+    if (selectedModel.includes('/')) {
+        provider = selectedModel.split('/')[0];
+    }
 
     const ai_config = {
-        provider: document.getElementById('ai-provider').value,
-        model: document.getElementById('ai-model').value,
-        key: document.getElementById('ai-key').value
+        provider: provider,
+        model: selectedModel,
+        key: ''
     };
 
-    genBtn.disabled = true;
-    genBtn.innerText = "🚀 Starting...";
-    document.getElementById('gen-status').style.display = 'inline-block';
+    const credentials = {
+        AWS_ACCESS_KEY_ID: document.getElementById('aws-key')?.value || '',
+        AWS_SECRET_ACCESS_KEY: document.getElementById('aws-secret')?.value || '',
+        AWS_DEFAULT_REGION: document.getElementById('aws-region')?.value || '',
+        ARM_CLIENT_ID: document.getElementById('az-client-id')?.value || '',
+        ARM_CLIENT_SECRET: document.getElementById('az-client-secret')?.value || '',
+        ARM_SUBSCRIPTION_ID: document.getElementById('az-subscription-id')?.value || '',
+        ARM_TENANT_ID: document.getElementById('az-tenant-id')?.value || '',
+        GOOGLE_CREDENTIALS: document.getElementById('gcp-json')?.value || ''
+    };
 
-    document.getElementById('live-console-modal').style.display = 'flex';
+    if (genBtn) {
+        genBtn.disabled = true;
+        genBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span>Synthesizing...</span>`;
+    }
+    const genStatus = document.getElementById('gen-status');
+    if (genStatus) genStatus.style.display = 'inline-block';
+
+    const liveModal = document.getElementById('live-console-modal');
+    if (liveModal) liveModal.style.display = 'flex';
     const consoleElem = document.getElementById('live-console');
-    consoleElem.innerText = "🚀 Connecting to Agent Engine...\n";
+    if (consoleElem) consoleElem.innerText = `🚀 Connecting to Multi-Agent Orchestrator...\nTarget Model: ${selectedModel}\nEngine: ${engine.toUpperCase()}\n\n`;
 
     try {
         const controller = new AbortController();
@@ -842,7 +1021,7 @@ async function generateInfra() {
             }
             throw new Error(msg);
         }
-        showToast("Generation started! Watch the live stream.", "info");
+        showToast("Multi-Agent synthesis started! Streaming live orchestration...", "info");
         startPollingLogs();
     } catch (e) {
         let errorMsg = e.message;
@@ -851,10 +1030,12 @@ async function generateInfra() {
         } else if (errorMsg === 'Failed to fetch') {
             errorMsg = "Could not connect to server. Check if the dashboard is running on port 5000.";
         }
-        consoleElem.innerText += "\n❌ Error: " + errorMsg;
-        genBtn.disabled = false;
-        genBtn.innerText = "Generate";
-        document.getElementById('gen-status').style.display = 'none';
+        if (consoleElem) consoleElem.innerText += "\n❌ Error: " + errorMsg;
+        if (genBtn) {
+            genBtn.disabled = false;
+            genBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> <span>Synthesize Infrastructure</span>`;
+        }
+        if (genStatus) genStatus.style.display = 'none';
         showToast("Failed to start generation: " + errorMsg, "error");
     }
 }
@@ -881,9 +1062,12 @@ function startPollingLogs() {
                 const fullText = consoleElem.innerText;
                 if (fullText.includes('✅ Workflow Finished') || fullText.includes('❌ Workflow Finished') || fullText.includes('❌ Error')) {
                     eventSource.close();
-                    genBtn.disabled = false;
-                    genBtn.innerText = "Generate";
-                    document.getElementById('gen-status').style.display = 'none';
+                    if (genBtn) {
+                        genBtn.disabled = false;
+                        genBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> <span>Synthesize Infrastructure</span>`;
+                    }
+                    const genStat = document.getElementById('gen-status');
+                    if (genStat) genStat.style.display = 'none';
 
                     const isSuccess = fullText.includes('✅ Workflow Finished');
                     setTimeout(() => {
@@ -1834,6 +2018,24 @@ async function loadExecutiveAnalytics() {
             }
         }
 
+        // Dynamic ROI calculation & update
+        const totalWorkspaces = kpis.total_workspaces || 1;
+        const totalHrsSaved = kpis.estimated_engineering_hours_saved || 8;
+        const financialSavings = kpis.estimated_financial_savings_usd || (totalHrsSaved * 120);
+        const traditionalCost = totalWorkspaces * 16 * 120;
+        const aiCost = (totalWorkspaces * 0.12).toFixed(2);
+
+        const manualCostEl = document.getElementById('roi-manual-cost');
+        if (manualCostEl) manualCostEl.innerText = `$${traditionalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+        const aiCostEl = document.getElementById('roi-ai-cost');
+        if (aiCostEl) aiCostEl.innerText = `$${aiCost} (99% saved)`;
+
+        const roiBadgeEl = document.getElementById('analytics-roi-badge');
+        if (roiBadgeEl) {
+            roiBadgeEl.innerHTML = `⚡ $${financialSavings.toLocaleString()} Value Delivered`;
+        }
+
         // Render Failure Taxonomy
         const taxContainer = document.getElementById('analytics-failure-taxonomy');
         const tax = data.failure_taxonomy || {};
@@ -1964,20 +2166,36 @@ async function loadBillingInfo() {
         if (infraSpendEl) infraSpendEl.innerText = `$${consumption.infra_projected_spend_usd || '0.00'}`;
 
         // Recent Workspace Runs (Clean, customer-facing table without backend tokens or platform cost)
+        const projMap = {};
+        if (Array.isArray(allProjects)) {
+            allProjects.forEach(p => { if (p && p.slug) projMap[p.slug] = p; });
+        }
+
         const tbody = document.getElementById('billing-runs-tbody');
         const runs = statement.recent_runs || [];
         if (runs.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #888;">No workspace execution records logged yet for this period.</td></tr>`;
         } else {
-            tbody.innerHTML = runs.map(r => `
+            tbody.innerHTML = runs.map(r => {
+                const proj = projMap[r.project_slug] || {};
+                const isTofu = (proj.engine === 'opentofu');
+                const engineBadge = isTofu 
+                    ? `<span style="font-size: 0.78rem; background: rgba(245, 158, 11, 0.15); color: #fbbf24; padding: 2px 7px; border-radius: 4px; font-weight: 600;">🧅 OpenTofu</span>`
+                    : `<span style="font-size: 0.78rem; background: rgba(168, 85, 247, 0.15); color: #c084fc; padding: 2px 7px; border-radius: 4px; font-weight: 600;">🟣 Terraform</span>`;
+                const statusName = proj.status ? proj.status.toUpperCase() : 'COMPLETED';
+                const statusClass = (proj.status === 'deployed') ? 'status-deployed' : (proj.status === 'failed' ? 'status-failed' : 'status-generating');
+                const estCost = proj.estimated_cost !== undefined ? `$${proj.estimated_cost}/mo` : '$0.00/mo';
+
+                return `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
                     <td style="padding: 0.5rem; color: #888; font-family: monospace;">${r.created_at ? r.created_at.substring(0, 16).replace('T', ' ') : '-'}</td>
                     <td style="padding: 0.5rem; font-family: monospace; color: #a5b4fc; font-weight: 500;">${r.project_slug}</td>
-                    <td style="padding: 0.5rem; color: #cbd5e1;"><span style="font-size: 0.78rem; background: rgba(168, 85, 247, 0.15); color: #c084fc; padding: 2px 7px; border-radius: 4px; font-weight: 600;">🟣 Terraform</span></td>
-                    <td style="padding: 0.5rem;"><span class="status-badge status-deployed" style="font-size: 0.72rem; padding: 2px 7px;">Completed</span></td>
-                    <td style="padding: 0.5rem; color: #38bdf8; font-weight: 500;">$0.00/mo</td>
+                    <td style="padding: 0.5rem; color: #cbd5e1;">${engineBadge}</td>
+                    <td style="padding: 0.5rem;"><span class="status-badge ${statusClass}" style="font-size: 0.72rem; padding: 2px 7px;">${statusName}</span></td>
+                    <td style="padding: 0.5rem; color: #38bdf8; font-weight: 500;">${estCost}</td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
         }
 
         // Admin-Only: Internal Cost & Token Economics (COGS)

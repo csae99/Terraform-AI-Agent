@@ -6,8 +6,127 @@
     <title>OmniInfra AI | Autonomous Platform Engineering Console</title>
     <meta name="description" content="OmniInfra AI — Universal Autonomous Platform Engineering & Cloud Control Plane for Terraform, OpenTofu, and Kubernetes.">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='url(%23g)'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='18' font-weight='bold' fill='white'>O</text><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop stop-color='%236366f1'/><stop offset='1' stop-color='%2338bdf8'/></linearGradient></defs></svg>">
-    <link rel="stylesheet" href="/static/style.css?v=10">
+    <link rel="stylesheet" href="/static/style.css?v=13">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* ─── Copilot UI Direct Injected Styles (Cache-Proof) ─── */
+        .copilot-card {
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
+            border: 1px solid rgba(99, 102, 241, 0.28) !important;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 0 1px 1px rgba(255, 255, 255, 0.05) !important;
+            border-radius: 14px !important;
+            padding: 1.75rem !important;
+            margin-bottom: 2rem !important;
+        }
+        .prompt-chips-container {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.6rem !important;
+            flex-wrap: wrap !important;
+            margin-top: 1rem !important;
+            margin-bottom: 0.85rem !important;
+        }
+        .prompt-chip {
+            background: rgba(255, 255, 255, 0.06) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-radius: 9999px !important;
+            color: #e2e8f0 !important;
+            padding: 0.45rem 0.9rem !important;
+            font-size: 0.82rem !important;
+            font-weight: 500 !important;
+            cursor: pointer !important;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 0.4rem !important;
+            line-height: 1.3 !important;
+        }
+        .prompt-chip:hover {
+            background: rgba(99, 102, 241, 0.2) !important;
+            border-color: rgba(99, 102, 241, 0.5) !important;
+            color: #ffffff !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25) !important;
+        }
+        .copilot-textarea {
+            width: 100% !important;
+            box-sizing: border-box !important;
+            background: rgba(15, 23, 42, 0.95) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-radius: 12px !important;
+            padding: 1.1rem 1.25rem !important;
+            color: #f8fafc !important;
+            font-size: 0.95rem !important;
+            font-family: inherit !important;
+            line-height: 1.6 !important;
+            resize: vertical !important;
+            min-height: 130px !important;
+            transition: all 0.2s ease !important;
+        }
+        .copilot-textarea:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+            background: rgba(15, 23, 42, 1) !important;
+            outline: none !important;
+        }
+        .copilot-controls-bar {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-end !important;
+            gap: 1.25rem !important;
+            flex-wrap: wrap !important;
+            margin-top: 1.25rem !important;
+            padding-top: 1.25rem !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        .control-group {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0.45rem !important;
+        }
+        .copilot-select, .copilot-input {
+            background: #0f172a !important;
+            border: 1px solid rgba(255, 255, 255, 0.16) !important;
+            border-radius: 8px !important;
+            color: #f8fafc !important;
+            padding: 0.6rem 0.85rem !important;
+            font-size: 0.88rem !important;
+            outline: none !important;
+            transition: border-color 0.2s, box-shadow 0.2s !important;
+            box-sizing: border-box !important;
+            height: 40px !important;
+        }
+        .copilot-select:focus, .copilot-input:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25) !important;
+        }
+        .btn-generate-copilot {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 10px !important;
+            padding: 0.65rem 1.6rem !important;
+            font-size: 0.95rem !important;
+            font-weight: 700 !important;
+            cursor: pointer !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 0.6rem !important;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35) !important;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            height: 40px !important;
+        }
+        .btn-generate-copilot:hover:not(:disabled) {
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.55) !important;
+            transform: translateY(-1px) !important;
+        }
+        .btn-generate-copilot:disabled {
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+        }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({ startOnLoad: false, theme: 'dark' });</script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -77,151 +196,115 @@
     <!-- ═══ BUILD TAB ═══ -->
     <div id="view-build" class="primary-view">
         <div class="build-container">
-            <div class="stat-card build-card">
+            <div class="stat-card copilot-card">
+                <!-- Copilot Header -->
                 <div class="build-header">
-                    <h2 class="build-title">Build New Infrastructure</h2>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.6rem;">
+                            <h2 class="build-title" style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #f8fafc; letter-spacing: -0.01em;">
+                                <i class="fas fa-wand-magic-sparkles" style="color: #818cf8; margin-right: 0.35rem;"></i>
+                                Autonomous Infrastructure Copilot
+                            </h2>
+                            <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; font-weight: 600;">Multi-Agent Orchestrated</span>
+                        </div>
+                        <p style="margin: 0.4rem 0 0 0; color: #94a3b8; font-size: 0.88rem; line-height: 1.4;">
+                            Describe your desired infrastructure in plain English. Autonomous agents generate production-grade IaC, enforce security & FinOps compliance, and render live topology graphs.
+                        </p>
+                    </div>
                     <span id="gen-status" class="status-badge status-generating" style="display: none;">Processing...</span>
                 </div>
-                <div class="build-row">
-                    <div class="build-prompt-col">
-                        <label class="meta-label">Infrastructure Requirement</label>
-                        <textarea id="infra-prompt" class="form-textarea" placeholder="e.g., Create a private S3 bucket with versioning..."></textarea>
-                    </div>
-                    <div class="build-budget-col">
-                        <label class="meta-label">Budget (USD)</label>
-                        <input type="number" id="infra-budget" class="form-input" value="100">
-                    </div>
-                    <div class="build-budget-col" style="min-width: 140px;">
-                        <label class="meta-label">IaC Engine</label>
-                        <select id="infra-engine" class="form-input" style="font-weight: 600;">
-                            <option value="terraform" selected>🟣 Terraform</option>
-                            <option value="opentofu">🧅 OpenTofu</option>
-                        </select>
-                    </div>
-                    <div class="build-toggle-col">
-                        <label class="meta-label">Live Deploy</label>
-                        <input type="checkbox" id="infra-apply">
-                    </div>
-                    <div class="build-toggle-col">
-                        <label class="meta-label">New Workspace</label>
-                        <input type="checkbox" id="infra-new-project" checked>
-                    </div>
-                    <div class="build-toggle-col">
-                        <label class="meta-label">GitOps Mode</label>
-                        <input type="checkbox" id="infra-gitops" onchange="toggleGitOpsSection()">
-                    </div>
-                    <button class="btn-generate tab-btn active" id="btn-generate" onclick="generateInfra()">Generate</button>
+
+                <!-- Architecture Starter Chips -->
+                <div class="prompt-chips-container">
+                    <span style="font-size: 0.78rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.3rem;">
+                        <i class="fas fa-bolt" style="color: #f59e0b;"></i> Quick Starters:
+                    </span>
+                    <button type="button" class="prompt-chip" onclick="insertPromptTemplate('s3_vault')">
+                        🔒 S3 Glacier Vault (CIS Compliant)
+                    </button>
+                    <button type="button" class="prompt-chip" onclick="insertPromptTemplate('vpc_ha')">
+                        🌐 AWS Multi-AZ High-Availability VPC
+                    </button>
+                    <button type="button" class="prompt-chip" onclick="insertPromptTemplate('eks_cluster')">
+                        ☸️ Production EKS Cluster with OIDC
+                    </button>
+                    <button type="button" class="prompt-chip" onclick="insertPromptTemplate('opentofu_web')">
+                        🧅 OpenTofu Secure Multi-Tier App
+                    </button>
+                    <button type="button" class="prompt-chip" onclick="insertPromptTemplate('serverless_api')">
+                        ⚡ Serverless Lambda & DynamoDB API
+                    </button>
                 </div>
 
-                <!-- GitOps Pull Request Settings -->
-                <details id="gitops-section" class="advanced-section" style="border-color: rgba(99, 102, 241, 0.4);">
-                    <summary class="summary-blue" style="color: #818cf8;"><i class="fab fa-github"></i> 🔀 GitOps & Pull Request Automation (Optional)</summary>
-                    <div class="config-grid-3" style="margin-top: 1rem;">
-                        <div>
-                            <label class="meta-label">Repository URL</label>
-                            <input type="text" id="gitops-repo" class="form-input form-input-sm" placeholder="https://github.com/org/terraform-repo.git">
-                        </div>
-                        <div>
-                            <label class="meta-label">Target Branch</label>
-                            <input type="text" id="gitops-branch" class="form-input form-input-sm" value="main" placeholder="main">
-                        </div>
-                        <div>
-                            <label class="meta-label">GitHub Token (PAT)</label>
-                            <input type="password" id="gitops-token" class="form-input form-input-sm" placeholder="ghp_xxxxxxxxxxxx">
-                        </div>
-                    </div>
-                </details>
+                <!-- Prompt Input Area -->
+                <div class="prompt-input-wrapper" style="position: relative; margin-top: 0.75rem;">
+                    <textarea id="infra-prompt" class="copilot-textarea" rows="4"
+                        placeholder="e.g. Deploy an AWS S3 Glacier Vault with strict server-side encryption (AES-256), versioning enabled, automatic lifecycle transition to Glacier Flexible Retrieval after 30 days, and public access block complying with CIS AWS Foundations Benchmark..."></textarea>
+                </div>
 
-                <!-- AI Model Configuration -->
-                <details class="advanced-section">
-                    <summary class="summary-orange">🤖 Advanced: AI Model Configuration (Optional)</summary>
-                    <div class="config-grid-3">
-                        <div>
-                            <label class="meta-label">Provider</label>
-                            <select id="ai-provider" class="form-input form-input-sm">
-                                <option value="zenmux" selected>ZenMux AI</option>
-                                <option value="gemini">Google Gemini</option>
-                                <option value="openai">OpenAI</option>
-                                <option value="anthropic">Anthropic Claude</option>
-                                <option value="groq">Groq</option>
-                                <option value="mistral">Mistral</option>
-                                <option value="nvidia">NVIDIA</option>
-                                <option value="openrouter">OpenRouter</option>
+                <!-- Bottom Control & Model Selection Bar -->
+                <div class="copilot-controls-bar">
+                    <!-- Left: Model Selector & Engine -->
+                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <div class="control-group">
+                            <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
+                                <i class="fas fa-brain" style="color: #a855f7;"></i> AI Model Engine
+                            </label>
+                            <select id="infra-model" class="copilot-select" style="min-width: 320px; font-weight: 600;">
+                                <option value="gemini/gemini-2.0-flash" selected>⚡ Google Gemini 2.0 Flash (Recommended · High Speed)</option>
+                                <option value="gemini/gemini-1.5-pro">🧠 Google Gemini 1.5 Pro (Deep Architecture Reasoning)</option>
+                                <option value="anthropic/claude-3-5-sonnet-20241022">🛡️ Claude 3.5 Sonnet (Precision IaC & Compliance)</option>
+                                <option value="openai/gpt-4o">🌐 OpenAI GPT-4o (Enterprise Hybrid Cloud)</option>
+                                <option value="deepseek/deepseek-chat">🚀 DeepSeek V3 (Cost-Optimized IaC)</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="meta-label">Model Name</label>
-                            <input type="text" id="ai-model" class="form-input form-input-sm" placeholder="moonshotai/kimi-k3-free">
-                        </div>
-                        <div>
-                            <label class="meta-label">API Key</label>
-                            <input type="password" id="ai-key" class="form-input form-input-sm" placeholder="Enter API Key for selected provider">
-                        </div>
-                    </div>
-                </details>
 
-                <!-- Cloud Credentials (BYOK) -->
-                <details class="advanced-section">
-                    <summary class="summary-blue">🔑 Advanced: Provide Cloud Credentials (Optional)</summary>
-
-                    <div class="cred-tabs">
-                        <button class="tab-btn active" onclick="switchCredTab('aws')">AWS</button>
-                        <button class="tab-btn" onclick="switchCredTab('azure')">Azure</button>
-                        <button class="tab-btn" onclick="switchCredTab('gcp')">GCP</button>
-                    </div>
-
-                    <!-- AWS Panel -->
-                    <div id="cred-panel-aws" class="config-grid-3">
-                        <div>
-                            <label class="meta-label">Access Key ID</label>
-                            <input type="password" id="aws-key" class="form-input form-input-sm" placeholder="AKIA...">
+                        <div class="control-group" style="min-width: 150px;">
+                            <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
+                                <i class="fas fa-layer-group" style="color: #38bdf8;"></i> IaC Engine
+                            </label>
+                            <select id="infra-engine" class="copilot-select" style="font-weight: 600;">
+                                <option value="terraform" selected>🟣 Terraform</option>
+                                <option value="opentofu">🧅 OpenTofu</option>
+                            </select>
                         </div>
-                        <div>
-                            <label class="meta-label">Secret Key</label>
-                            <input type="password" id="aws-secret" class="form-input form-input-sm" placeholder="wJalrX...">
-                        </div>
-                        <div>
-                            <label class="meta-label">Region</label>
-                            <input type="text" id="aws-region" class="form-input form-input-sm" placeholder="us-east-1">
+
+                        <div class="control-group" style="width: 120px;">
+                            <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
+                                <i class="fas fa-dollar-sign" style="color: #10b981;"></i> Budget (USD)
+                            </label>
+                            <input type="number" id="infra-budget" class="copilot-input" value="100" min="1" step="10">
                         </div>
                     </div>
 
-                    <!-- Azure Panel -->
-                    <div id="cred-panel-azure" class="config-grid-2" style="display: none;">
-                        <div>
-                            <label class="meta-label">Client ID</label>
-                            <input type="password" id="az-client-id" class="form-input form-input-sm">
-                        </div>
-                        <div>
-                            <label class="meta-label">Client Secret</label>
-                            <input type="password" id="az-client-secret" class="form-input form-input-sm">
-                        </div>
-                        <div>
-                            <label class="meta-label">Subscription ID</label>
-                            <input type="password" id="az-subscription-id" class="form-input form-input-sm">
-                        </div>
-                        <div>
-                            <label class="meta-label">Tenant ID</label>
-                            <input type="password" id="az-tenant-id" class="form-input form-input-sm">
-                        </div>
+                    <!-- Right: Generate Button -->
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <button class="btn-generate-copilot" id="btn-generate" onclick="generateInfra()">
+                            <i class="fas fa-wand-magic-sparkles"></i>
+                            <span>Synthesize Infrastructure</span>
+                        </button>
                     </div>
+                </div>
 
-                    <!-- GCP Panel -->
-                    <div id="cred-panel-gcp" class="cred-panel-block" style="display: none;">
-                        <label class="meta-label">Google Credentials JSON</label>
-                        <textarea id="gcp-json" class="form-textarea gcp-textarea" placeholder='{ "type": "service_account", ... }'></textarea>
-                    </div>
-                </details>
+                <!-- Hidden inputs for backward compatibility with scripts -->
+                <input type="checkbox" id="infra-new-project" checked style="display: none;">
+                <input type="checkbox" id="infra-apply" style="display: none;">
+                <input type="checkbox" id="infra-gitops" style="display: none;">
 
-                <!-- Live Console Output -->
+                <!-- Live Console Output Modal -->
                 <div id="live-console-modal" class="modal">
                     <div class="modal-content modal-content-sm">
                         <div class="modal-header">
-                            <h2>🚀 Agent Live Stream</h2>
+                            <h2 style="display: flex; align-items: center; gap: 0.5rem; font-size: 1.15rem; margin: 0;">
+                                <i class="fas fa-circle-notch fa-spin" style="color: #6366f1;"></i> Multi-Agent Orchestration Stream
+                            </h2>
                             <button class="tab-btn" onclick="closeLiveModal()">Minimize</button>
                         </div>
-                        <pre id="live-console" class="log-view live-console-border" style="height: 400px; margin: 1rem 2rem;"></pre>
-                        <p class="live-console-note" style="padding: 0 2rem 1rem;">The agent is currently architecting and implementing your request. Do not refresh.</p>
+                        <pre id="live-console" class="log-view live-console-border" style="height: 400px; margin: 1rem 1.5rem; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.84rem;"></pre>
+                        <p class="live-console-note" style="padding: 0 1.5rem 1rem; color: #94a3b8; font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <i class="fas fa-shield-halved" style="color: #10b981;"></i>
+                            Agents are analyzing, synthesizing, and validating your infrastructure. Output streams in real-time.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -233,7 +316,7 @@
         <main>
             <div class="section-header">
                 <h2>Workspaces</h2>
-                <div class="workspace-toolbar">
+                <div class="workspace-toolbar" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
                     <div class="search-wrapper">
                         <i class="fas fa-search"></i>
                         <input type="text" id="search-input" class="search-input" placeholder="Search projects..." oninput="filterProjects()">
@@ -244,7 +327,18 @@
                         <option value="deployed">Deployed</option>
                         <option value="destroyed">Destroyed</option>
                     </select>
-                    <button class="tab-btn active" onclick="refreshData()">Refresh</button>
+                    <select id="engine-filter" class="filter-select" onchange="filterProjects()">
+                        <option value="all">All Engines</option>
+                        <option value="terraform">🟣 Terraform</option>
+                        <option value="opentofu">🧅 OpenTofu</option>
+                    </select>
+                    <select id="sort-filter" class="filter-select" onchange="filterProjects()">
+                        <option value="latest">Sort: Recently Created</option>
+                        <option value="cost-desc">Sort: Highest Cost</option>
+                        <option value="cost-asc">Sort: Lowest Cost</option>
+                        <option value="name">Sort: Name (A-Z)</option>
+                    </select>
+                    <button class="tab-btn active" onclick="refreshData()"><i class="fas fa-sync"></i> Refresh</button>
                 </div>
             </div>
             <div class="projects-grid" id="projects-grid">
@@ -282,7 +376,20 @@
                 </div>
 
                 <div id="modal-tab-code" class="modal-tab-content active">
-                    <div id="file-tabs" class="file-tabs"></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; background: rgba(255,255,255,0.02); padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <div id="file-tabs" class="file-tabs" style="margin: 0; display: flex; gap: 0.4rem; overflow-x: auto;"></div>
+                        <div style="display: flex; align-items: center; gap: 0.4rem;">
+                            <button class="btn-sm" onclick="copyCurrentCodeFile()" title="Copy active file content to clipboard" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: #cbd5e1; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 500;">
+                                <i class="fas fa-copy"></i> Copy File
+                            </button>
+                            <button class="btn-sm" onclick="downloadCurrentCodeFile()" title="Download current active file" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: #cbd5e1; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 500;">
+                                <i class="fas fa-file-download"></i> Download File
+                            </button>
+                            <button class="btn-sm" onclick="downloadWorkspaceZip()" title="Download all workspace Terraform files as a .zip" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%); border: 1px solid rgba(99, 102, 241, 0.5); color: #a5b4fc; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600;">
+                                <i class="fas fa-file-archive"></i> Export Workspace (.zip)
+                            </button>
+                        </div>
+                    </div>
                     <div id="modal-tab-code-content"></div>
                 </div>
 
@@ -775,6 +882,52 @@
                 </div>
             </div>
 
+            <!-- Enterprise ROI & Productivity Comparison Banner -->
+            <div id="analytics-roi-banner" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-chart-pie" style="color: #34d399; font-size: 1.1rem;"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.05rem; color: #fff;">Enterprise Cloud Engineering ROI & Velocity Impact</h3>
+                            <p style="margin: 0.2rem 0 0 0; font-size: 0.82rem; color: #94a3b8;">Quantifiable enterprise cost comparison between manual platform engineering vs OmniInfra autonomous multi-agent synthesis.</p>
+                        </div>
+                    </div>
+                    <span id="analytics-roi-badge" class="status-badge status-deployed" style="font-size: 0.8rem; padding: 4px 10px; font-weight: 700; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">
+                        ⚡ 94% Cost & Time Reduction
+                    </span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
+                    <!-- Traditional Approach -->
+                    <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-size: 0.82rem; color: #f87171; font-weight: 600; text-transform: uppercase;">Traditional Manual Engineering</span>
+                            <span id="roi-manual-cost" style="font-size: 1.15rem; font-weight: 700; color: #f87171;">$1,920.00</span>
+                        </div>
+                        <div style="font-size: 0.82rem; color: #94a3b8; line-height: 1.6;">
+                            • 16.0 engineering hours / architecture<br>
+                            • Manual syntax debugging & policy reviews<br>
+                            • Typical delivery cycle: 2–3 weeks
+                        </div>
+                    </div>
+
+                    <!-- OmniInfra Autonomous -->
+                    <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-size: 0.82rem; color: #818cf8; font-weight: 600; text-transform: uppercase;">OmniInfra AI Synthesis</span>
+                            <span id="roi-ai-cost" style="font-size: 1.15rem; font-weight: 700; color: #10b981;">$0.12 (99% saved)</span>
+                        </div>
+                        <div style="font-size: 0.82rem; color: #94a3b8; line-height: 1.6;">
+                            • Automated multi-agent parallel synthesis<br>
+                            • Self-healing remediation with zero manual toil<br>
+                            • Immediate deterministic IaC + Live visual topology
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Two-column Analytics Layout -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
                 <!-- Failure Taxonomy -->
@@ -1088,6 +1241,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=16.0"></script>
+    <script src="/static/app.js?v=18.0"></script>
 </body>
 </html>

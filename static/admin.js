@@ -123,6 +123,49 @@ async function loadOverview() {
                 </div>
             `;
         }
+
+        // Real-Time Subsystem Readiness Badges
+        const dbBadge = document.getElementById('sys-db-badge');
+        if (dbBadge) {
+            const isDbOk = data.vitals.database === 'connected';
+            dbBadge.className = `status-badge ${isDbOk ? 'status-deployed' : 'status-failed'}`;
+            dbBadge.innerText = isDbOk ? 'ONLINE' : 'DEGRADED';
+        }
+        const redisBadge = document.getElementById('sys-redis-badge');
+        if (redisBadge) {
+            const isRedisOk = data.vitals.redis === 'connected';
+            redisBadge.className = `status-badge ${isRedisOk ? 'status-deployed' : 'status-pending'}`;
+            redisBadge.innerText = isRedisOk ? 'ONLINE' : 'STANDALONE (MEMORY)';
+        }
+        const k8sBadge = document.getElementById('sys-k8s-badge');
+        if (k8sBadge) {
+            const isK8sOk = (data.vitals.k8s_operator || '').toLowerCase().includes('ready') || (data.vitals.k8s_operator || '').toLowerCase().includes('healthy');
+            k8sBadge.className = `status-badge ${isK8sOk ? 'status-deployed' : 'status-failed'}`;
+            k8sBadge.innerText = isK8sOk ? 'ONLINE (K8s)' : 'UNREACHABLE';
+        }
+        const iacBadge = document.getElementById('sys-iac-badge');
+        if (iacBadge) {
+            try {
+                const engRes = await fetch('/api/engine/status');
+                if (engRes.ok) {
+                    const engData = await engRes.json();
+                    const tfInst = engData.terraform && engData.terraform.installed;
+                    const tofuInst = engData.opentofu && engData.opentofu.installed;
+                    if (tfInst && tofuInst) {
+                        iacBadge.innerText = 'DISCOVERED (TF + TOFU)';
+                    } else if (tfInst) {
+                        iacBadge.innerText = `DISCOVERED (${engData.terraform.version.split(' ')[0]})`;
+                    } else if (tofuInst) {
+                        iacBadge.innerText = 'DISCOVERED (OpenTofu)';
+                    } else {
+                        iacBadge.innerText = 'NOT INSTALLED';
+                        iacBadge.className = 'status-badge status-failed';
+                    }
+                }
+            } catch (err) {
+                // Non-blocking
+            }
+        }
     } catch (e) {
         console.error("Overview error:", e);
     }
@@ -302,6 +345,7 @@ async function submitOrgPlanOverride() {
         showToast(e.message, "error");
     }
 }
+window.submitPlanOverride = submitOrgPlanOverride;
 
 // ─── 4. FinOps & Revenue Analytics (Milestone 3) ───────────────────────────
 let _finopsData = { overview: null, costs: null, tenants: [] };
@@ -573,46 +617,6 @@ function exportFinOpsCSV() {
     showToast("Downloading FinOps unit economics CSV...", "info");
 }
 
-
-// ─── 5. K8s & Worker Fleet ──────────────────────────────────────────────
-async function loadK8sFleet() {
-    try {
-        const res = await fetch('/api/admin/k8s/fleet');
-        if (!res.ok) throw new Error("Failed to load K8s fleet");
-        const data = await res.json();
-
-        // CRD list
-        const crdsContainer = document.getElementById('k8s-crds-list');
-        if (crdsContainer) {
-            crdsContainer.innerHTML = (data.crds || []).map(c => `
-                <div style="background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; color: #93c5fd;">
-                    <i class="fas fa-file-code"></i> ${c}
-                </div>
-            `).join('');
-        }
-
-        // Reconcile events
-        const eventsTbody = document.getElementById('k8s-events-tbody');
-        if (eventsTbody) {
-            const events = data.recent_reconcile_events || [];
-            if (events.length === 0) {
-                eventsTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #888; padding: 2rem;">No reconciliation events recorded yet.</td></tr>`;
-                return;
-            }
-            eventsTbody.innerHTML = events.map(ev => `
-                <tr>
-                    <td><span class="status-badge" style="background: ${ev.type === 'Warning' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}; color: ${ev.type === 'Warning' ? '#f87171' : '#34d399'};">${ev.type}</span></td>
-                    <td><strong>${escapeHtml(ev.reason)}</strong></td>
-                    <td>${escapeHtml(ev.resource)}</td>
-                    <td>${escapeHtml(ev.message)}</td>
-                    <td style="color: #64748b; font-size: 0.8rem;">${escapeHtml(ev.timestamp)}</td>
-                </tr>
-            `).join('');
-        }
-    } catch (e) {
-        showToast(e.message, "error");
-    }
-}
 
 // ─── 6. Global Audit Vault ──────────────────────────────────────────────
 async function loadAuditLogs() {
@@ -1484,14 +1488,15 @@ function renderRunInspectorStages(traces) {
     if (!container) return;
     container.innerHTML = '';
 
-    if (traces.length === 0) {
-        // Render synthetic mock trace if run was completed before trace logging was activated
-        traces = [
-            { stage_name: "architect_design", agent_name: "ArchitectAgent", status: "completed", duration_seconds: 4.8, details: "Modular HCL topology and mermaid diagram synthesized." },
-            { stage_name: "developer_code", agent_name: "DeveloperAgent", status: "completed", duration_seconds: 12.4, details: "HCL configuration files (main.tf, variables.tf) extracted." },
-            { stage_name: "security_audit", agent_name: "SecurityReviewer", status: "completed", duration_seconds: 3.1, details: "Checkov / tfsec security scan: 0 critical vulnerabilities." },
-            { stage_name: "finops_estimate", agent_name: "FinOpsSpecialist", status: "completed", duration_seconds: 2.9, details: "Infracost analysis confirmed infrastructure within monthly budget." }
-        ];
+    if (!traces || traces.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; color: #94a3b8; padding: 2.5rem 1rem; border: 1px dashed rgba(255,255,255,0.1); border-radius: 8px;">
+                <i class="fas fa-layer-group" style="font-size: 1.5rem; color: #64748b; margin-bottom: 0.5rem; display: block;"></i>
+                <strong style="color: #cbd5e1; font-size: 0.95rem;">No Execution Stage Traces Logged</strong>
+                <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">Stage telemetry is recorded automatically during agent synthesis, compliance evaluation, and deployment passes.</div>
+            </div>
+        `;
+        return;
     }
 
     traces.forEach((t, idx) => {

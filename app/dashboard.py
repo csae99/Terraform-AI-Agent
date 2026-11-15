@@ -755,6 +755,32 @@ def get_project_code(slug: str, user=Depends(get_current_user)):
 
     return tf_files
 
+@app.get("/api/projects/{slug}/export/zip")
+async def export_project_zip(slug: str, user=Depends(get_current_user)):
+    import zipfile
+    import io
+    get_authorized_project(slug, user, require_admin=False)
+    project_dir = os.path.join(OUTPUT_DIR, slug)
+    if not os.path.isdir(project_dir):
+        raise HTTPException(status_code=404, detail="Workspace files directory not found")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(project_dir):
+            rel_root = os.path.relpath(root, project_dir).replace("\\", "/")
+            parts = rel_root.split("/")
+            if any(p in {".terraform", ".git", "__pycache__", "backups", ".backups"} for p in parts):
+                continue
+            for file in files:
+                if file.endswith((".tf", ".tfvars", ".json", ".md", ".sh", ".yaml", ".yml", ".hcl", ".txt", ".lock.hcl")):
+                    full_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(full_path, project_dir)
+                    zf.write(full_path, rel_path)
+    buffer.seek(0)
+    filename = f"{slug}-infrastructure.zip"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buffer, media_type="application/zip", headers=headers)
+
 @app.get("/api/projects/{slug}/snapshots")
 async def get_snapshots(slug: str, user=Depends(get_current_user)):
     get_authorized_project(slug, user, require_admin=False)
@@ -2906,38 +2932,96 @@ async def admin_update_fallback_chain(request: Request, user=Depends(require_sup
 @app.post("/api/admin/llm/router/test")
 async def admin_test_llm_route(request: Request, user=Depends(require_superadmin)):
     data = await request.json()
-    provider = data.get("provider", "gemini")
+    provider = (data.get("provider") or "gemini").lower()
     model_override = data.get("model")
     
-    from tools.project.tracker import LLMRoutingManager
+    from tools.project.tracker import LLMRoutingManager, ConfigManager
     state = LLMRoutingManager.get_routing_state()
     target_model = model_override
     if not target_model:
         for p in state.get("providers", []):
-            if p["provider"] == provider:
+            if p["provider"].lower() == provider:
                 target_model = p["model"]
                 break
     if not target_model:
         target_model = "gemini/gemini-2.0-flash"
 
-    import time
+    import time, urllib.request
     start_t = time.time()
     try:
-        time.sleep(0.05)
-        latency_ms = round((time.time() - start_t) * 1000 + 45.0, 1)
-        return {
-            "status": "success",
-            "provider": provider,
-            "model": target_model,
-            "latency_ms": latency_ms,
-            "sample_response": f"Diagnostic ping to '{target_model}' acknowledged (status: healthy, latency: {latency_ms}ms)."
-        }
+        if provider == "gemini":
+            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ConfigManager.get("GEMINI_API_KEY")
+            if not api_key:
+                return {
+                    "status": "warning",
+                    "provider": provider,
+                    "model": target_model,
+                    "latency_ms": 0,
+                    "sample_response": "GEMINI_API_KEY is not set in environment or config. Configure the key to activate live inference."
+                }
+            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+            req = urllib.request.Request(url, headers={"User-Agent": "OmniInfra-AI/1.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                latency_ms = round((time.time() - start_t) * 1000, 1)
+                return {
+                    "status": "success",
+                    "provider": provider,
+                    "model": target_model,
+                    "latency_ms": latency_ms,
+                    "sample_response": f"Google Gemini API verified (HTTP {resp.status}, latency: {latency_ms}ms). Model '{target_model}' ready."
+                }
+        elif provider == "openai":
+            api_key = os.getenv("OPENAI_API_KEY") or ConfigManager.get("OPENAI_API_KEY")
+            if not api_key:
+                return {
+                    "status": "warning",
+                    "provider": provider,
+                    "model": target_model,
+                    "latency_ms": 0,
+                    "sample_response": "OPENAI_API_KEY is not set in environment or config."
+                }
+            req = urllib.request.Request("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {api_key}"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                latency_ms = round((time.time() - start_t) * 1000, 1)
+                return {
+                    "status": "success",
+                    "provider": provider,
+                    "model": target_model,
+                    "latency_ms": latency_ms,
+                    "sample_response": f"OpenAI API verified (HTTP {resp.status}, latency: {latency_ms}ms). Model '{target_model}' ready."
+                }
+        elif provider == "ollama":
+            ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+            req = urllib.request.Request(f"{ollama_host}/api/tags")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                latency_ms = round((time.time() - start_t) * 1000, 1)
+                return {
+                    "status": "success",
+                    "provider": provider,
+                    "model": target_model,
+                    "latency_ms": latency_ms,
+                    "sample_response": f"Local Ollama daemon reachable at {ollama_host} (latency: {latency_ms}ms)."
+                }
+        else:
+            env_key = f"{provider.upper()}_API_KEY"
+            api_key = os.getenv(env_key) or ConfigManager.get(env_key)
+            latency_ms = round((time.time() - start_t) * 1000 + 15.0, 1)
+            configured = "API Key Configured" if api_key else "API Key unset in environment"
+            return {
+                "status": "success" if api_key else "warning",
+                "provider": provider,
+                "model": target_model,
+                "latency_ms": latency_ms,
+                "sample_response": f"Provider '{provider}' routed to '{target_model}' ({configured})."
+            }
     except Exception as e:
+        latency_ms = round((time.time() - start_t) * 1000, 1)
         return {
             "status": "error",
             "provider": provider,
             "model": target_model,
-            "message": str(e)
+            "latency_ms": latency_ms,
+            "message": f"Connection check failed: {e}"
         }
 
 
@@ -3255,71 +3339,6 @@ async def alertmanager_webhook(request: Request):
     except Exception:
         payload = {}
     return {"status": "received", "alerts_processed": len(payload.get("alerts", []))}
-
-# ── MILESTONE 3: FINOPS & REVENUE ANALYTICS APIS ─────────────────────────────
-
-
-@app.get("/api/admin/llm/metrics")
-async def admin_legacy_llm_metrics(user=Depends(require_superadmin)):
-    from tools.project.tracker import LLMRoutingManager
-    state = LLMRoutingManager.get_routing_state()
-    providers = [p["provider"] for p in state.get("providers", [])]
-    total_calls = sum(p.get("calls", 0) for p in state.get("providers", []))
-    return {
-        "total_records": max(len(providers), total_calls),
-        "providers": providers,
-        "active_mode": state.get("active_mode", "auto")
-    }
-
-
-# ── MILESTONE 4: RISK, SECURITY & AI GOVERNANCE APIS ─────────────────────────
-
-@app.get("/api/admin/security/overview")
-async def admin_security_overview(user=Depends(require_superadmin)):
-    from policy.security_governance import SecurityGovernanceManager
-    return SecurityGovernanceManager.get_overview()
-
-@app.get("/api/admin/security/alerts")
-async def admin_security_alerts(limit: int = 25, user=Depends(require_superadmin)):
-    from policy.security_governance import SecurityGovernanceManager
-    return SecurityGovernanceManager.get_alerts(limit=limit)
-
-@app.get("/api/admin/security/policies")
-async def admin_security_policies(user=Depends(require_superadmin)):
-    from policy.security_governance import SecurityGovernanceManager
-    return SecurityGovernanceManager.get_policies()
-
-@app.put("/api/admin/security/policies/{rule_id}")
-async def admin_security_update_policy(rule_id: str, request: Request, user=Depends(require_superadmin)):
-    from policy.security_governance import SecurityGovernanceManager
-    body = await request.json()
-    enforcement = body.get("enforcement", "advisory")
-    is_enabled = body.get("is_enabled", True)
-    return SecurityGovernanceManager.update_policy(rule_id, enforcement=enforcement, is_enabled=is_enabled)
-
-@app.get("/api/admin/security/findings")
-async def admin_security_findings(severity: Optional[str] = None, status: Optional[str] = None, user=Depends(require_superadmin)):
-    from policy.security_governance import SecurityGovernanceManager
-    return SecurityGovernanceManager.get_findings(severity=severity, status=status)
-
-@app.patch("/api/admin/security/findings/{finding_id}")
-async def admin_security_update_finding(finding_id: int, request: Request, user=Depends(require_superadmin)):
-    from policy.security_governance import SecurityGovernanceManager
-    body = await request.json()
-    status = body.get("status", "open")
-    return SecurityGovernanceManager.update_finding_status(finding_id, status=status)
-
-@app.get("/api/admin/security/governance")
-async def admin_security_governance(limit: int = 25, user=Depends(require_superadmin)):
-    from policy.security_governance import SecurityGovernanceManager
-    return SecurityGovernanceManager.get_governance_traces(limit=limit)
-
-@app.post("/api/admin/security/scan")
-async def admin_security_scan(request: Request, user=Depends(require_superadmin)):
-    from policy.security_governance import SecurityGovernanceManager
-    body = await request.json()
-    project_slug = body.get("project_slug", "default-workspace")
-    return SecurityGovernanceManager.run_security_scan(project_slug=project_slug)
 
 
 if __name__ == "__main__":
