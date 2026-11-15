@@ -263,7 +263,18 @@ async def run_agent_workflow(prompt: str, budget: float, apply: bool, credential
 
 # --- Page Routes ---
 @app.get("/")
-async def index(request: Request, user=Depends(get_current_user_optional)):
+@app.get("/home")
+async def home_page():
+    """Serves the OmniInfra AI modern landing homepage."""
+    home_file = os.path.join(static_dir, "home.html")
+    if os.path.isfile(home_file):
+        return FileResponse(home_file)
+    return FileResponse(os.path.join(static_dir, "index.html"))
+
+@app.get("/app")
+@app.get("/dashboard")
+async def app_console(request: Request, user=Depends(get_current_user_optional)):
+    """Serves the main OmniInfra AI workspace console (requires login)."""
     if not user:
         return RedirectResponse(url="/login")
     return FileResponse(os.path.join(static_dir, "index.html"))
@@ -1239,6 +1250,15 @@ async def deploy_project(slug: str, request: Request, user=Depends(get_current_u
     engine_name = body.get("engine") or project.get("engine") or "terraform"
     credentials = body.get("credentials") or {}
 
+    # If no explicit request credentials, fallback to saved workspace credentials
+    if not any(credentials.values()):
+        saved_creds = load_workspace_credentials(slug)
+        if saved_creds:
+            logger.info(f"Loaded saved workspace credentials for deployment on '{slug}'")
+            credentials = {k: v for k, v in saved_creds.items() if k != "provider" and v}
+
+    logger.info(f"Deploy {action} requested for workspace '{slug}'. Received credential keys: {list(credentials.keys())}")
+
     from tools.engine import EngineFactory
     engine = EngineFactory.get_engine(engine_name)
 
@@ -1248,6 +1268,17 @@ async def deploy_project(slug: str, request: Request, user=Depends(get_current_u
         if v:
             original_env[k] = os.environ.get(k)
             os.environ[k] = str(v)
+
+    # Clean up stale session token if permanent AKIA key is provided without token
+    if "AWS_ACCESS_KEY_ID" in credentials and "AWS_SESSION_TOKEN" not in credentials:
+        if "AWS_SESSION_TOKEN" in os.environ:
+            original_env["AWS_SESSION_TOKEN"] = os.environ.get("AWS_SESSION_TOKEN")
+            os.environ.pop("AWS_SESSION_TOKEN", None)
+
+    # Synchronize AWS_REGION with AWS_DEFAULT_REGION
+    if "AWS_DEFAULT_REGION" in credentials and "AWS_REGION" not in credentials:
+        original_env["AWS_REGION"] = os.environ.get("AWS_REGION")
+        os.environ["AWS_REGION"] = str(credentials["AWS_DEFAULT_REGION"])
 
     try:
         logs_dir = os.path.join(project_dir, "logs")
@@ -1318,6 +1349,249 @@ async def deploy_project(slug: str, request: Request, user=Depends(get_current_u
                 else:
                     os.environ[k] = original_env[k]
 
+# ─── Workspace Cloud Credentials Vault & Preflight Validator ───────────────────
+
+def get_workspace_cred_path(slug: str) -> str:
+    return os.path.join(OUTPUT_DIR, slug, ".credentials.json")
+
+def load_workspace_credentials(slug: str) -> dict:
+    cred_file = get_workspace_cred_path(slug)
+    if os.path.isfile(cred_file):
+        try:
+            with open(cred_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to read workspace credentials for {slug}: {e}")
+    return {}
+
+def save_workspace_credentials(slug: str, creds: dict):
+    project_dir = os.path.join(OUTPUT_DIR, slug)
+    if not os.path.isdir(project_dir):
+        os.makedirs(project_dir, exist_ok=True)
+    cred_file = get_workspace_cred_path(slug)
+    with open(cred_file, "w", encoding="utf-8") as f:
+        json.dump(creds, f, indent=2)
+    # Ensure .gitignore has .credentials.json
+    gitignore_path = os.path.join(project_dir, ".gitignore")
+    try:
+        existing = ""
+        if os.path.isfile(gitignore_path):
+            with open(gitignore_path, "r", encoding="utf-8") as f:
+                existing = f.read()
+        if ".credentials.json" not in existing:
+            with open(gitignore_path, "a", encoding="utf-8") as f:
+                f.write("\n.credentials.json\n")
+    except Exception:
+        pass
+
+@app.post("/api/credentials/test")
+async def test_credentials(request: Request, user=Depends(get_current_user)):
+    """Validates user-provided cloud credentials in real-time (preflight check)."""
+    body = await request.json()
+    provider = (body.get("provider") or "aws").lower()
+    credentials = body.get("credentials") or {}
+
+    if provider == "aws":
+        key = credentials.get("AWS_ACCESS_KEY_ID")
+        secret = credentials.get("AWS_SECRET_ACCESS_KEY")
+        region = credentials.get("AWS_DEFAULT_REGION") or credentials.get("AWS_REGION") or "us-east-1"
+        token = credentials.get("AWS_SESSION_TOKEN") or None
+
+        if not key or not secret:
+            return {
+                "success": False,
+                "error_code": "MissingCredentials",
+                "message": "Access Key ID and Secret Access Key are required to test AWS connection."
+            }
+
+        try:
+            import boto3
+            from botocore.exceptions import ClientError
+            
+            kwargs = {
+                "aws_access_key_id": key,
+                "aws_secret_access_key": secret,
+                "region_name": region
+            }
+            if token:
+                kwargs["aws_session_token"] = token
+                
+            sts = boto3.client("sts", **kwargs)
+            identity = sts.get_caller_identity()
+            
+            return {
+                "success": True,
+                "provider": "aws",
+                "account": identity.get("Account"),
+                "arn": identity.get("Arn"),
+                "user_id": identity.get("UserId"),
+                "message": f"Successfully authenticated as {identity.get('Arn')} (Account: {identity.get('Account')})"
+            }
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "Unknown")
+            err_msg = e.response.get("Error", {}).get("Message", str(e))
+            
+            hint = ""
+            if code == "InvalidClientTokenId":
+                hint = " The Access Key is revoked/deleted in IAM, or this is a temporary key (ASIA...) requiring a Session Token."
+            elif code == "SignatureDoesNotMatch":
+                hint = " The Secret Access Key does not match the Access Key ID. Please verify there are no extra spaces or typos."
+            elif code == "ExpiredToken":
+                hint = " The Session Token has expired. Please refresh your AWS credentials."
+                
+            return {
+                "success": False,
+                "error_code": code,
+                "message": f"AWS STS Authentication Failed ({code}): {err_msg}.{hint}"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error_code": "UnexpectedError",
+                "message": f"AWS connection check failed: {str(e)}"
+            }
+
+    elif provider == "azure":
+        client_id = credentials.get("ARM_CLIENT_ID")
+        client_secret = credentials.get("ARM_CLIENT_SECRET")
+        tenant_id = credentials.get("ARM_TENANT_ID")
+        
+        if not client_id or not client_secret or not tenant_id:
+            return {
+                "success": False,
+                "error_code": "MissingCredentials",
+                "message": "Azure Client ID, Client Secret, and Tenant ID are required."
+            }
+            
+        import urllib.request
+        import urllib.parse
+        
+        token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+        data = urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scope": "https://management.azure.com/.default"
+        }).encode('utf-8')
+        
+        try:
+            req = urllib.request.Request(token_url, data=data, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as res:
+                if res.status == 200:
+                    return {
+                        "success": True,
+                        "provider": "azure",
+                        "message": f"Successfully authenticated with Azure Active Directory (Tenant: {tenant_id})"
+                    }
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode('utf-8')
+            return {
+                "success": False,
+                "error_code": f"HTTP_{e.code}",
+                "message": f"Azure authentication failed: {err_body}"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error_code": "ConnectionError",
+                "message": f"Azure authentication check error: {str(e)}"
+            }
+
+    elif provider == "gcp":
+        gcp_json = credentials.get("GOOGLE_CREDENTIALS")
+        if not gcp_json:
+            return {
+                "success": False,
+                "error_code": "MissingCredentials",
+                "message": "Google Service Account JSON is required."
+            }
+        try:
+            data = json.loads(gcp_json)
+            client_email = data.get("client_email")
+            project_id = data.get("project_id")
+            if not client_email or not project_id:
+                return {
+                    "success": False,
+                    "error_code": "InvalidServiceAccount",
+                    "message": "Invalid GCP Service Account JSON: Missing client_email or project_id."
+                }
+            return {
+                "success": True,
+                "provider": "gcp",
+                "message": f"GCP Service Account verified: {client_email} (Project: {project_id})"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error_code": "JSONParseError",
+                "message": f"Invalid JSON format for Google Service Account: {str(e)}"
+            }
+
+    elif provider == "local":
+        return {
+            "success": True,
+            "provider": "local",
+            "message": "LocalStack / Floci local endpoint selected (http://localhost:4566)."
+        }
+    return {"success": False, "message": f"Unknown provider: {provider}"}
+
+@app.get("/api/projects/{slug}/credentials")
+async def get_project_credentials(slug: str, user=Depends(get_current_user)):
+    get_authorized_project(slug, user, require_admin=False)
+    creds = load_workspace_credentials(slug)
+    if not creds:
+        return {"configured": False, "provider": None, "masked": {}}
+    
+    provider = creds.get("provider", "aws")
+    masked = {}
+    if provider == "aws":
+        key = creds.get("AWS_ACCESS_KEY_ID", "")
+        masked["access_key"] = f"{key[:4]}...{key[-4:]}" if len(key) >= 8 else ("***" if key else "")
+        masked["region"] = creds.get("AWS_DEFAULT_REGION", "us-east-1")
+        masked["has_token"] = bool(creds.get("AWS_SESSION_TOKEN"))
+    elif provider == "azure":
+        cid = creds.get("ARM_CLIENT_ID", "")
+        masked["client_id"] = f"{cid[:4]}...{cid[-4:]}" if len(cid) >= 8 else ("***" if cid else "")
+        masked["tenant_id"] = creds.get("ARM_TENANT_ID", "")
+    elif provider == "gcp":
+        masked["has_service_account"] = bool(creds.get("GOOGLE_CREDENTIALS"))
+
+    return {
+        "configured": True,
+        "provider": provider,
+        "masked": masked
+    }
+
+@app.post("/api/projects/{slug}/credentials")
+async def set_project_credentials(slug: str, request: Request, user=Depends(get_current_user)):
+    get_authorized_project(slug, user, require_admin=True)
+    body = await request.json()
+    provider = body.get("provider", "aws")
+    credentials = body.get("credentials") or {}
+    
+    clean_creds = {k: v for k, v in credentials.items() if v}
+    clean_creds["provider"] = provider
+    
+    save_workspace_credentials(slug, clean_creds)
+    logger.info(f"Saved workspace credentials for project '{slug}' (provider: {provider})")
+    
+    return {
+        "success": True,
+        "message": f"Credentials successfully saved for workspace '{slug}'",
+        "provider": provider
+    }
+
+@app.delete("/api/projects/{slug}/credentials")
+async def delete_project_credentials(slug: str, user=Depends(get_current_user)):
+    get_authorized_project(slug, user, require_admin=True)
+    cred_file = get_workspace_cred_path(slug)
+    if os.path.isfile(cred_file):
+        try:
+            os.remove(cred_file)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"success": True, "message": "Workspace credentials removed"}
+
 @app.post("/api/projects/{slug}/destroy")
 async def destroy_project(slug: str, request: Request, user=Depends(get_current_user)):
     """Executes live terraform destroy on an existing workspace directory."""
@@ -1339,6 +1613,15 @@ async def destroy_project(slug: str, request: Request, user=Depends(get_current_
     engine_name = body.get("engine") or project.get("engine") or "terraform"
     credentials = body.get("credentials") or {}
 
+    # If no explicit request credentials, fallback to saved workspace credentials
+    if not any(credentials.values()):
+        saved_creds = load_workspace_credentials(slug)
+        if saved_creds:
+            logger.info(f"Loaded saved workspace credentials for destruction on '{slug}'")
+            credentials = {k: v for k, v in saved_creds.items() if k != "provider" and v}
+
+    logger.info(f"Destroy requested for workspace '{slug}'. Received credential keys: {list(credentials.keys())}")
+
     from tools.engine import EngineFactory
     engine = EngineFactory.get_engine(engine_name)
 
@@ -1347,6 +1630,17 @@ async def destroy_project(slug: str, request: Request, user=Depends(get_current_
         if v:
             original_env[k] = os.environ.get(k)
             os.environ[k] = str(v)
+
+    # Clean up stale session token if permanent AKIA key is provided without token
+    if "AWS_ACCESS_KEY_ID" in credentials and "AWS_SESSION_TOKEN" not in credentials:
+        if "AWS_SESSION_TOKEN" in os.environ:
+            original_env["AWS_SESSION_TOKEN"] = os.environ.get("AWS_SESSION_TOKEN")
+            os.environ.pop("AWS_SESSION_TOKEN", None)
+
+    # Synchronize AWS_REGION with AWS_DEFAULT_REGION
+    if "AWS_DEFAULT_REGION" in credentials and "AWS_REGION" not in credentials:
+        original_env["AWS_REGION"] = os.environ.get("AWS_REGION")
+        os.environ["AWS_REGION"] = str(credentials["AWS_DEFAULT_REGION"])
 
     try:
         logs_dir = os.path.join(project_dir, "logs")
@@ -1921,6 +2215,12 @@ async def execute_regional_failover(request: Request, user=Depends(get_current_u
 # ==========================================
 # Phase 15: Kubernetes-Native Control Plane Endpoints
 # ==========================================
+
+@app.get("/healthz")
+@app.get("/readyz")
+async def k8s_health_check():
+    """Standard Kubernetes liveness and readiness probe endpoint."""
+    return {"status": "ok", "app": "OmniInfra AI"}
 
 @app.get("/api/k8s/operator/status")
 async def get_k8s_operator_status(user=Depends(get_current_user_optional)):

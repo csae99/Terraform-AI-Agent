@@ -140,24 +140,38 @@ Before beginning tests, ensure your local environment is configured:
   - [ ] The **Enterprise Approval Gate** (`Approve PR` and `Merge & Deploy`) becomes active.
   - [ ] Clicking **Re-push / Change Repo** allows toggling back to re-enter credentials or target another branch.
 
-#### 5c. Post-Provisioning Live Deploy (On-Demand Cloud Execution & Terminal Logs)
-- **Objective**: Verify that workspaces generated without initial live deployment can be planned, deployed, drift-checked, or destroyed on demand with target cloud credentials and live dark terminal logging.
+#### 5c. Post-Provisioning Live Deploy (On-Demand Cloud Execution, STS Preflight & Workspace Vault)
+- **Objective**: Verify that workspaces generated without initial live deployment can be planned, deployed, drift-checked, or destroyed on demand with target cloud credentials, real-time STS preflight validation, per-workspace credential persistence, and live dark terminal logging.
 - **Action**:
   1. Open any workspace modal generated with Live Deploy unchecked.
   2. Switch to the **🚀 Live Deploy & Logs** tab.
-  3. Verify **State A (Deploy & Plan view)** renders with:
+  3. Verify **State A (Deploy & Plan view)** and the **Cloud Provider Credentials** panel renders with:
      - Cloud Provider tabs (AWS, Azure, GCP, LocalStack / Simulation).
-     - Credential inputs (Access Key, Secret Key, Session Token, Region / Tenant & Subscription ID / Service Account JSON).
+     - Credential inputs (Access Key ID, Secret Key, Session Token (Optional), Region / Tenant & Subscription ID / Service Account JSON).
+     - Action toolbar: **🔌 Test Connection** button, **💾 Save for Workspace** button, and workspace vault badge (`deploy-vault-badge`).
      - IaC Engine dropdown (Terraform / OpenTofu).
-  4. Select **LocalStack / Mock / Dry Run** or enter cloud credentials.
-  5. Click **🔍 Dry Run (Plan)** and verify live streaming console output in the dark terminal.
-  6. Click **⚡ Live Apply (Deploy)** and observe deployment state transition to **State B (Active Deployment)**:
+  4. **Preflight Connection Testing**:
+     - Enter valid AWS Access Key & Secret Key, then click **🔌 Test Connection**.
+     - Verify green banner appears: `Connection Verified: Successfully authenticated as arn:aws:iam::<account>:user/...`.
+     - Test error diagnostics: Enter a deliberately corrupted Secret Key and click **Test Connection**; verify red diagnostic message surfaces with `SignatureDoesNotMatch` or `InvalidClientTokenId`.
+  5. **Workspace Credentials Vault**:
+     - Click **💾 Save for Workspace** and verify status badge updates to `Saved for Workspace: AWS (AKIA...XXXX)` and `🗑️ Clear Saved` button becomes visible.
+     - Verify `.credentials.json` is saved in `output/<slug>/` and is automatically appended to `.gitignore`.
+  6. Select **LocalStack / Mock / Dry Run** or enter cloud credentials.
+  7. Click **🔍 Dry Run (Plan)** and verify live streaming console output in the dark terminal.
+  8. Click **⚡ Live Apply (Deploy)** and observe deployment state transition to **State B (Active Deployment)**:
      - Real-time deployment summary card (Engine, Deployed By, Deployed At timestamp).
      - Action buttons: **🔍 Check Drift**, **🔄 Re-Plan**, **⚡ Re-Apply**, and **💥 Destroy Infrastructure**.
-  7. Test emergency kill switch compliance: Verify that when `deployments_disabled` is triggered, deployment attempts are blocked with `403 Forbidden`.
-  8. Click **💥 Destroy Infrastructure** and confirm the safety prompt to tear down resources.
+     - Notice that the **Cloud Provider Credentials** panel remains visible and accessible for credential rotation or key updates.
+  9. Test emergency kill switch compliance: Verify that when `deployments_disabled` is triggered, deployment attempts are blocked with `403 Forbidden`.
+  10. **Infrastructure Destruction & Credential Rotation**:
+     - Click **💥 Destroy Infrastructure**.
+     - Verify that if keys were rotated in IAM, new keys can be entered into the fields and tested with **Test Connection** before clicking Destroy.
+     - Confirm the safety prompt to tear down resources.
 - **Expectation**:
+  - [ ] Real-time STS preflight validator confirms caller identity before any mutation command is run.
   - [ ] Terminal displays color-coded console output with quick "Copy Logs" button and tab filter (All Logs, Terraform/OpenTofu, Infracost).
+  - [ ] Stale or lingering session tokens are stripped if permanent `AKIA...` keys are supplied.
   - [ ] Project metadata updates with `deployed_at`, `deployed_by`, and status `deployed` or `destroyed`.
   - [ ] Viewer/unauthorized roles are prevented from executing apply or destroy with RBAC validation.
   - [ ] Audit trail logs `live_deploy_requested`, `live_deploy_executed`, and `live_destroy_executed` with user tags.

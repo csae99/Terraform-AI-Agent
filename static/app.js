@@ -1316,11 +1316,237 @@ let activeDeployData = null;
 let activeDeployProvider = 'aws';
 let activeDeployLogType = 'apply';
 
+function getDeployCredentials() {
+    const credentials = {};
+    if (activeDeployProvider === 'aws') {
+        const key = document.getElementById('deploy-aws-key')?.value.trim();
+        const secret = document.getElementById('deploy-aws-secret')?.value.trim();
+        const region = document.getElementById('deploy-aws-region')?.value.trim() || 'us-east-1';
+        const token = document.getElementById('deploy-aws-token')?.value.trim();
+        if (key) credentials.AWS_ACCESS_KEY_ID = key;
+        if (secret) credentials.AWS_SECRET_ACCESS_KEY = secret;
+        if (region) credentials.AWS_DEFAULT_REGION = region;
+        if (token) credentials.AWS_SESSION_TOKEN = token;
+    } else if (activeDeployProvider === 'azure') {
+        const clientId = document.getElementById('deploy-az-client-id')?.value.trim();
+        const clientSec = document.getElementById('deploy-az-client-secret')?.value.trim();
+        const tenantId = document.getElementById('deploy-az-tenant-id')?.value.trim();
+        const subId = document.getElementById('deploy-az-subscription-id')?.value.trim();
+        if (clientId) credentials.ARM_CLIENT_ID = clientId;
+        if (clientSec) credentials.ARM_CLIENT_SECRET = clientSec;
+        if (tenantId) credentials.ARM_TENANT_ID = tenantId;
+        if (subId) credentials.ARM_SUBSCRIPTION_ID = subId;
+    } else if (activeDeployProvider === 'gcp') {
+        const gcpJson = document.getElementById('deploy-gcp-json')?.value.trim();
+        if (gcpJson) credentials.GOOGLE_CREDENTIALS = gcpJson;
+    }
+    return credentials;
+}
+
+function saveDeployCredentialsToSession() {
+    try {
+        const creds = {
+            provider: activeDeployProvider,
+            aws_key: document.getElementById('deploy-aws-key')?.value || '',
+            aws_secret: document.getElementById('deploy-aws-secret')?.value || '',
+            aws_region: document.getElementById('deploy-aws-region')?.value || 'us-east-1',
+            aws_token: document.getElementById('deploy-aws-token')?.value || '',
+            az_client_id: document.getElementById('deploy-az-client-id')?.value || '',
+            az_client_secret: document.getElementById('deploy-az-client-secret')?.value || '',
+            az_tenant_id: document.getElementById('deploy-az-tenant-id')?.value || '',
+            az_sub_id: document.getElementById('deploy-az-subscription-id')?.value || '',
+            gcp_json: document.getElementById('deploy-gcp-json')?.value || ''
+        };
+        sessionStorage.setItem('active_deploy_creds', JSON.stringify(creds));
+    } catch (e) {}
+}
+
+function restoreDeployCredentialsFromSession() {
+    try {
+        const saved = sessionStorage.getItem('active_deploy_creds');
+        if (!saved) return;
+        const creds = JSON.parse(saved);
+        if (creds.provider) switchDeployCredTab(creds.provider);
+        if (creds.aws_key && document.getElementById('deploy-aws-key')) document.getElementById('deploy-aws-key').value = creds.aws_key;
+        if (creds.aws_secret && document.getElementById('deploy-aws-secret')) document.getElementById('deploy-aws-secret').value = creds.aws_secret;
+        if (creds.aws_region && document.getElementById('deploy-aws-region')) document.getElementById('deploy-aws-region').value = creds.aws_region;
+        if (creds.aws_token && document.getElementById('deploy-aws-token')) document.getElementById('deploy-aws-token').value = creds.aws_token;
+        if (creds.az_client_id && document.getElementById('deploy-az-client-id')) document.getElementById('deploy-az-client-id').value = creds.az_client_id;
+        if (creds.az_client_secret && document.getElementById('deploy-az-client-secret')) document.getElementById('deploy-az-client-secret').value = creds.az_client_secret;
+        if (creds.az_tenant_id && document.getElementById('deploy-az-tenant-id')) document.getElementById('deploy-az-tenant-id').value = creds.az_tenant_id;
+        if (creds.az_sub_id && document.getElementById('deploy-az-subscription-id')) document.getElementById('deploy-az-subscription-id').value = creds.az_sub_id;
+        if (creds.gcp_json && document.getElementById('deploy-gcp-json')) document.getElementById('deploy-gcp-json').value = creds.gcp_json;
+    } catch (e) {}
+}
+
+async function testDeployCredentials() {
+    const testBtn = document.getElementById('btn-test-credentials');
+    const resultEl = document.getElementById('deploy-cred-test-result');
+    if (!resultEl) return;
+
+    saveDeployCredentialsToSession();
+    const creds = getDeployCredentials();
+
+    if (activeDeployProvider === 'aws' && (!creds.AWS_ACCESS_KEY_ID || !creds.AWS_SECRET_ACCESS_KEY)) {
+        showToast("Please enter both AWS Access Key ID and Secret Access Key to test.", "warning");
+        resultEl.style.display = 'block';
+        resultEl.style.background = 'rgba(239, 68, 68, 0.15)';
+        resultEl.style.border = '1px solid #ef4444';
+        resultEl.style.color = '#fca5a5';
+        resultEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> <strong>Missing Credentials:</strong> Please enter your Access Key ID and Secret Key above before testing.`;
+        return;
+    }
+
+    if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Testing...`;
+    }
+
+    resultEl.style.display = 'block';
+    resultEl.style.background = 'rgba(56, 189, 248, 0.1)';
+    resultEl.style.border = '1px solid #38bdf8';
+    resultEl.style.color = '#7dd3fc';
+    resultEl.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Contacting ${activeDeployProvider.toUpperCase()} STS / Auth endpoint to verify caller identity...`;
+
+    try {
+        const res = await apiFetch('/api/credentials/test', {
+            method: 'POST',
+            body: JSON.stringify({
+                provider: activeDeployProvider,
+                credentials: creds
+            })
+        });
+        const data = await res.json();
+        const msg = (data.message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        if (res.ok && data.success) {
+            resultEl.style.background = 'rgba(16, 185, 129, 0.15)';
+            resultEl.style.border = '1px solid #10b981';
+            resultEl.style.color = '#6ee7b7';
+            resultEl.innerHTML = `<i class="fas fa-check-circle" style="color: #10b981;"></i> <strong>Connection Verified:</strong> ${msg}`;
+            showToast("Cloud credentials verified successfully!", "success");
+        } else {
+            resultEl.style.background = 'rgba(239, 68, 68, 0.15)';
+            resultEl.style.border = '1px solid #ef4444';
+            resultEl.style.color = '#fca5a5';
+            const errCode = data.error_code ? `[${data.error_code}] ` : '';
+            resultEl.innerHTML = `<i class="fas fa-times-circle" style="color: #ef4444;"></i> <strong>Authentication Failed:</strong> ${errCode}${msg || 'Credential validation failed'}`;
+            showToast(data.message || "Credential validation failed", "error");
+        }
+    } catch (e) {
+        resultEl.style.background = 'rgba(239, 68, 68, 0.15)';
+        resultEl.style.border = '1px solid #ef4444';
+        resultEl.style.color = '#fca5a5';
+        const errMsg = (e.message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        resultEl.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i> <strong>Error:</strong> Failed to reach server validator: ${errMsg}`;
+    } finally {
+        if (testBtn) {
+            testBtn.disabled = false;
+            testBtn.innerHTML = `<i class="fas fa-plug"></i> Test Connection`;
+        }
+    }
+}
+
+async function saveWorkspaceCredentials() {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return showToast("No active project slug found", "error");
+
+    saveDeployCredentialsToSession();
+    const creds = getDeployCredentials();
+
+    if (!Object.keys(creds).length) {
+        return showToast("Please enter credentials into the fields first before saving to workspace", "warning");
+    }
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/credentials`, {
+            method: 'POST',
+            body: JSON.stringify({
+                provider: activeDeployProvider,
+                credentials: creds
+            })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(`Credentials saved specifically for workspace '${slug}'!`, "success");
+            await refreshWorkspaceCredentialBadge(slug);
+        } else {
+            showToast(data.detail || "Failed to save workspace credentials", "error");
+        }
+    } catch (e) {
+        showToast("Error saving workspace credentials: " + e.message, "error");
+    }
+}
+
+async function clearWorkspaceCredentials() {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return;
+    if (!confirm(`Are you sure you want to remove the saved credentials for workspace '${slug}'?`)) return;
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/credentials`, { method: 'DELETE' });
+        if (res.ok) {
+            showToast("Saved credentials removed for workspace", "success");
+            await refreshWorkspaceCredentialBadge(slug);
+        }
+    } catch (e) {
+        showToast("Failed to delete credentials: " + e.message, "error");
+    }
+}
+
+async function refreshWorkspaceCredentialBadge(slug) {
+    const badgeEl = document.getElementById('deploy-vault-badge');
+    const clearBtn = document.getElementById('btn-clear-credentials');
+    if (!badgeEl) return;
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/credentials`);
+        const data = res.ok ? await res.json() : null;
+        if (data && data.configured) {
+            badgeEl.style.background = 'rgba(16, 185, 129, 0.15)';
+            badgeEl.style.borderColor = '#10b981';
+            badgeEl.style.color = '#6ee7b7';
+            let detail = data.provider.toUpperCase();
+            if (data.masked && data.masked.access_key) detail += ` (${data.masked.access_key})`;
+            badgeEl.innerHTML = `<i class="fas fa-lock" style="color: #10b981;"></i> Saved for Workspace: <strong>${detail}</strong>`;
+            if (clearBtn) clearBtn.style.display = 'inline-flex';
+        } else {
+            badgeEl.style.background = 'rgba(255,255,255,0.05)';
+            badgeEl.style.borderColor = 'rgba(255,255,255,0.1)';
+            badgeEl.style.color = '#94a3b8';
+            badgeEl.innerHTML = `<i class="fas fa-shield-alt"></i> Not saved to workspace`;
+            if (clearBtn) clearBtn.style.display = 'none';
+        }
+    } catch (e) {
+        badgeEl.innerHTML = `<i class="fas fa-shield-alt"></i> Not saved to workspace`;
+        if (clearBtn) clearBtn.style.display = 'none';
+    }
+}
+
 async function loadDeploymentTab(slug) {
     const provisionView = document.getElementById('deploy-provision-view');
     const activeView = document.getElementById('deploy-active-view');
+    const provisionActions = document.getElementById('deploy-provision-actions');
+    const activeActions = document.getElementById('deploy-active-actions');
     const statusEl = document.getElementById('deploy-action-status');
     const terminalEl = document.getElementById('deploy-terminal-output');
+
+    // Reset preflight result banner when loading tab
+    const testResultEl = document.getElementById('deploy-cred-test-result');
+    if (testResultEl) testResultEl.style.display = 'none';
+
+    restoreDeployCredentialsFromSession();
+    await refreshWorkspaceCredentialBadge(slug);
+
+    // Attach real-time input listeners to persist credentials in sessionStorage
+    ['deploy-aws-key', 'deploy-aws-secret', 'deploy-aws-region', 'deploy-aws-token', 
+     'deploy-az-client-id', 'deploy-az-client-secret', 'deploy-az-tenant-id', 'deploy-az-subscription-id', 'deploy-gcp-json'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.dataset.hasSessionListener) {
+            el.dataset.hasSessionListener = "true";
+            el.addEventListener('input', saveDeployCredentialsToSession);
+        }
+    });
 
     if (statusEl) statusEl.innerText = 'Loading deployment status...';
 
@@ -1333,6 +1559,8 @@ async function loadDeploymentTab(slug) {
         if (isDeployed) {
             if (provisionView) provisionView.style.display = 'none';
             if (activeView) activeView.style.display = 'flex';
+            if (provisionActions) provisionActions.style.display = 'none';
+            if (activeActions) activeActions.style.display = 'flex';
 
             const providerEl = document.getElementById('deploy-active-provider');
             const timeEl = document.getElementById('deploy-active-time');
@@ -1351,7 +1579,9 @@ async function loadDeploymentTab(slug) {
             await loadDeployLog(slug, 'apply');
         } else {
             if (activeView) activeView.style.display = 'none';
+            if (activeActions) activeActions.style.display = 'none';
             if (provisionView) provisionView.style.display = 'block';
+            if (provisionActions) provisionActions.style.display = 'flex';
 
             // Auto-select tab matching detected provider
             const detected = data.detected_provider || 'aws';
@@ -1382,6 +1612,7 @@ function switchDeployCredTab(provider) {
         if (panel) panel.style.display = (p === provider) ? (p === 'gcp' ? 'block' : p === 'local' ? 'block' : 'grid') : 'none';
         if (btn) btn.classList.toggle('active', p === provider);
     });
+    saveDeployCredentialsToSession();
 }
 
 async function switchDeployLogType(type) {
@@ -1435,30 +1666,11 @@ async function submitLiveDeploy(action) {
     const applyBtn = document.getElementById('btn-deploy-apply');
     const statusEl = document.getElementById('deploy-action-status');
     const terminalEl = document.getElementById('deploy-terminal-output');
-    const engine = document.getElementById('deploy-engine')?.value || 'terraform';
+    const engine = document.getElementById('deploy-engine')?.value || (currentProject && currentProject.engine) || 'terraform';
 
-    // Collect credentials based on active tab
-    const credentials = {};
-    if (activeDeployProvider === 'aws') {
-        const key = document.getElementById('deploy-aws-key')?.value.trim();
-        const secret = document.getElementById('deploy-aws-secret')?.value.trim();
-        const region = document.getElementById('deploy-aws-region')?.value.trim() || 'us-east-1';
-        if (key) credentials.AWS_ACCESS_KEY_ID = key;
-        if (secret) credentials.AWS_SECRET_ACCESS_KEY = secret;
-        if (region) credentials.AWS_DEFAULT_REGION = region;
-    } else if (activeDeployProvider === 'azure') {
-        const clientId = document.getElementById('deploy-az-client-id')?.value.trim();
-        const clientSec = document.getElementById('deploy-az-client-secret')?.value.trim();
-        const tenantId = document.getElementById('deploy-az-tenant-id')?.value.trim();
-        const subId = document.getElementById('deploy-az-subscription-id')?.value.trim();
-        if (clientId) credentials.ARM_CLIENT_ID = clientId;
-        if (clientSec) credentials.ARM_CLIENT_SECRET = clientSec;
-        if (tenantId) credentials.ARM_TENANT_ID = tenantId;
-        if (subId) credentials.ARM_SUBSCRIPTION_ID = subId;
-    } else if (activeDeployProvider === 'gcp') {
-        const gcpJson = document.getElementById('deploy-gcp-json')?.value.trim();
-        if (gcpJson) credentials.GOOGLE_CREDENTIALS = gcpJson;
-    }
+    // Collect credentials dynamically from active inputs and save to session
+    saveDeployCredentialsToSession();
+    const credentials = getDeployCredentials();
 
     const actionTitle = action === 'apply' ? 'Deployment (terraform apply)' : 'Plan (terraform plan)';
     if (planBtn) planBtn.disabled = true;
@@ -1508,13 +1720,24 @@ async function submitLiveDestroy() {
     const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
     if (!slug) return showToast("No active project slug found", "error");
 
-    if (!confirm(`⚠️ ARE YOU SURE?\n\nThis will permanently destroy and remove all cloud resources managed by workspace "${slug}".\n\nThis action CANNOT be undone.`)) {
+    // Collect credentials dynamically from active inputs
+    saveDeployCredentialsToSession();
+    const credentials = getDeployCredentials();
+    const engine = document.getElementById('deploy-engine')?.value || (currentProject && currentProject.engine) || 'terraform';
+
+    let credNotice = "";
+    if (credentials.AWS_ACCESS_KEY_ID || credentials.ARM_CLIENT_ID || credentials.GOOGLE_CREDENTIALS) {
+        credNotice = `\n\n🔑 Using active credentials supplied in the Cloud Provider Credentials panel.`;
+    } else {
+        credNotice = `\n\n⚠️ NOTE: The Access Key & Secret Key fields above are currently blank.\nIf this workspace requires your IAM credentials, please fill in your Access Key and Secret Key in the Cloud Provider Credentials section above before proceeding.`;
+    }
+
+    if (!confirm(`⚠️ ARE YOU SURE?\n\nThis will permanently destroy and remove all cloud resources managed by workspace "${slug}".\n\nThis action CANNOT be undone.${credNotice}`)) {
         return;
     }
 
     const statusEl = document.getElementById('deploy-action-status');
     const terminalEl = document.getElementById('deploy-terminal-output');
-    const engine = (currentProject && currentProject.engine) || 'terraform';
 
     if (statusEl) statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Destroying infrastructure...`;
     if (terminalEl) terminalEl.innerText = `🧹 Executing ${engine} destroy on workspace '${slug}'...\n`;
@@ -1522,7 +1745,10 @@ async function submitLiveDestroy() {
     try {
         const res = await apiFetch(`/api/projects/${slug}/destroy`, {
             method: 'POST',
-            body: JSON.stringify({ engine: engine })
+            body: JSON.stringify({
+                engine: engine,
+                credentials: credentials
+            })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || `Destroy failed with status ${res.status}`);
@@ -1710,9 +1936,11 @@ async function loadBillingInfo() {
             badge.style.border = "";
         }
 
-        // Quota Bar
+        // Quota Bar & Remaining Runs
         const used = sub.runs_this_month || 0;
         const limit = sub.monthly_limit;
+        const runsRemaining = limit === -1 ? 'Unlimited' : Math.max(0, limit - used);
+
         if (limit === -1) {
             document.getElementById('billing-quota-text').innerText = `${used} Runs (Unlimited Capacity)`;
             document.getElementById('billing-quota-bar').style.width = "100%";
@@ -1722,28 +1950,51 @@ async function loadBillingInfo() {
             document.getElementById('billing-quota-bar').style.width = `${pct}%`;
         }
 
-        // Cost Attribution
-        document.getElementById('billing-total-tokens').innerText = (consumption.total_tokens || 0).toLocaleString();
-        document.getElementById('billing-ai-cost').innerText = `Est. Cost: $${consumption.ai_cost_incurred_usd || 0}`;
-        document.getElementById('billing-compute-seconds').innerText = `${consumption.compute_seconds || 0}s`;
-        document.getElementById('billing-compute-cost').innerText = `Platform Fee: $${consumption.compute_cost_incurred_usd || 0}`;
-        document.getElementById('billing-infra-spend').innerText = `$${consumption.infra_projected_spend_usd || 0}`;
+        // Customer Value Metrics
+        const runsRemEl = document.getElementById('billing-runs-remaining');
+        if (runsRemEl) runsRemEl.innerText = limit === -1 ? 'Unlimited' : `${runsRemaining} Runs`;
 
-        // Recent metered runs
+        const hoursSavedEl = document.getElementById('billing-hours-saved');
+        if (hoursSavedEl) {
+            const saved = (used * 4.5).toFixed(1);
+            hoursSavedEl.innerText = `${saved} hrs`;
+        }
+
+        const infraSpendEl = document.getElementById('billing-infra-spend');
+        if (infraSpendEl) infraSpendEl.innerText = `$${consumption.infra_projected_spend_usd || '0.00'}`;
+
+        // Recent Workspace Runs (Clean, customer-facing table without backend tokens or platform cost)
         const tbody = document.getElementById('billing-runs-tbody');
         const runs = statement.recent_runs || [];
         if (runs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #888;">No usage records logged yet for this period.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #888;">No workspace execution records logged yet for this period.</td></tr>`;
         } else {
             tbody.innerHTML = runs.map(r => `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
                     <td style="padding: 0.5rem; color: #888; font-family: monospace;">${r.created_at ? r.created_at.substring(0, 16).replace('T', ' ') : '-'}</td>
-                    <td style="padding: 0.5rem; font-family: monospace; color: #a5b4fc;">${r.project_slug}</td>
-                    <td style="padding: 0.5rem; color: #cbd5e1;">${(r.tokens || 0).toLocaleString()}</td>
-                    <td style="padding: 0.5rem; color: #cbd5e1;">${r.compute_seconds || 0}s</td>
-                    <td style="padding: 0.5rem; font-weight: 600; color: #10b981;">$${r.platform_cost_usd || 0}</td>
+                    <td style="padding: 0.5rem; font-family: monospace; color: #a5b4fc; font-weight: 500;">${r.project_slug}</td>
+                    <td style="padding: 0.5rem; color: #cbd5e1;"><span style="font-size: 0.78rem; background: rgba(168, 85, 247, 0.15); color: #c084fc; padding: 2px 7px; border-radius: 4px; font-weight: 600;">🟣 Terraform</span></td>
+                    <td style="padding: 0.5rem;"><span class="status-badge status-deployed" style="font-size: 0.72rem; padding: 2px 7px;">Completed</span></td>
+                    <td style="padding: 0.5rem; color: #38bdf8; font-weight: 500;">$0.00/mo</td>
                 </tr>
             `).join('');
+        }
+
+        // Admin-Only: Internal Cost & Token Economics (COGS)
+        const adminPanel = document.getElementById('billing-admin-cogs-panel');
+        if (adminPanel) {
+            const isSuper = !!(currentUser && currentUser.is_superuser);
+            adminPanel.style.display = isSuper ? 'block' : 'none';
+            if (isSuper) {
+                const tokensEl = document.getElementById('billing-total-tokens');
+                if (tokensEl) tokensEl.innerText = (consumption.total_tokens || 0).toLocaleString();
+                const aiCostEl = document.getElementById('billing-ai-cost');
+                if (aiCostEl) aiCostEl.innerText = `Est. Raw AI Cost: $${consumption.ai_cost_incurred_usd || 0}`;
+                const compSecEl = document.getElementById('billing-compute-seconds');
+                if (compSecEl) compSecEl.innerText = `${consumption.compute_seconds || 0}s`;
+                const compCostEl = document.getElementById('billing-compute-cost');
+                if (compCostEl) compCostEl.innerText = `Internal Compute Fee: $${consumption.compute_cost_incurred_usd || 0}`;
+            }
         }
     } catch (e) {
         console.error("Failed to load billing info", e);

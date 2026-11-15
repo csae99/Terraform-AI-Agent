@@ -33,7 +33,7 @@ spec:
                 optional: true
           env:
             - name: DATABASE_URL
-              value: "postgresql://terra_user:terra_password@terraform-ai-db:5432/terraform_agent"
+              value: "postgresql+psycopg2://terra_user:terra_password@terraform-ai-db:5432/terraform_agent"
             - name: REDIS_URL
               value: "redis://terraform-ai-redis:6379/0"
             - name: PYTHONPATH
@@ -84,7 +84,7 @@ metadata:
   labels:
     app.kubernetes.io/name: terraform-ai-dashboard
 spec:
-  type: LoadBalancer
+  type: ClusterIP  # ClusterIP prevents port conflicts with Docker Desktop host port 5000. Use Ingress or 'kubectl port-forward' for external access.
   ports:
     - port: 5000
       targetPort: 5000

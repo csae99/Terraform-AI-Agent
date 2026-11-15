@@ -117,7 +117,11 @@ STRIPE_SECRET_KEY=sk_test_your_secret
 # Default IaC Engine ('terraform' or 'opentofu')
 DEFAULT_IAC_ENGINE=terraform
 
-# Cloud Sync (Required for Live Deployments)
+# Cloud Sync & Live Deployments (Optional in .env)
+# NOTE: Cloud credentials do NOT need to be hardcoded in .env!
+# Users can now input AWS / Azure / GCP credentials on-demand per session in the
+# Live Deploy & Logs tab, verify them via the "Test Connection" button, and save
+# them safely per-workspace via the Workspace Credentials Vault.
 AWS_ACCESS_KEY_ID=your_aws_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret
 AWS_DEFAULT_REGION=us-east-1
@@ -131,6 +135,13 @@ REDIS_URL=redis://localhost:6379/0
 # Enable Local AWS Emulation Mode (Floci)
 TEST_LOCAL=true
 ```
+
+> [!TIP]
+> **Dynamic On-Demand Cloud Credentials & Workspace Vault**:
+> Storing long-lived cloud credentials in `.env` is entirely optional. In modern multi-tenant environments, different users maintain different cloud IAM roles and accounts:
+> - **Real-Time Preflight STS Test (`Test Connection`)**: Test your AWS Access Key, Secret Key, and Session Token in real-time before running any `terraform plan`, `apply`, or `destroy`. The backend executes `boto3.client('sts').get_caller_identity()` to confirm your IAM ARN and Account ID, instantly surfacing friendly diagnostics for revoked or expired keys (`InvalidClientTokenId`), typos (`SignatureDoesNotMatch`), or session token requirements (`ASIA...`).
+> - **Workspace Credentials Vault (`Save for Workspace`)**: Save validated credentials specifically for that project workspace (`output/<slug>/.credentials.json`, which is automatically added to `.gitignore`). When executing `Re-Apply`, `Check Drift`, or `Destroy Infrastructure`, the platform automatically uses the saved workspace credentials.
+> - **Key Rotation & Safety**: If a key is deleted, expired, or rotated in IAM, simply enter your new Access Key and Secret Key, click **Test Connection** to verify it, and proceed with resource management or cleanup.
 
 ---
 

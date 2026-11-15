@@ -24,3 +24,14 @@ Create a default fully qualified app name.
 {{- define "terraform-ai-platform.fullname" -}}
 {{- include "terraform-ai-operator.fullname" . }}
 {{- end }}
+
+{{- define "terraform-ai-agent.fullname" -}}
+{{- include "terraform-ai-operator.fullname" . }}
+{{- end }}
+
+{{- define "terraform-ai-agent.labels" -}}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+app.kubernetes.io/name: {{ include "terraform-ai-operator.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}

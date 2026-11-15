@@ -3,65 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terraform AI Agent | Login</title>
+    <title>OmniInfra AI | Authentication & Console Access</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            background: radial-gradient(circle at top right, #1a1a2e, #0f0c29);
-            overflow: hidden;
+            min-height: 100vh;
+            background: radial-gradient(circle at 10% 20%, #1e1b4b 0%, #05070d 80%);
+            overflow-x: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            position: relative;
         }
         .login-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 3rem;
+            padding: 2.75rem;
             border-radius: 20px;
-            width: 400px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            animation: fadeIn 0.8s ease-out;
+            width: 100%;
+            max-width: 430px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 30px rgba(99, 102, 241, 0.2);
+            animation: fadeIn 0.6s ease-out;
+            position: relative;
+            z-index: 10;
         }
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
+            from { opacity: 0; transform: translateY(18px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        h2 { text-align: center; margin-bottom: 2rem; color: #fff; font-weight: 700; letter-spacing: 1px; }
-        .form-group { margin-bottom: 1.5rem; }
-        .form-group label { display: block; color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 0.5rem; }
+        .brand-header {
+            text-align: center;
+            margin-bottom: 1.75rem;
+        }
+        .brand-link {
+            text-decoration: none;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
+        .brand-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #6366f1 0%, #38bdf8 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.1rem;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+        .badge-ai {
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 12px;
+            background: rgba(99, 102, 241, 0.25);
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.4);
+        }
+        h2 { 
+            text-align: center; 
+            margin-bottom: 1.5rem; 
+            color: #fff; 
+            font-weight: 700; 
+            font-size: 1.35rem;
+            letter-spacing: -0.01em; 
+        }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label { 
+            display: block; 
+            color: #94a3b8; 
+            font-size: 0.82rem; 
+            margin-bottom: 0.45rem; 
+            font-weight: 500;
+        }
         .form-group input { 
             width: 100%; 
-            background: rgba(0,0,0,0.3); 
-            border: 1px solid var(--border); 
+            background: rgba(0,0,0,0.35); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
             color: #fff; 
-            padding: 0.8rem; 
+            padding: 0.8rem 1rem; 
             border-radius: 8px; 
             outline: none;
-            transition: border-color 0.3s;
+            font-size: 0.9rem;
+            transition: all 0.25s;
         }
-        .form-group input:focus { border-color: var(--accent-blue); }
+        .form-group input:focus { 
+            border-color: #6366f1; 
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); 
+        }
         .btn-primary { 
             width: 100%; 
-            padding: 1rem; 
-            background: var(--accent-blue); 
+            padding: 0.9rem; 
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); 
             border: none; 
             border-radius: 8px; 
             color: #fff; 
             font-weight: 600; 
+            font-size: 0.95rem;
             cursor: pointer;
-            transition: transform 0.2s, background 0.3s;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+            transition: all 0.25s;
+            margin-top: 0.5rem;
         }
-        .btn-primary:hover { background: #3b82f6; transform: translateY(-2px); }
-        .toggle-link { text-align: center; margin-top: 1.5rem; color: var(--text-secondary); font-size: 0.85rem; }
-        .toggle-link a { color: var(--accent-orange); text-decoration: none; font-weight: 600; cursor: pointer; }
+        .btn-primary:hover { 
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); 
+            transform: translateY(-2px); 
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+        .toggle-link { 
+            text-align: center; 
+            margin-top: 1.5rem; 
+            color: #94a3b8; 
+            font-size: 0.85rem; 
+        }
+        .toggle-link a { 
+            color: #38bdf8; 
+            text-decoration: none; 
+            font-weight: 600; 
+            cursor: pointer; 
+            margin-left: 0.3rem;
+        }
+        .toggle-link a:hover { text-decoration: underline; }
+        .back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: #94a3b8;
+            font-size: 0.82rem;
+            text-decoration: none;
+            margin-bottom: 1.25rem;
+            transition: color 0.2s;
+        }
+        .back-home:hover { color: #fff; }
     </style>
 </head>
 <body>
     <div class="login-card">
-        <h2 id="form-title">Portal Login</h2>
-        <div id="error-msg" style="color: #ef4444; font-size: 0.8rem; margin-bottom: 1rem; display: none; text-align: center;"></div>
+        <a href="/" class="back-home"><i class="fas fa-arrow-left"></i> Back to Homepage</a>
+
+        <div class="brand-header">
+            <a href="/" class="brand-link">
+                <div class="brand-icon"><i class="fas fa-cubes"></i></div>
+                <span>OmniInfra</span>
+                <span class="badge-ai">AI</span>
+            </a>
+        </div>
+
+        <h2 id="form-title">Console Login</h2>
+        <div id="error-msg" style="color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.6rem 0.8rem; border-radius: 6px; font-size: 0.82rem; margin-bottom: 1rem; display: none; text-align: center;"></div>
         
         <form id="auth-form">
             <div class="form-group">
@@ -76,7 +174,7 @@
                 <label>Password</label>
                 <input type="password" id="password" required placeholder="••••••••">
             </div>
-            <button type="submit" class="btn-primary" id="submit-btn">Login</button>
+            <button type="submit" class="btn-primary" id="submit-btn">Login to Console</button>
         </form>
 
         <div class="toggle-link">
@@ -88,10 +186,20 @@
     <script>
         let isLogin = true;
 
+        // Auto-switch to register if URL has #register
+        if (window.location.hash === '#register' || window.location.search.includes('mode=register')) {
+            isLogin = false;
+            updateFormUI();
+        }
+
         function toggleAuthMode() {
             isLogin = !isLogin;
-            document.getElementById('form-title').innerText = isLogin ? 'Portal Login' : 'Create Account';
-            document.getElementById('submit-btn').innerText = isLogin ? 'Login' : 'Sign Up';
+            updateFormUI();
+        }
+
+        function updateFormUI() {
+            document.getElementById('form-title').innerText = isLogin ? 'Console Login' : 'Create Free Account';
+            document.getElementById('submit-btn').innerText = isLogin ? 'Login to Console' : 'Create Account & Launch';
             document.getElementById('toggle-text').innerText = isLogin ? "Don't have an account?" : "Already have an account?";
             document.getElementById('toggle-btn').innerText = isLogin ? 'Sign Up' : 'Login';
             document.getElementById('email-group').style.display = isLogin ? 'none' : 'block';
@@ -104,9 +212,13 @@
             const password = document.getElementById('password').value;
             const email = document.getElementById('email').value;
             const errorElem = document.getElementById('error-msg');
+            const submitBtn = document.getElementById('submit-btn');
 
             const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
             const body = isLogin ? { username, password } : { username, password, email };
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = isLogin ? 'Authenticating...' : 'Creating Account...';
 
             try {
                 const res = await fetch(endpoint, {
@@ -116,14 +228,18 @@
                 });
                 const data = await res.json();
                 if (res.ok) {
-                    window.location.href = '/';
+                    window.location.href = '/app';
                 } else {
-                    errorElem.innerText = data.detail || data.error || "Authentication failed";
+                    errorElem.innerText = data.detail || data.error || "Authentication failed. Please verify credentials.";
                     errorElem.style.display = 'block';
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = isLogin ? 'Login to Console' : 'Create Account & Launch';
                 }
             } catch (err) {
-                errorElem.innerText = "Connection error";
+                errorElem.innerText = "Connection error to platform API";
                 errorElem.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.innerText = isLogin ? 'Login to Console' : 'Create Account & Launch';
             }
         });
     </script>

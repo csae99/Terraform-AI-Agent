@@ -26,7 +26,9 @@ dashboard:
   pullPolicy: IfNotPresent
   secretKey: "k8s-secret-key-terraform-ai-agent"
   service:
-    type: LoadBalancer
+    # Use ClusterIP by default to avoid port collisions with host Docker on localhost:5000 in local dev environments.
+    # Set to LoadBalancer or NodePort when deploying to cloud-managed Kubernetes (EKS, GKE, AKS).
+    type: ClusterIP
     port: 5000
 
 admin:

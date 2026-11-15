@@ -13,6 +13,8 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///terraform_agent.db")
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

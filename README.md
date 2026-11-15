@@ -48,7 +48,8 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem and Kubernetes-Nat
 - **AI Self-Healing & Web-Search**: The system automatically identifies security vulnerabilities and live deployment errors, initiating autonomous "Fix Rounds" to resolve them — powered by **dynamic LLM reflection** and **autonomous web-search documentation lookup** to resolve API/provider changes dynamically.
 - **Unified Security Engine**: Dual-engine auditing using **Checkov** for deep analysis and **tfsec** for high-speed checks.
 - **Financial Intelligence & Fallback Reporting**: Integrated **Infracost** monthly cost projections with fallback report generation.
-- **Live Deployment**: The **Deployment Specialist** agent executes `terraform apply` and resolves cloud provider errors in real-time.
+- **Live Deployment & Dynamic Self-Healing**: The **Deployment Specialist** agent executes `terraform apply` and resolves cloud provider errors in real-time.
+- **Cloud Provider Preflight STS Validator & Workspace Credentials Vault**: Eliminate the need to store AWS / Cloud access keys in `.env`. Users can enter credentials on-demand per session, test them in real-time via AWS STS (`boto3.client('sts').get_caller_identity()`) before executing any deployment or destruction, and securely persist them per-workspace (`output/<slug>/.credentials.json`, automatically added to `.gitignore`). Supports key rotation, session token authentication, and instant error diagnosis for revoked keys or signature mismatches.
 
 ---
 
@@ -86,6 +87,7 @@ An enterprise-grade Autonomous Platform Engineering Ecosystem and Kubernetes-Nat
 | **Universal Engine (Terraform/Tofu)**| `tools/engine/factory.py` | ✅ **Implemented & Verified** | `scratch/test_live_e2e.py` |
 | **Kubernetes CRD Control Plane** | `k8s/operator/`, `k8s/crds/` | ✅ **Implemented & Verified** | `scratch/test_phase15_k8s_control_plane.py` |
 | **GitOps Controllers (ArgoCD/Flux)** | `k8s/gitops/` | ✅ **Implemented & Verified** | `scratch/test_phase15_k8s_control_plane.py` |
+| **STS Preflight & Workspace Vault** | `app/dashboard.py` (`/api/credentials/test`) | ✅ **Implemented & Verified** | `app.dashboard:test_credentials` + Live E2E |
 
 ---
 
@@ -156,6 +158,7 @@ python app/dashboard.py
 The dashboard provides:
 - 🔧 **Build Tab**: Submit infrastructure requirements with budget, model selection, local emulation toggle, and **GitOps Mode drawer** for automated Pull Request generation.
 - 📁 **Workspaces Tab**: View all generated projects with Terraform code, visual topology, evolution history, FinOps reports, and deployment logs.
+- 🚀 **Live Deploy & Credentials Vault**: Execute live `terraform plan`, `apply`, `check drift`, and `destroy` operations. Features an on-demand **Cloud Provider Credentials** panel with a **Test Connection** button (validates STS credentials in real-time before running commands) and a **Workspace Credentials Vault** (`Save for Workspace`) to securely store per-workspace credentials without hardcoding secrets in `.env`.
 - 🔀 **GitOps & Approval Tab**: View PR status badges, branch links, approver history, and interactive "Approve PR" and "Merge & Deploy" control buttons.
 - 📜 **Audit Trail Tab**: Enterprise immutable activity log tracking every generation, PR creation, approval, and deployment event across teams.
 - 🏢 **Organization Workspaces**: Create organizations, invite team members, assign roles (Owner/Admin/Member/Viewer), and switch contexts.

@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terraform AI Agent | Dashboard</title>
-    <meta name="description" content="Autonomous Infrastructure Platform — Generate, audit, and deploy Terraform with AI agents.">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='url(%23g)'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='18' font-weight='bold' fill='white'>T</text><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop stop-color='%233b82f6'/><stop offset='1' stop-color='%238b5cf6'/></linearGradient></defs></svg>">
+    <title>OmniInfra AI | Autonomous Platform Engineering Console</title>
+    <meta name="description" content="OmniInfra AI — Universal Autonomous Platform Engineering & Cloud Control Plane for Terraform, OpenTofu, and Kubernetes.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='url(%23g)'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='18' font-weight='bold' fill='white'>O</text><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop stop-color='%236366f1'/><stop offset='1' stop-color='%2338bdf8'/></linearGradient></defs></svg>">
     <link rel="stylesheet" href="/static/style.css?v=10">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
@@ -18,9 +18,17 @@
     <div class="toast-container" id="toast-container"></div>
 
     <header>
-        <div class="logo-container">
-            <div class="logo-icon">T</div>
-            <h1>Terraform AI Agent</h1>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div class="logo-container" onclick="window.location.href='/'" style="cursor: pointer; display: flex; align-items: center; gap: 0.6rem;" title="Go to Homepage">
+                <div class="logo-icon" style="background: linear-gradient(135deg, #6366f1 0%, #38bdf8 100%);"><i class="fas fa-cubes"></i></div>
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                    <h1 style="margin: 0; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em;">OmniInfra</h1>
+                    <span style="font-size: 0.68rem; background: rgba(99, 102, 241, 0.25); color: #a5b4fc; padding: 2px 7px; border-radius: 12px; border: 1px solid rgba(99, 102, 241, 0.4); font-weight: 700;">AI</span>
+                </div>
+            </div>
+            <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.82rem; padding: 0.35rem 0.65rem; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); display: inline-flex; align-items: center; gap: 0.35rem;" title="View Landing Page">
+                <i class="fas fa-home"></i> Home
+            </a>
         </div>
         
         <!-- Workspace & Organization Context Switcher -->
@@ -337,17 +345,58 @@
 
                 <div id="modal-tab-logs" class="modal-tab-content" style="display: none;">
                     <div class="deploy-layout" style="display: flex; flex-direction: column; gap: 1.5rem; padding: 1rem 0;">
-                        <!-- State A: Live Cloud Provisioning Form (Shown when not deployed) -->
-                        <div id="deploy-provision-view" style="display: block; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.5rem;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
-                                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                    <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center;">
-                                        <i class="fas fa-cloud-upload-alt" style="font-size: 1.4rem; color: #34d399;"></i>
+                        <!-- State A: Live Cloud Provisioning Banner (Shown when not deployed) -->
+                        <div id="deploy-provision-view" style="display: block; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-cloud-upload-alt" style="font-size: 1.4rem; color: #34d399;"></i>
+                                </div>
+                                <div>
+                                    <h3 style="margin: 0; font-size: 1.15rem; color: #fff;">Live Cloud Provisioning (On-Demand Apply)</h3>
+                                    <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">Deploy this workspace's generated Terraform configuration directly to your target cloud or run a dry-run plan.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- State B: Active Live Deployment Overview (Shown when deployed) -->
+                        <div id="deploy-active-view" style="display: none; flex-direction: column; gap: 1rem;">
+                            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); display: flex; align-items: center; justify-content: center;">
+                                            <i class="fas fa-check-circle" style="font-size: 1.2rem; color: #34d399;"></i>
+                                        </div>
+                                        <div>
+                                            <h3 style="margin: 0; font-size: 1.1rem; color: #fff;">Active Cloud Deployment</h3>
+                                            <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">This workspace has been provisioned and is live in the cloud.</p>
+                                        </div>
+                                    </div>
+                                    <span id="deploy-status-badge" class="status-badge status-deployed">Live Deployed</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                                    <div>
+                                        <span class="meta-label">Cloud Provider</span>
+                                        <div id="deploy-active-provider" style="font-weight: 600; color: #38bdf8; text-transform: uppercase;">AWS</div>
                                     </div>
                                     <div>
-                                        <h3 style="margin: 0; font-size: 1.15rem; color: #fff;">Live Cloud Provisioning (On-Demand Apply)</h3>
-                                        <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">Deploy this workspace's generated Terraform configuration directly to your target cloud or run a dry-run plan.</p>
+                                        <span class="meta-label">Deployed At</span>
+                                        <div id="deploy-active-time" style="font-weight: 500; color: #e2e8f0;">-</div>
                                     </div>
+                                    <div>
+                                        <span class="meta-label">Deployed By</span>
+                                        <div id="deploy-active-by" style="font-weight: 500; color: #a7f3d0;">-</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Shared Provider & Credentials Configuration Panel (Available for both Provision & Destroy/Re-Plan) -->
+                        <div id="deploy-credentials-panel" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-key" style="color: #38bdf8;"></i>
+                                    <span style="font-weight: 600; font-size: 0.95rem; color: #fff;">Cloud Provider Credentials</span>
+                                    <span style="font-size: 0.75rem; color: var(--text-secondary);">(Entered on-demand per user session)</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <label class="meta-label" style="margin: 0;">Engine</label>
@@ -359,7 +408,7 @@
                             </div>
 
                             <!-- Provider Selection Tabs -->
-                            <div class="cred-tabs" style="margin-top: 1rem;">
+                            <div class="cred-tabs" style="margin-top: 0.75rem;">
                                 <button type="button" class="tab-btn active" id="btn-deploy-tab-aws" onclick="switchDeployCredTab('aws')">AWS</button>
                                 <button type="button" class="tab-btn" id="btn-deploy-tab-azure" onclick="switchDeployCredTab('azure')">Azure</button>
                                 <button type="button" class="tab-btn" id="btn-deploy-tab-gcp" onclick="switchDeployCredTab('gcp')">GCP</button>
@@ -367,18 +416,22 @@
                             </div>
 
                             <!-- AWS Credentials Sub-Panel -->
-                            <div id="deploy-cred-aws" class="config-grid-3" style="margin-top: 1rem;">
+                            <div id="deploy-cred-aws" class="config-grid-4" style="margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
                                 <div>
                                     <label class="meta-label">Access Key ID</label>
-                                    <input type="password" id="deploy-aws-key" class="form-input form-input-sm" placeholder="AKIA... (Optional if in .env)">
+                                    <input type="password" id="deploy-aws-key" class="form-input form-input-sm" placeholder="AKIA... (Active IAM Key)">
                                 </div>
                                 <div>
                                     <label class="meta-label">Secret Key</label>
-                                    <input type="password" id="deploy-aws-secret" class="form-input form-input-sm" placeholder="wJalrX... (Optional if in .env)">
+                                    <input type="password" id="deploy-aws-secret" class="form-input form-input-sm" placeholder="wJalrX... (Active Secret)">
                                 </div>
                                 <div>
                                     <label class="meta-label">Region</label>
                                     <input type="text" id="deploy-aws-region" class="form-input form-input-sm" placeholder="us-east-1" value="us-east-1">
+                                </div>
+                                <div>
+                                    <label class="meta-label">Session Token (Optional)</label>
+                                    <input type="password" id="deploy-aws-token" class="form-input form-input-sm" placeholder="AQoDYXdzE... (If STS/SSO/Lab)">
                                 </div>
                             </div>
 
@@ -415,65 +468,58 @@
                                 </p>
                             </div>
 
-                            <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem;">
-                                <button id="btn-deploy-plan" onclick="submitLiveDeploy('plan')" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; font-weight: 500; padding: 0.65rem 1.2rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                                    <i class="fas fa-search"></i> Run Plan (Dry-Run)
-                                </button>
-                                <button id="btn-deploy-apply" onclick="submitLiveDeploy('apply')" class="btn-sm" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #fff; font-weight: 600; padding: 0.65rem 1.4rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                                    <i class="fas fa-rocket"></i> Deploy Infrastructure (Apply)
-                                </button>
+                            <!-- Preflight Test & Workspace Credential Vault Bar -->
+                            <div style="margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <button type="button" id="btn-test-credentials" onclick="testDeployCredentials()" class="btn-sm" style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8; padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                        <i class="fas fa-plug"></i> Test Connection
+                                    </button>
+                                    <button type="button" id="btn-save-credentials" onclick="saveWorkspaceCredentials()" class="btn-sm" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: #cbd5e1; padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem;" title="Persist securely in project directory for this workspace">
+                                        <i class="fas fa-save"></i> Save for Workspace
+                                    </button>
+                                    <button type="button" id="btn-clear-credentials" onclick="clearWorkspaceCredentials()" class="btn-sm" style="background: transparent; border: 1px solid transparent; color: #94a3b8; padding: 0.45rem 0.6rem; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.8rem; display: none;" title="Clear saved credentials for this workspace">
+                                        <i class="fas fa-trash-alt"></i> Clear Saved
+                                    </button>
+                                </div>
+                                <div id="deploy-vault-status" style="font-size: 0.8rem; color: #94a3b8; display: flex; align-items: center; gap: 0.4rem;">
+                                    <span id="deploy-vault-badge" style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1);">
+                                        <i class="fas fa-shield-alt"></i> Not saved to workspace
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Preflight Test Output Alert Banner -->
+                            <div id="deploy-cred-test-result" style="display: none; margin-top: 0.75rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.85rem; line-height: 1.4;">
                             </div>
                         </div>
 
-                        <!-- State B: Active Live Deployment Overview (Shown when deployed) -->
-                        <div id="deploy-active-view" style="display: none; flex-direction: column; gap: 1rem;">
-                            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                        <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); display: flex; align-items: center; justify-content: center;">
-                                            <i class="fas fa-check-circle" style="font-size: 1.2rem; color: #34d399;"></i>
-                                        </div>
-                                        <div>
-                                            <h3 style="margin: 0; font-size: 1.1rem; color: #fff;">Active Cloud Deployment</h3>
-                                            <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">This workspace has been provisioned and is live in the cloud.</p>
-                                        </div>
-                                    </div>
-                                    <span id="deploy-status-badge" class="status-badge status-deployed">Live Deployed</span>
-                                </div>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
-                                    <div>
-                                        <span class="meta-label">Cloud Provider</span>
-                                        <div id="deploy-active-provider" style="font-weight: 600; color: #38bdf8; text-transform: uppercase;">AWS</div>
-                                    </div>
-                                    <div>
-                                        <span class="meta-label">Deployed At</span>
-                                        <div id="deploy-active-time" style="font-weight: 500; color: #e2e8f0;">-</div>
-                                    </div>
-                                    <div>
-                                        <span class="meta-label">Deployed By</span>
-                                        <div id="deploy-active-by" style="font-weight: 500; color: #a7f3d0;">-</div>
-                                    </div>
-                                </div>
-                            </div>
+                        <!-- Actions Toolbar for State A (When NOT deployed) -->
+                        <div id="deploy-provision-actions" style="display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem;">
+                            <button id="btn-deploy-plan" onclick="submitLiveDeploy('plan')" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; font-weight: 500; padding: 0.65rem 1.2rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-search"></i> Run Plan (Dry-Run)
+                            </button>
+                            <button id="btn-deploy-apply" onclick="submitLiveDeploy('apply')" class="btn-sm" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #fff; font-weight: 600; padding: 0.65rem 1.4rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-rocket"></i> Deploy Infrastructure (Apply)
+                            </button>
+                        </div>
 
-                            <!-- Live Actions Toolbar -->
-                            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
-                                <div style="display: flex; gap: 0.75rem;">
-                                    <button onclick="checkProjectDrift(currentProject.slug)" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
-                                        <i class="fas fa-sync-alt"></i> Check Drift
-                                    </button>
-                                    <button onclick="submitLiveDeploy('plan')" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
-                                        <i class="fas fa-search"></i> Re-Plan
-                                    </button>
-                                    <button onclick="submitLiveDeploy('apply')" class="btn-sm" style="background: #10b981; border: none; color: #fff; font-weight: 600; padding: 0.5rem 1.1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
-                                        <i class="fas fa-redo"></i> Re-Apply
-                                    </button>
-                                </div>
-                                <div>
-                                    <button onclick="submitLiveDestroy()" class="btn-sm" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; font-weight: 600; padding: 0.5rem 1.1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
-                                        <i class="fas fa-trash-alt"></i> Destroy Infrastructure
-                                    </button>
-                                </div>
+                        <!-- Actions Toolbar for State B (When deployed) -->
+                        <div id="deploy-active-actions" style="display: none; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                            <div style="display: flex; gap: 0.75rem;">
+                                <button onclick="checkDrift()" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                    <i class="fas fa-sync-alt"></i> Check Drift
+                                </button>
+                                <button onclick="submitLiveDeploy('plan')" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: #e2e8f0; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                    <i class="fas fa-search"></i> Re-Plan
+                                </button>
+                                <button onclick="submitLiveDeploy('apply')" class="btn-sm" style="background: #10b981; border: none; color: #fff; font-weight: 600; padding: 0.5rem 1.1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                    <i class="fas fa-redo"></i> Re-Apply
+                                </button>
+                            </div>
+                            <div>
+                                <button onclick="submitLiveDestroy()" class="btn-sm" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; font-weight: 600; padding: 0.5rem 1.1rem; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                    <i class="fas fa-trash-alt"></i> Destroy Infrastructure
+                                </button>
                             </div>
                         </div>
 
@@ -785,43 +831,69 @@
                 </div>
             </div>
 
-            <!-- Cost Attribution & Metering Breakdown -->
-            <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem;">
-                <h3 style="margin-top: 0; margin-bottom: 1rem; color: #fff; font-size: 1.1rem;"><i class="fas fa-receipt" style="color: #10b981;"></i> Cost Attribution & Resource Consumption</h3>
+            <!-- Customer Usage & Value Overview -->
+            <div style="background: var(--card-bg, #1e293b); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem; color: #fff; font-size: 1.1rem;"><i class="fas fa-chart-line" style="color: #38bdf8;"></i> Workspace Execution & Value Metrics</h3>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                     <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
-                        <span class="meta-label">Total LLM Tokens</span>
-                        <div id="billing-total-tokens" style="font-size: 1.3rem; font-weight: 700; color: #fff; margin-top: 0.25rem;">0</div>
-                        <span id="billing-ai-cost" style="font-size: 0.8rem; color: #94a3b8;">Est. Cost: $0.00</span>
+                        <span class="meta-label">Executions Remaining</span>
+                        <div id="billing-runs-remaining" style="font-size: 1.4rem; font-weight: 700; color: #10b981; margin-top: 0.25rem;">0 Runs</div>
+                        <span id="billing-runs-period" style="font-size: 0.8rem; color: #94a3b8;">Current monthly billing cycle</span>
                     </div>
                     <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
-                        <span class="meta-label">Worker Compute Seconds</span>
-                        <div id="billing-compute-seconds" style="font-size: 1.3rem; font-weight: 700; color: #fff; margin-top: 0.25rem;">0.0s</div>
-                        <span id="billing-compute-cost" style="font-size: 0.8rem; color: #94a3b8;">Platform Fee: $0.00</span>
+                        <span class="meta-label">Engineering Time Saved</span>
+                        <div id="billing-hours-saved" style="font-size: 1.4rem; font-weight: 700; color: #a5b4fc; margin-top: 0.25rem;">0.0 hrs</div>
+                        <span style="font-size: 0.8rem; color: #94a3b8;">~4.5 hrs / autonomous run</span>
                     </div>
                     <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
                         <span class="meta-label">Projected Cloud Spend</span>
-                        <div id="billing-infra-spend" style="font-size: 1.3rem; font-weight: 700; color: #38bdf8; margin-top: 0.25rem;">$0.00</div>
-                        <span style="font-size: 0.8rem; color: #94a3b8;">Infracost monthly estimates</span>
+                        <div id="billing-infra-spend" style="font-size: 1.4rem; font-weight: 700; color: #38bdf8; margin-top: 0.25rem;">$0.00</div>
+                        <span style="font-size: 0.8rem; color: #94a3b8;">Monthly cloud provider projection</span>
                     </div>
                 </div>
 
-                <h4 style="color: #ccc; margin-bottom: 0.75rem;">Recent Metered Runs</h4>
+                <h4 style="color: #ccc; margin-bottom: 0.75rem;"><i class="fas fa-history" style="color: #94a3b8;"></i> Recent Workspace Runs</h4>
                 <div style="max-height: 250px; overflow-y: auto;">
                     <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
                         <thead>
                             <tr style="border-bottom: 1px solid var(--border-color); color: #888;">
                                 <th style="padding: 0.5rem;">Timestamp</th>
-                                <th style="padding: 0.5rem;">Project</th>
-                                <th style="padding: 0.5rem;">Tokens</th>
-                                <th style="padding: 0.5rem;">Compute</th>
-                                <th style="padding: 0.5rem;">Platform Cost</th>
+                                <th style="padding: 0.5rem;">Workspace Project</th>
+                                <th style="padding: 0.5rem;">Engine</th>
+                                <th style="padding: 0.5rem;">Status</th>
+                                <th style="padding: 0.5rem;">Est. Cloud Spend</th>
                             </tr>
                         </thead>
                         <tbody id="billing-runs-tbody">
                             <!-- Injected by JS -->
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Admin-Only: Platform Cost & Token Economics (Internal COGS) -->
+            <div id="billing-admin-cogs-panel" style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px dashed rgba(239, 68, 68, 0.4); border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-lock" style="color: #ef4444;"></i>
+                        <h4 style="margin: 0; color: #fca5a5; font-size: 0.95rem;">Platform Administrator Cost Economics (Internal COGS)</h4>
+                        <span style="font-size: 0.7rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); padding: 1px 6px; border-radius: 4px; font-weight: 700;">SUPER-ADMIN ONLY</span>
+                    </div>
+                    <a href="/admin" class="btn-sm" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; text-decoration: none; padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">
+                        <i class="fas fa-shield-alt"></i> Open Admin Cockpit
+                    </a>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.75rem;">
+                        <span class="meta-label">Total LLM Tokens Burned</span>
+                        <div id="billing-total-tokens" style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-top: 0.2rem;">0</div>
+                        <span id="billing-ai-cost" style="font-size: 0.75rem; color: #94a3b8;">Est. Raw AI Cost: $0.00</span>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.75rem;">
+                        <span class="meta-label">Worker Compute Duration</span>
+                        <div id="billing-compute-seconds" style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-top: 0.2rem;">0.0s</div>
+                        <span id="billing-compute-cost" style="font-size: 0.75rem; color: #94a3b8;">Internal Compute Fee: $0.00</span>
+                    </div>
                 </div>
             </div>
         </main>
@@ -1016,6 +1088,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=13.4"></script>
+    <script src="/static/app.js?v=16.0"></script>
 </body>
 </html>

@@ -62,6 +62,29 @@ Implemented a fair subscription downgrade and restoration system:
 
 ---
 
+### 4. 🔑 Cloud Provider Preflight STS Validator & Workspace Credentials Vault
+A security and usability system eliminating the requirement to store long-lived credentials in `.env`, while solving authentication and key rotation failures during deployment and infrastructure destruction:
+- **On-Demand Real-Time Preflight STS Validator (`POST /api/credentials/test`)**:
+  - Validates user-submitted credentials against the cloud provider before running Terraform or OpenTofu.
+  - AWS: Calls `boto3.client('sts').get_caller_identity()`. On success, returns authenticated IAM User ARN and AWS Account ID.
+  - Rich diagnostics: Detects `InvalidClientTokenId` (key deleted/revoked in IAM or missing Session Token), `SignatureDoesNotMatch` (typos/mismatched secret key), and `ExpiredToken`.
+  - Multi-cloud extensible: Supports Azure Active Directory OAuth client credentials and GCP service account JSON structure validation.
+- **Workspace Credentials Vault (`/api/projects/{slug}/credentials`)**:
+  - Stores credentials on a per-workspace basis in `output/{slug}/.credentials.json` with automatic entry in `.gitignore` to prevent secret exposure.
+  - `GET /api/projects/{slug}/credentials`: Returns masked status (e.g. `AKIA...LG57`, region, `has_token`) to safeguard secrets.
+  - `POST /api/projects/{slug}/credentials`: Saves active form credentials to the workspace.
+  - `DELETE /api/projects/{slug}/credentials`: Clears saved credentials.
+- **Dynamic Credential Resolution & Fallback Sequence**:
+  - `submitLiveDeploy` & `submitLiveDestroy` pass entered credentials directly in the request payload.
+  - If request credentials are omitted, the backend automatically falls back to the saved workspace vault before container defaults.
+  - Automatic `AWS_SESSION_TOKEN` sanitation: Clears lingering or conflicting session tokens when permanent `AKIA...` keys are provided without a token.
+- **Frontend UI Integration**:
+  - Decoupled `#deploy-credentials-panel` in `static/index.html` to remain permanently accessible across all workspace states (undeployed, deployed, or drifted).
+  - Added **Test Connection** button with live spinner and green/red status alert banner.
+  - Added **Save for Workspace** and **Clear Saved** buttons with dynamic status badge (`Saved for Workspace: AWS (AKIA...XXXX)`).
+
+---
+
 ## 🧪 Automated Test Results
 
 ### 1. Milestone 2 Verification Suite (`scratch/test_milestone2_suite.py`)
@@ -113,15 +136,33 @@ ALL 7 BILLING LIFECYCLE & ANTI-DOUBLE-CHARGING TESTS PASSED!
 
 ---
 
+### 3. Preflight Credentials & Workspace Vault Integration Suite
+Tested via Docker container test client and live browser verification:
+
+| # | Test Scenario | Verified Behavior | Status |
+|---|---|---|---|
+| 1 | Missing Credentials Preflight | Returns `MissingCredentials` error with friendly prompt | ✅ **PASS** |
+| 2 | Invalid/Revoked AWS IAM Key | Catches `InvalidClientTokenId` with actionable IAM hint | ✅ **PASS** |
+| 3 | Mismatched AWS Secret Key | Catches `SignatureDoesNotMatch` with typo warning | ✅ **PASS** |
+| 4 | Valid AWS Caller Identity | Resolves IAM ARN and Account ID in real-time | ✅ **PASS** |
+| 5 | Save Workspace Credentials | Persists to `output/{slug}/.credentials.json` + adds to `.gitignore` | ✅ **PASS** |
+| 6 | Get Masked Credentials | Returns `AKIA...XXXX`, region, and `has_token` without exposing secret | ✅ **PASS** |
+| 7 | Delete Workspace Credentials | Removes `.credentials.json` safely from disk | ✅ **PASS** |
+| 8 | Permanent Key Session Token Cleanup | Automatically clears conflicting `AWS_SESSION_TOKEN` | ✅ **PASS** |
+| 9 | Live Destroy with Saved Credentials | Successfully destroys resources without `.env` dependency | ✅ **PASS** |
+
+---
+
 ## 🗂️ Modified Core Files
 
+- [dashboard.py](file:///c:/Users/User/Music/Terraform-AI-Agent/app/dashboard.py): Added `test_credentials` (`/api/credentials/test`), workspace credentials CRUD endpoints (`/api/projects/{slug}/credentials`), and updated `destroy_project` / `deploy_project` to fallback to workspace credentials and clean conflicting tokens.
+- [index.html](file:///c:/Users/User/Music/Terraform-AI-Agent/static/index.html): Decoupled `#deploy-credentials-panel` across all states; added **Test Connection** button, **Save for Workspace** button, Session Token input, and status badge.
+- [app.js](file:///c:/Users/User/Music/Terraform-AI-Agent/static/app.js): Added `testDeployCredentials()`, `saveWorkspaceCredentials()`, `clearWorkspaceCredentials()`, `refreshWorkspaceCredentialBadge()`, and updated `submitLiveDestroy()` to pass form credentials.
 - [tracker.py](file:///c:/Users/User/Music/Terraform-AI-Agent/tools/project/tracker.py): Added `AgentMetricModel`, `LLMProviderMetricModel`, `PipelineStageTraceModel`, `AgentMetricTracker`, `RunControlManager`, and `LLMRoutingManager`.
 - [usage_tracking.py](file:///c:/Users/User/Music/Terraform-AI-Agent/billing/usage_tracking.py): Added `paid_until`, `paid_plan`, `cancel_at_period_end`, `downgrade_subscription()`, and `restore_paid_plan()`.
 - [razorpay_service.py](file:///c:/Users/User/Music/Terraform-AI-Agent/billing/razorpay_service.py): Integrated active entitlement checks and 30-day period tracking.
 - [stripe_service.py](file:///c:/Users/User/Music/Terraform-AI-Agent/billing/stripe_service.py): Added anti-double-charging restore checks and paid period metadata.
-- [dashboard.py](file:///c:/Users/User/Music/Terraform-AI-Agent/app/dashboard.py): Added Agent Ops, LLM Router, and Downgrade/Restore REST endpoints.
 - [config.py](file:///c:/Users/User/Music/Terraform-AI-Agent/llm/config.py): Connected LLM router bypass, provider status checks, and call telemetry logging.
 - [model_router.py](file:///c:/Users/User/Music/Terraform-AI-Agent/aiops/model_router.py): Connected router modes to intelligent fallback execution.
 - [pipeline.py](file:///c:/Users/User/Music/Terraform-AI-Agent/orchestrator/pipeline.py): Implemented pipeline stage tracing and in-flight pause/resume/cancel checkpoints.
-- [index.html](file:///c:/Users/User/Music/Terraform-AI-Agent/static/index.html) & [app.js](file:///c:/Users/User/Music/Terraform-AI-Agent/static/app.js): Added downgrade confirmation warning modal and fair billing flows.
 - [admin.html](file:///c:/Users/User/Music/Terraform-AI-Agent/static/admin.html) & [admin.js](file:///c:/Users/User/Music/Terraform-AI-Agent/static/admin.js): Added Agent Operations Center, LLM Router Control, and execution waterfall trace modals.
