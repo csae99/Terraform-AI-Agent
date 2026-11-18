@@ -5,13 +5,59 @@ let allProjects = [];
 let currentCodeFiles = {};
 let userOrgs = [];
 let activeOrgId = null;
+let dbPricingCatalog = [];
+
+// ─── Cloud Pricing Catalog Loader (Database-Backed) ─────────────
+async function loadPricingCatalog() {
+    try {
+        const cached = sessionStorage.getItem('omniinfra_pricing_catalog');
+        if (cached) {
+            dbPricingCatalog = JSON.parse(cached);
+        } else {
+            const res = await fetch('/api/pricing/catalog');
+            if (res.ok) {
+                const data = await res.json();
+                dbPricingCatalog = data.items || [];
+                sessionStorage.setItem('omniinfra_pricing_catalog', JSON.stringify(dbPricingCatalog));
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to load pricing catalog:', e);
+    }
+    // Re-evaluate estimator if prompt already has content
+    if (document.getElementById('infra-prompt')?.value?.trim()) {
+        updateCostEstimator();
+    }
+}
 
 // ─── Init ───────────────────────────────────────────────────────
 async function init() {
     if (!await checkAuth()) return;
+    if (typeof onCloudProviderChange === 'function') onCloudProviderChange();
+
+    // Attach real-time cost estimator listeners
+    const promptEl = document.getElementById('infra-prompt');
+    if (promptEl && !promptEl.dataset.hasEstimator) {
+        promptEl.dataset.hasEstimator = "true";
+        let debounceTimer;
+        promptEl.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateCostEstimator, 120);
+        });
+    }
+    ['infra-budget', 'infra-env', 'infra-cloud'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.dataset.hasEstimator) {
+            el.dataset.hasEstimator = "true";
+            el.addEventListener('change', updateCostEstimator);
+            el.addEventListener('input', updateCostEstimator);
+        }
+    });
+
     await fetchUserOrgs();
     await fetchStats();
     await fetchProjects();
+    loadPricingCatalog();
 }
 
 // ─── Toast Notification System ──────────────────────────────────
@@ -229,6 +275,22 @@ function filterProjects() {
 // ─── Project Detail Modal ───────────────────────────────────────
 async function openProject(slug) {
     try {
+        isCodeEditMode = false;
+        const toggleBtn = document.getElementById('btn-toggle-edit');
+        const label = document.getElementById('btn-toggle-edit-label');
+        const saveBtn = document.getElementById('btn-save-replan');
+        const discardBtn = document.getElementById('btn-discard-edit');
+        const statusCard = document.getElementById('code-replan-status-card');
+        if (label) label.innerText = "Edit Code";
+        if (toggleBtn) {
+            toggleBtn.style.background = "rgba(99, 102, 241, 0.15)";
+            toggleBtn.style.borderColor = "rgba(99, 102, 241, 0.45)";
+            toggleBtn.style.color = "#a5b4fc";
+        }
+        if (saveBtn) saveBtn.style.display = "none";
+        if (discardBtn) discardBtn.style.display = "none";
+        if (statusCard) statusCard.style.display = "none";
+
         const response = await apiFetch(`/api/projects/${slug}`);
         const project = await response.json();
         currentProject = project;
@@ -385,7 +447,10 @@ async function switchModalTab(tabId) {
         document.getElementById('modal-financial-report').innerHTML = html;
     } else if (tabId === 'logs') {
         const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
-        if (slug) loadDeploymentTab(slug);
+        if (slug) {
+            loadDeploymentTab(slug);
+            loadStatePosture(slug);
+        }
     } else if (tabId === 'diagnostics' && currentProject) {
         // Set rounds and duration
         const rounds = currentProject.healing_rounds_taken || 1;
@@ -649,6 +714,8 @@ function renderFileTabs(files) {
     showFileContent(fileNames[0]);
 }
 
+let isCodeEditMode = false;
+
 function showFile(fileName, btnEl) {
     document.querySelectorAll('.file-tab').forEach(b => b.classList.remove('active'));
     if (btnEl) btnEl.classList.add('active');
@@ -657,10 +724,196 @@ function showFile(fileName, btnEl) {
 
 function showFileContent(fileName) {
     currentActiveFileName = fileName;
-    const content = currentCodeFiles[fileName] || '';
-    const escaped = content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    document.getElementById('modal-tab-code-content').innerHTML =
-        `<pre style="background:#000; padding:1rem; border-radius:4px; font-size:0.8rem; line-height: 1.55; overflow-x: auto;"><code>${escaped}</code></pre>`;
+    renderActiveCodeView();
+}
+
+function renderActiveCodeView() {
+    const codeContainer = document.getElementById('modal-tab-code-content');
+    if (!codeContainer) return;
+    const content = currentCodeFiles[currentActiveFileName] || '';
+
+    if (!isCodeEditMode) {
+        const escaped = content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        codeContainer.innerHTML =
+            `<pre style="background:#000; padding:1rem; border-radius:4px; font-size:0.8rem; line-height: 1.55; overflow-x: auto;"><code>${escaped}</code></pre>`;
+    } else {
+        codeContainer.innerHTML = `
+            <div class="code-editor-wrapper" style="display: flex; flex-direction: column; background: #080c14; border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 6px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.85rem; background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.8rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.3);">
+                            <i class="fas fa-pen"></i> IN-BROWSER EDITOR
+                        </span>
+                        <span style="font-weight: 600; color: #f8fafc;" id="editor-filename-label">${currentActiveFileName}</span>
+                    </div>
+                    <div style="color: #64748b; font-size: 0.74rem;">
+                        <kbd style="background: rgba(255,255,255,0.08); padding: 2px 5px; border-radius: 3px; color: #cbd5e1;">Tab</kbd> inserts 2 spaces · Auto-formats on Save
+                    </div>
+                </div>
+                <textarea id="code-editor-textarea" spellcheck="false" style="width: 100%; min-height: 480px; background: transparent; color: #e2e8f0; font-family: 'Fira Code', 'JetBrains Mono', Consolas, Menlo, Monaco, monospace; font-size: 0.85rem; line-height: 1.6; padding: 1rem; border: none; outline: none; resize: vertical; box-sizing: border-box;"></textarea>
+            </div>
+        `;
+        const textarea = document.getElementById('code-editor-textarea');
+        if (textarea) {
+            textarea.value = content;
+            textarea.addEventListener('keydown', function(e) {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    this.value = this.value.substring(0, start) + '  ' + this.value.substring(end);
+                    this.selectionStart = this.selectionEnd = start + 2;
+                }
+            });
+        }
+    }
+}
+
+function toggleCodeEditMode() {
+    if (!currentActiveFileName || !currentCodeFiles[currentActiveFileName]) {
+        return showToast("No active code file selected to edit", "error");
+    }
+
+    isCodeEditMode = !isCodeEditMode;
+    const toggleBtn = document.getElementById('btn-toggle-edit');
+    const label = document.getElementById('btn-toggle-edit-label');
+    const saveBtn = document.getElementById('btn-save-replan');
+    const discardBtn = document.getElementById('btn-discard-edit');
+
+    if (isCodeEditMode) {
+        if (label) label.innerText = "Exit Edit Mode";
+        if (toggleBtn) {
+            toggleBtn.style.background = "rgba(245, 158, 11, 0.15)";
+            toggleBtn.style.borderColor = "rgba(245, 158, 11, 0.4)";
+            toggleBtn.style.color = "#fbbf24";
+        }
+        if (saveBtn) saveBtn.style.display = "inline-flex";
+        if (discardBtn) discardBtn.style.display = "inline-flex";
+        showToast(`Editing ${currentActiveFileName} in-browser`, "info");
+    } else {
+        if (label) label.innerText = "Edit Code";
+        if (toggleBtn) {
+            toggleBtn.style.background = "rgba(99, 102, 241, 0.15)";
+            toggleBtn.style.borderColor = "rgba(99, 102, 241, 0.45)";
+            toggleBtn.style.color = "#a5b4fc";
+        }
+        if (saveBtn) saveBtn.style.display = "none";
+        if (discardBtn) discardBtn.style.display = "none";
+    }
+
+    renderActiveCodeView();
+}
+
+async function saveAndReplanCode() {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return showToast("No active workspace selected", "error");
+    if (!currentActiveFileName) return showToast("No active file selected", "error");
+
+    const textarea = document.getElementById('code-editor-textarea');
+    if (!textarea) return;
+    const updatedCode = textarea.value;
+
+    const saveBtn = document.getElementById('btn-save-replan');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span>Saving & Planning...</span>`;
+    }
+
+    const statusCard = document.getElementById('code-replan-status-card');
+    if (statusCard) {
+        statusCard.style.display = "block";
+        statusCard.innerHTML = `
+            <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.35); color: #a5b4fc; border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.6rem;">
+                <i class="fas fa-spinner fa-spin"></i> Running terraform fmt, syntax validation, and dry-run plan for <strong>${currentActiveFileName}</strong>...
+            </div>
+        `;
+    }
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/code`, {
+            method: 'POST',
+            body: JSON.stringify({
+                filename: currentActiveFileName,
+                content: updatedCode,
+                replan: true
+            })
+        });
+
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({ detail: res.statusText }));
+            throw new Error(errData.detail || "Failed to save and re-plan code");
+        }
+
+        const data = await res.json();
+        currentCodeFiles[currentActiveFileName] = data.content;
+        textarea.value = data.content;
+
+        const isSuccess = data.validation?.valid && (data.plan?.status === 'success' || data.plan?.status === 'skipped');
+        const planSummary = data.plan?.summary || "Plan Complete";
+        const escapedPlan = (data.plan?.output || data.validation?.output || "").replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        if (statusCard) {
+            if (isSuccess) {
+                statusCard.innerHTML = `
+                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; border-radius: 8px; padding: 0.85rem 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.4rem;">
+                            <strong style="display: flex; align-items: center; gap: 0.4rem;">
+                                <i class="fas fa-check-circle"></i> Validation & Plan Dry-Run Succeeded
+                            </strong>
+                            <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #a7f3d0; font-size: 0.74rem; font-weight: 600; padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.4);">
+                                ${planSummary}
+                            </span>
+                        </div>
+                        <p style="margin: 0.25rem 0 0.5rem 0; font-size: 0.82rem; color: #cbd5e1;">${data.message}</p>
+                        <details style="margin-top: 0.4rem; font-size: 0.78rem;">
+                            <summary style="cursor: pointer; color: #6ee7b7; font-weight: 600;">View Plan Dry-Run Console Output</summary>
+                            <pre style="margin-top: 0.4rem; padding: 0.75rem; background: #020617; border-radius: 4px; overflow-x: auto; font-size: 0.75rem; color: #94a3b8; max-height: 220px; line-height: 1.45;"><code>${escapedPlan}</code></pre>
+                        </details>
+                    </div>
+                `;
+                showToast(`Saved and re-planned ${currentActiveFileName}!`, "success");
+            } else {
+                statusCard.innerHTML = `
+                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); color: #f87171; border-radius: 8px; padding: 0.85rem 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.4rem;">
+                            <strong style="display: flex; align-items: center; gap: 0.4rem;">
+                                <i class="fas fa-exclamation-triangle"></i> Validation or Plan Failed
+                            </strong>
+                            <span class="status-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 0.74rem; font-weight: 600; padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.4);">
+                                ${planSummary}
+                            </span>
+                        </div>
+                        <p style="margin: 0.25rem 0 0.5rem 0; font-size: 0.82rem; color: #fca5a5;">Your code changes introduced syntax or plan errors. Review output below:</p>
+                        <pre style="margin-top: 0.4rem; padding: 0.75rem; background: #020617; border-radius: 4px; overflow-x: auto; font-size: 0.75rem; color: #fca5a5; max-height: 220px; line-height: 1.45;"><code>${escapedPlan}</code></pre>
+                    </div>
+                `;
+                showToast("Code saved, but syntax validation/plan failed.", "error");
+            }
+        }
+    } catch (err) {
+        showToast(err.message, "error");
+        if (statusCard) {
+            statusCard.innerHTML = `
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); color: #f87171; border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.85rem;">
+                    <strong>Error:</strong> ${err.message}
+                </div>
+            `;
+        }
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i class="fas fa-play"></i> <span>Save & Re-Plan (Dry-Run)</span>`;
+        }
+    }
+}
+
+function discardCodeEdits() {
+    if (isCodeEditMode) {
+        toggleCodeEditMode();
+    }
+    const statusCard = document.getElementById('code-replan-status-card');
+    if (statusCard) statusCard.style.display = "none";
+    showToast("Edits discarded", "info");
 }
 
 function copyCurrentCodeFile() {
@@ -810,10 +1063,14 @@ async function submitEvolveWorkspace() {
 
     showToast(`🚀 Evolution started for workspace: ${slug}`, "info");
 
+    const cloud_provider = document.getElementById('infra-cloud')?.value || 'aws';
+    const env_tier = document.getElementById('infra-env')?.value || 'production';
+    const region = document.getElementById('infra-region')?.value || 'us-east-1';
+
     try {
         const res = await apiFetch(`/api/projects/${slug}/evolve`, {
             method: 'POST',
-            body: JSON.stringify({ prompt, apply, engine, credentials, ai_config })
+            body: JSON.stringify({ prompt, apply, engine, credentials, ai_config, cloud_provider, env_tier, region })
         });
 
         if (!res.ok) {
@@ -876,31 +1133,109 @@ async function submitEvolveWorkspace() {
     }
 }
 
+// ─── Cloud Provider & Region Presets ────────────────────────────
+function onCloudProviderChange() {
+    const cloud = document.getElementById('infra-cloud')?.value || 'aws';
+    const regionSelect = document.getElementById('infra-region');
+    if (!regionSelect) return;
+
+    const regionPresets = {
+        aws: [
+            { val: 'us-east-1', label: 'us-east-1 (N. Virginia)' },
+            { val: 'us-west-2', label: 'us-west-2 (Oregon)' },
+            { val: 'eu-west-1', label: 'eu-west-1 (Ireland)' },
+            { val: 'ap-south-1', label: 'ap-south-1 (Mumbai)' }
+        ],
+        azure: [
+            { val: 'eastus', label: 'eastus (East US)' },
+            { val: 'westeurope', label: 'westeurope (West Europe)' },
+            { val: 'centralus', label: 'centralus (Central US)' },
+            { val: 'southeastasia', label: 'southeastasia (Singapore)' }
+        ],
+        gcp: [
+            { val: 'us-central1', label: 'us-central1 (Iowa)' },
+            { val: 'europe-west1', label: 'europe-west1 (Belgium)' },
+            { val: 'asia-east1', label: 'asia-east1 (Taiwan)' }
+        ],
+        kubernetes: [
+            { val: 'cluster.local', label: 'cluster.local (Default NS)' },
+            { val: 'kube-system', label: 'kube-system' }
+        ],
+        multicloud: [
+            { val: 'global', label: 'global (Multi-Region / Any)' },
+            { val: 'us-east-1', label: 'AWS us-east-1 + Azure eastus' }
+        ]
+    };
+
+    const currentVal = regionSelect.value;
+    regionSelect.innerHTML = '';
+    const list = regionPresets[cloud] || regionPresets.aws;
+    list.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.val;
+        opt.textContent = r.label;
+        if (r.val === currentVal) opt.selected = true;
+        regionSelect.appendChild(opt);
+    });
+}
+
 // ─── Quick Prompt Starters ──────────────────────────────────────
 function insertPromptTemplate(type) {
     const promptInput = document.getElementById('infra-prompt');
     const engineSelect = document.getElementById('infra-engine');
+    const cloudSelect = document.getElementById('infra-cloud');
+    const envSelect = document.getElementById('infra-env');
+    const regionSelect = document.getElementById('infra-region');
     if (!promptInput) return;
 
     const templates = {
         's3_vault': {
             text: 'Deploy an AWS S3 Glacier Vault with strict server-side encryption (AES-256), bucket versioning enabled, automatic lifecycle transition to Glacier Flexible Retrieval after 30 days, and complete public access block complying with CIS AWS Foundations Benchmark.',
+            cloud: 'aws',
+            env: 'production',
+            region: 'us-east-1',
             engine: 'terraform'
         },
         'vpc_ha': {
             text: 'Create a high-availability AWS Virtual Private Cloud (VPC) spanning 2 Availability Zones with public and private subnets, redundant NAT Gateways, Internet Gateway, and fine-grained Network ACLs and Route Tables.',
+            cloud: 'aws',
+            env: 'production',
+            region: 'us-east-1',
             engine: 'terraform'
         },
         'eks_cluster': {
             text: 'Provision a production-ready AWS EKS Kubernetes Cluster with an IAM OIDC provider, managed node group with auto-scaling (t3.medium instances), and dedicated security groups enforcing least-privilege egress/ingress.',
+            cloud: 'aws',
+            env: 'production',
+            region: 'us-east-1',
+            engine: 'terraform'
+        },
+        'azure_aks': {
+            text: 'Deploy a production Azure Kubernetes Service (AKS) cluster with Azure CNI networking, managed system identity, Azure Key Vault CSI secret store provider, and Azure Monitor container insights.',
+            cloud: 'azure',
+            env: 'production',
+            region: 'eastus',
+            engine: 'terraform'
+        },
+        'gcp_cloudrun': {
+            text: 'Provision a scalable Google Cloud Run container microservice with Cloud SQL PostgreSQL instance in a private VPC, Serverless VPC Access connector, and Cloud Armor security policies.',
+            cloud: 'gcp',
+            env: 'production',
+            region: 'us-central1',
             engine: 'terraform'
         },
         'opentofu_web': {
             text: 'Deploy a multi-tier secure web application architecture using OpenTofu: an Application Load Balancer (ALB), Auto Scaling Group of web servers across 2 subnets, and an isolated PostgreSQL RDS database instance in private subnets.',
+            cloud: 'aws',
+            env: 'production',
+            region: 'us-east-1',
             engine: 'opentofu'
         },
         'serverless_api': {
             text: 'Build a serverless REST API backend using AWS API Gateway (HTTP API v2), an AWS Lambda Python runtime microservice with IAM execution role, and an Amazon DynamoDB table with on-demand capacity and point-in-time recovery.',
+            cloud: 'aws',
+            env: 'production',
+            region: 'us-east-1',
             engine: 'terraform'
         }
     };
@@ -908,11 +1243,294 @@ function insertPromptTemplate(type) {
     const chosen = templates[type];
     if (chosen) {
         promptInput.value = chosen.text;
+        if (cloudSelect && chosen.cloud) {
+            cloudSelect.value = chosen.cloud;
+            onCloudProviderChange();
+        }
+        if (envSelect && chosen.env) {
+            envSelect.value = chosen.env;
+        }
+        if (regionSelect && chosen.region) {
+            regionSelect.value = chosen.region;
+        }
         if (engineSelect && chosen.engine) {
             engineSelect.value = chosen.engine;
         }
         promptInput.focus();
-        showToast("Architecture template loaded into prompt!", "info");
+        updateCostEstimator();
+        showToast("Architecture template and governance presets loaded!", "info");
+    }
+}
+
+// ─── Pre-Run Interactive Cost & Resource Estimator ───────────────
+function extractQuantityForTerm(term, text) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // 1. Direct multipliers: "3x t3.large", "3* t3.large", "t3.large x 3"
+    const directPrefixRegex = new RegExp(`\\b(\\d+)\\s*(?:x|\\*)\\s*(?:of\\s+)?` + escaped, 'i');
+    const directSuffixRegex = new RegExp(escaped + `\\s*(?:x|\\*)\\s*(\\d+)\\b`, 'i');
+
+    // 2. Preceding quantity with optional intermediate service words:
+    // Matches "aws 3 ec2 t3.large", "3 ec2 t3.large", "3 instances of t3.large", "3 vms t3.large"
+    const intermediateWords = `(?:(?:ec2|vm|vms|instances?|nodes?|servers?|virtual machines?)\\s+)*`;
+    const flexiblePrefixRegex = new RegExp(`\\b(\\d+)\\s+` + intermediateWords + `(?:of\\s+)?` + escaped, 'i');
+
+    // 3. Suffix words: "t3.large count = 3", "t3.large with 3 instances"
+    const flexibleSuffixRegex = new RegExp(escaped + `\\s+(?:(?:instances?|nodes?|vms?|servers?)\\s+)?(?:count|quantity)?\\s*[:=]?\\s*(\\d+)\\b`, 'i');
+
+    // 4. Quantity preceding generic compute keyword: e.g. "aws 3 ec2"
+    const globalCountRegex = new RegExp(`\\b(\\d+)\\s+(?:ec2|vms?|instances?|nodes?|servers?)\\b`, 'i');
+
+    for (const regex of [directPrefixRegex, flexiblePrefixRegex, directSuffixRegex, flexibleSuffixRegex, globalCountRegex]) {
+        const match = text.match(regex);
+        if (match && match[1]) {
+            const q = parseInt(match[1], 10);
+            if (q > 0 && q <= 500) return q;
+        }
+    }
+    return 1;
+}
+
+function updateCostEstimator() {
+    const promptInput = document.getElementById('infra-prompt');
+    const estimatorCard = document.getElementById('cost-estimator-card');
+    if (!promptInput || !estimatorCard) return;
+
+    const rawText = (promptInput.value || '').trim();
+    if (rawText.length < 4) {
+        estimatorCard.style.display = 'none';
+        return;
+    }
+
+    const text = rawText.toLowerCase();
+    const budgetInput = document.getElementById('infra-budget');
+    const budget = parseFloat(budgetInput?.value || 100);
+    const envTier = document.getElementById('infra-env')?.value || 'production';
+    const cloud = (document.getElementById('infra-cloud')?.value || 'aws').toLowerCase();
+
+    const detected = [];
+    let rawTotal = 0;
+    const matchedServices = new Set();
+    let workingText = text;
+
+    // 1. Database-backed SKU Matching (Sort by length descending)
+    if (Array.isArray(dbPricingCatalog) && dbPricingCatalog.length > 0) {
+        const sortedCatalog = [...dbPricingCatalog].sort((a, b) => b.sku.length - a.sku.length);
+
+        for (const item of sortedCatalog) {
+            const skuLower = item.sku.toLowerCase();
+            const escapedSku = skuLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Word boundary match supporting dots and underscores
+            const skuRegex = new RegExp(`(?:^|[^a-z0-9_])${escapedSku}(?:$|[^a-z0-9_])`, 'i');
+
+            if (skuRegex.test(workingText)) {
+                const qty = extractQuantityForTerm(skuLower, text);
+                const itemMonthly = (item.monthly_usd || 0) * qty;
+
+                let icon = "fas fa-microchip";
+                if (item.service === 'rds') icon = "fas fa-database";
+                else if (item.service === 'managed') icon = "fas fa-network-wired";
+                else if (item.service === 'storage') icon = "fas fa-hard-drive";
+                else if (item.provider === 'aws') icon = "fab fa-aws";
+                else if (item.provider === 'azure') icon = "fab fa-microsoft";
+                else if (item.provider === 'gcp') icon = "fab fa-google";
+
+                const displayName = qty > 1 ? `${qty}x ${item.sku}` : item.sku;
+
+                detected.push({
+                    name: displayName,
+                    cost: itemMonthly,
+                    icon: icon,
+                    sku: item.sku,
+                    service: item.service
+                });
+                rawTotal += itemMonthly;
+                matchedServices.add(item.service);
+
+                // Mask out matched SKU so smaller substrings don't match again
+                workingText = workingText.replace(new RegExp(escapedSku, 'gi'), ' '.repeat(skuLower.length));
+            }
+        }
+    }
+
+    // 2. High-Level Architecture & Managed Service Keyword Matchers
+    const architecturalRules = [
+        {
+            serviceKey: "managed_k8s",
+            pattern: /\b(eks|kubernetes|k8s|aks|gke)\b/i,
+            name: "Kubernetes Control Plane",
+            icon: "fas fa-dharmachakra",
+            cost: 73.00
+        },
+        {
+            serviceKey: "alb",
+            pattern: /\b(load balancer|alb|application load balancer)\b/i,
+            name: "Application Load Balancer",
+            icon: "fas fa-shield",
+            cost: 21.90
+        },
+        {
+            serviceKey: "nlb",
+            pattern: /\b(nlb|network load balancer)\b/i,
+            name: "Network Load Balancer",
+            icon: "fas fa-network-wired",
+            cost: 18.25
+        },
+        {
+            serviceKey: "nat_gateway",
+            pattern: /\b(nat gateway|nat|redundant nat)\b/i,
+            name: "VPC NAT Gateway",
+            icon: "fas fa-network-wired",
+            cost: 32.85
+        },
+        {
+            serviceKey: "rds",
+            pattern: /\b(rds|postgres|postgresql|mysql|aurora|database|relational db)\b/i,
+            name: "Managed Relational DB",
+            icon: "fas fa-database",
+            cost: 49.64 // db.t3.medium baseline
+        },
+        {
+            serviceKey: "dynamodb",
+            pattern: /\b(dynamodb|nosql)\b/i,
+            name: "DynamoDB On-Demand",
+            icon: "fas fa-table",
+            cost: 5.00
+        },
+        {
+            serviceKey: "storage_object",
+            pattern: /\b(s3|bucket|blob storage|blob)\b/i,
+            name: "Object Storage & Vault",
+            icon: "fas fa-box-archive",
+            cost: 2.30
+        },
+        {
+            serviceKey: "storage_glacier",
+            pattern: /\b(glacier|cold vault|deep archive)\b/i,
+            name: "Glacier Vault",
+            icon: "fas fa-archive",
+            cost: 1.00
+        },
+        {
+            serviceKey: "lambda",
+            pattern: /\b(lambda|serverless|api gateway)\b/i,
+            name: "Serverless Lambda API",
+            icon: "fas fa-bolt",
+            cost: 5.00
+        },
+        {
+            serviceKey: "cloudrun",
+            pattern: /\b(cloud run|cloudrun)\b/i,
+            name: "GCP Cloud Run Service",
+            icon: "fas fa-cloud",
+            cost: 8.00
+        }
+    ];
+
+    for (const rule of architecturalRules) {
+        if (!matchedServices.has(rule.serviceKey) && !matchedServices.has(rule.name.toLowerCase()) && rule.pattern.test(workingText)) {
+            // Ensure we don't duplicate managed DB if an RDS SKU was already selected
+            if (rule.serviceKey === 'rds' && matchedServices.has('rds')) continue;
+            detected.push({ name: rule.name, cost: rule.cost, icon: rule.icon });
+            rawTotal += rule.cost;
+            matchedServices.add(rule.serviceKey);
+        }
+    }
+
+    // 3. Generic VM Compute fallback if no compute SKU matched
+    const hasComputeSku = matchedServices.has('ec2') || matchedServices.has('vm') || matchedServices.has('compute');
+    if (!hasComputeSku && /\b(ec2|virtual machine|vm|nodes?|compute|servers?)\b/i.test(workingText)) {
+        detected.push({ name: "EC2 VM Compute", cost: 30.40, icon: "fas fa-microchip" });
+        rawTotal += 30.40;
+    }
+
+    // 4. Storage volume allocation detector (e.g. "100 GB", "500gb", "1 TB")
+    const storageMatch = text.match(/(\d+)\s*(gb|tb)\b/i);
+    if (storageMatch) {
+        let sizeGb = parseInt(storageMatch[1], 10);
+        if (storageMatch[2].toLowerCase() === 'tb') sizeGb *= 1024;
+        if (sizeGb > 0 && sizeGb <= 64000) {
+            const storageCost = sizeGb * 0.08; // $0.08/GB-mo EBS gp3
+            const label = sizeGb >= 1024 ? `${(sizeGb / 1024).toFixed(0)}TB EBS SSD` : `${sizeGb}GB EBS SSD`;
+            detected.push({ name: label, cost: storageCost, icon: "fas fa-hard-drive" });
+            rawTotal += storageCost;
+        }
+    }
+
+    // 5. Fallback baseline if nothing identified
+    if (detected.length === 0) {
+        detected.push({ name: "Core Platform IaC", cost: 15.00, icon: "fas fa-cubes" });
+        rawTotal = 15.00;
+    }
+
+    // 6. Apply Environment Multipliers & Formulate Customer Explanations
+    let multiplier = 1.0;
+    let multiplierLabel = "(Standard Sizing · 1.0x Base)";
+    let tierExplanation = `<i class="fas fa-circle-info" style="color: #818cf8;"></i> Staging Tier: 100% 24/7 continuous On-Demand standard baseline.`;
+    if (envTier === 'production') {
+        multiplier = 1.25;
+        multiplierLabel = "(Production HA Sizing · 1.25x Buffer)";
+        tierExplanation = `<i class="fas fa-shield" style="color: #38bdf8;"></i> Production Tier (+25%): 24/7 uptime + Multi-AZ standby capacity buffer, snapshot backup retention & enhanced telemetry.`;
+    } else if (envTier === 'development') {
+        multiplier = 0.45;
+        multiplierLabel = "(Dev Cost-Optimized · 0.45x Schedule)";
+        tierExplanation = `<i class="fas fa-clock" style="color: #34d399;"></i> Dev Tier (-55%): Assumes scheduled business-hour uptime (10h/day x 5d) & single-AZ non-HA dev architecture.`;
+    }
+
+    const finalEstimated = rawTotal * multiplier;
+
+    // 7. Render Estimator Card
+    estimatorCard.style.display = 'block';
+    const costValEl = document.getElementById('estimator-cost-value');
+    const badgeEl = document.getElementById('estimator-budget-badge');
+    const multEl = document.getElementById('estimator-env-multiplier');
+    const baseOnDemandEl = document.getElementById('estimator-base-on-demand');
+    const tierExplEl = document.getElementById('estimator-tier-explanation');
+    const pillsContainer = document.getElementById('estimator-resource-pills');
+    const warningBanner = document.getElementById('estimator-warning-banner');
+    const warningText = document.getElementById('estimator-warning-text');
+
+    if (costValEl) costValEl.innerText = `~$${finalEstimated.toFixed(2)}/mo`;
+    if (multEl) multEl.innerText = multiplierLabel;
+    if (baseOnDemandEl) {
+        baseOnDemandEl.style.display = 'inline-block';
+        baseOnDemandEl.innerText = `Base 24/7: ~$${rawTotal.toFixed(2)}/mo`;
+    }
+    if (tierExplEl) {
+        tierExplEl.innerHTML = tierExplanation;
+    }
+
+    if (pillsContainer) {
+        pillsContainer.innerHTML = detected.slice(0, 4).map(d => `
+            <span class="badge" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); color: #cbd5e1; font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.3rem;">
+                <i class="${d.icon}" style="color: #818cf8; font-size: 0.7rem;"></i> ${d.name}: ~$${(d.cost * multiplier).toFixed(0)}/mo
+            </span>
+        `).join('') + (detected.length > 4 ? `<span style="font-size: 0.7rem; color: #64748b;">+${detected.length - 4} more</span>` : '');
+    }
+
+    // 8. Budget Alerting
+    if (finalEstimated > budget) {
+        const diff = (finalEstimated - budget).toFixed(0);
+        if (badgeEl) {
+            badgeEl.innerText = `⚠️ Exceeds Budget by $${diff}`;
+            badgeEl.style.background = 'rgba(239, 68, 68, 0.15)';
+            badgeEl.style.color = '#f87171';
+            badgeEl.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+        }
+        if (costValEl) costValEl.style.color = '#f87171';
+        if (warningBanner) warningBanner.style.display = 'block';
+        if (warningText) {
+            warningText.innerText = `Projected baseline (~$${finalEstimated.toFixed(0)}/mo) exceeds your allocated budget ($${budget.toFixed(0)} USD). Consider raising your budget or selecting the Development tier.`;
+        }
+    } else {
+        if (badgeEl) {
+            badgeEl.innerText = `✅ Within Budget`;
+            badgeEl.style.background = 'rgba(16, 185, 129, 0.15)';
+            badgeEl.style.color = '#34d399';
+            badgeEl.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        }
+        if (costValEl) costValEl.style.color = '#34d399';
+        if (warningBanner) warningBanner.style.display = 'none';
     }
 }
 
@@ -950,6 +1568,9 @@ async function generateInfra() {
     const prompt = promptInput ? promptInput.value.trim() : '';
     const budget = document.getElementById('infra-budget')?.value || 100;
     const engine = document.getElementById('infra-engine')?.value || 'terraform';
+    const cloud_provider = document.getElementById('infra-cloud')?.value || 'aws';
+    const env_tier = document.getElementById('infra-env')?.value || 'production';
+    const region = document.getElementById('infra-region')?.value || 'us-east-1';
     const selectedModel = document.getElementById('infra-model')?.value || 'gemini/gemini-2.0-flash';
     const genBtn = document.getElementById('btn-generate');
 
@@ -976,7 +1597,7 @@ async function generateInfra() {
     const credentials = {
         AWS_ACCESS_KEY_ID: document.getElementById('aws-key')?.value || '',
         AWS_SECRET_ACCESS_KEY: document.getElementById('aws-secret')?.value || '',
-        AWS_DEFAULT_REGION: document.getElementById('aws-region')?.value || '',
+        AWS_DEFAULT_REGION: document.getElementById('aws-region')?.value || region,
         ARM_CLIENT_ID: document.getElementById('az-client-id')?.value || '',
         ARM_CLIENT_SECRET: document.getElementById('az-client-secret')?.value || '',
         ARM_SUBSCRIPTION_ID: document.getElementById('az-subscription-id')?.value || '',
@@ -994,13 +1615,13 @@ async function generateInfra() {
     const liveModal = document.getElementById('live-console-modal');
     if (liveModal) liveModal.style.display = 'flex';
     const consoleElem = document.getElementById('live-console');
-    if (consoleElem) consoleElem.innerText = `🚀 Connecting to Multi-Agent Orchestrator...\nTarget Model: ${selectedModel}\nEngine: ${engine.toUpperCase()}\n\n`;
+    if (consoleElem) consoleElem.innerText = `🚀 Connecting to Multi-Agent Orchestrator...\nTarget Cloud: ${cloud_provider.toUpperCase()} | Env: ${env_tier.toUpperCase()} | Region: ${region}\nTarget Model: ${selectedModel}\nEngine: ${engine.toUpperCase()}\n\n`;
 
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
         
-        const payload = { prompt, budget, apply, new_project, credentials, ai_config, gitops, git_repo, target_branch, git_token, engine };
+        const payload = { prompt, budget, apply, new_project, credentials, ai_config, gitops, git_repo, target_branch, git_token, engine, cloud_provider, env_tier, region };
         if (activeOrgId) payload.org_id = activeOrgId;
 
         const response = await apiFetch('/api/generate', {
@@ -1721,6 +2342,7 @@ async function loadDeploymentTab(slug) {
 
     restoreDeployCredentialsFromSession();
     await refreshWorkspaceCredentialBadge(slug);
+    await loadStatePosture(slug);
 
     // Attach real-time input listeners to persist credentials in sessionStorage
     ['deploy-aws-key', 'deploy-aws-secret', 'deploy-aws-region', 'deploy-aws-token', 
@@ -1797,6 +2419,111 @@ function switchDeployCredTab(provider) {
         if (btn) btn.classList.toggle('active', p === provider);
     });
     saveDeployCredentialsToSession();
+}
+
+// ─── Remote State & Security Transparency ───────────────────────
+async function loadStatePosture(slug) {
+    if (!slug) return;
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/state-posture`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const storageEl = document.getElementById('posture-storage-type');
+        const storageSub = document.getElementById('posture-backend-status-pill');
+        const encEl = document.getElementById('posture-encryption');
+        const lockEl = document.getElementById('posture-locking');
+        const serialEl = document.getElementById('posture-serial');
+        const verTag = document.getElementById('posture-version-tag');
+
+        if (storageEl) storageEl.innerText = data.posture?.storage_type || 'Workspace Isolated Enclave';
+        if (storageSub) {
+            storageSub.innerText = data.posture?.is_remote 
+                ? `● Remote Cloud Object Storage (${(data.backend?.type || 's3').toUpperCase()})` 
+                : '● Enclave Isolated (.tfstate)';
+            storageSub.style.color = data.posture?.is_remote ? '#c084fc' : '#38bdf8';
+        }
+        if (encEl) encEl.innerText = data.posture?.encryption || 'AES-256 (Server-Side)';
+        if (lockEl) lockEl.innerText = data.posture?.locking || 'Active Mutex (.lock.hcl)';
+
+        const serial = data.state_meta?.serial || 0;
+        const resCount = data.state_meta?.resource_count || 0;
+        if (serialEl) serialEl.innerText = `Serial #${serial} · ${resCount} Live Resources`;
+
+        if (verTag) verTag.innerText = `● Terraform ${data.state_meta?.terraform_version || 'v1.14.8'}`;
+
+        // Pre-fill inputs in configuration drawer
+        const bucketInput = document.getElementById('remote-backend-bucket');
+        const keyInput = document.getElementById('remote-backend-key');
+        const regionInput = document.getElementById('remote-backend-region');
+        const dynamoInput = document.getElementById('remote-backend-dynamo');
+
+        if (bucketInput && data.backend?.bucket) bucketInput.value = data.backend.bucket;
+        if (keyInput) keyInput.value = data.backend?.key || `workspaces/${slug}/terraform.tfstate`;
+        if (regionInput && data.backend?.region) regionInput.value = data.backend.region;
+        if (dynamoInput && data.backend?.dynamodb_table) dynamoInput.value = data.backend.dynamodb_table;
+    } catch (e) {
+        console.warn("Failed to load state posture:", e);
+    }
+}
+
+function toggleBackendConfigDrawer() {
+    const drawer = document.getElementById('backend-config-drawer');
+    const label = document.getElementById('btn-toggle-backend-label');
+    if (!drawer) return;
+    const isHidden = (drawer.style.display === 'none' || !drawer.style.display);
+    drawer.style.display = isHidden ? 'block' : 'none';
+    if (label) label.innerText = isHidden ? 'Close Drawer' : 'Configure Remote Backend';
+}
+
+async function saveRemoteBackendConfig() {
+    const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
+    if (!slug) return showToast("No active workspace selected", "error");
+
+    const bucket = document.getElementById('remote-backend-bucket')?.value?.trim();
+    const key = document.getElementById('remote-backend-key')?.value?.trim() || `workspaces/${slug}/terraform.tfstate`;
+    const region = document.getElementById('remote-backend-region')?.value?.trim() || 'us-east-1';
+    const dynamodb_table = document.getElementById('remote-backend-dynamo')?.value?.trim();
+
+    if (!bucket) {
+        return showToast("Please specify an S3 bucket name.", "error");
+    }
+
+    const btn = document.getElementById('btn-save-remote-backend');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span>Injecting Backend...</span>`;
+    }
+
+    try {
+        const res = await apiFetch(`/api/projects/${slug}/backend`, {
+            method: 'POST',
+            body: JSON.stringify({
+                backend_type: 's3',
+                bucket,
+                key,
+                region,
+                dynamodb_table
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Failed to configure backend");
+        }
+
+        const data = await res.json();
+        showToast(data.message || "Remote S3 backend successfully configured!", "success");
+        toggleBackendConfigDrawer();
+        await loadStatePosture(slug);
+    } catch (e) {
+        showToast(e.message, "error");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-check"></i> <span>Apply & Inject Backend HCL</span>`;
+        }
+    }
 }
 
 async function switchDeployLogType(type) {
@@ -2016,24 +2743,6 @@ async function loadExecutiveAnalytics() {
             if (healingNote && kpis.savings_breakdown.baseline_generation_hours !== undefined) {
                 healingNote.innerText = `${kpis.savings_breakdown.baseline_generation_hours}h gen + ${kpis.savings_breakdown.self_healing_hours}h healing`;
             }
-        }
-
-        // Dynamic ROI calculation & update
-        const totalWorkspaces = kpis.total_workspaces || 1;
-        const totalHrsSaved = kpis.estimated_engineering_hours_saved || 8;
-        const financialSavings = kpis.estimated_financial_savings_usd || (totalHrsSaved * 120);
-        const traditionalCost = totalWorkspaces * 16 * 120;
-        const aiCost = (totalWorkspaces * 0.12).toFixed(2);
-
-        const manualCostEl = document.getElementById('roi-manual-cost');
-        if (manualCostEl) manualCostEl.innerText = `$${traditionalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-
-        const aiCostEl = document.getElementById('roi-ai-cost');
-        if (aiCostEl) aiCostEl.innerText = `$${aiCost} (99% saved)`;
-
-        const roiBadgeEl = document.getElementById('analytics-roi-badge');
-        if (roiBadgeEl) {
-            roiBadgeEl.innerHTML = `⚡ $${financialSavings.toLocaleString()} Value Delivered`;
         }
 
         // Render Failure Taxonomy

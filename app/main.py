@@ -48,6 +48,9 @@ def main():
     parser.add_argument("--git-token", type=str, help="GitHub Personal Access Token (or GIT_TOKEN env)")
     parser.add_argument("--target-branch", type=str, default="main", help="Target branch for PR (default: main)")
     parser.add_argument("--engine", type=str, default="terraform", choices=["terraform", "opentofu", "tofu"], help="IaC execution engine (terraform, opentofu)")
+    parser.add_argument("--cloud-provider", type=str, default=None, help="Target cloud provider (aws, azure, gcp, kubernetes, multicloud)")
+    parser.add_argument("--env-tier", type=str, default=None, help="Environment tier (production, staging, development)")
+    parser.add_argument("--region", type=str, default=None, help="Target cloud deployment region")
     parser.add_argument("--owner-id", type=str, help="User ID owning the workspace")
     parser.add_argument("--org-id", type=str, help="Organization ID context")
     parser.add_argument("--consensus", action="store_true", help="Force multi-agent consensus debate")
@@ -84,6 +87,12 @@ def main():
         cli_flags.append(f"--plan-tier={args.plan_tier}")
     if args.engine and args.engine != "terraform":
         cli_flags.append(f"--engine={args.engine}")
+    if args.cloud_provider:
+        cli_flags.append(f"--cloud-provider={args.cloud_provider}")
+    if args.env_tier:
+        cli_flags.append(f"--env-tier={args.env_tier}")
+    if args.region:
+        cli_flags.append(f"--region={args.region}")
 
     owner_id = args.owner_id or os.getenv("owner_id")
     org_id = None
@@ -114,6 +123,9 @@ def main():
         engine=args.engine,
         force_consensus=args.consensus,
         plan_tier=args.plan_tier,
+        cloud_provider=args.cloud_provider,
+        env_tier=args.env_tier,
+        region=args.region,
     )
 
 

@@ -117,9 +117,10 @@ class IaCEngine(ABC):
 
         # Self-healing: if provider plugins are missing or architecture mismatch occurred
         # (e.g. windows_amd64 vs linux_amd64 between host mounts and Docker container)
-        err_lower = res.get("stderr", "").lower()
+        err_lower = res.get("stderr", "").lower().replace("\\", "/")
         if not res["success"] and (
             "cached in .terraform/providers" in err_lower
+            or "there is no package" in err_lower
             or "required plugins are not installed" in err_lower
             or "inconsistent with the packages selected in the dependency lock file" in err_lower
         ):
@@ -152,7 +153,12 @@ class IaCEngine(ABC):
                     "engine": self.name
                 }
         res = self._run_cmd(["validate"], cwd=cwd, timeout=60)
-        if not res["success"] and "initialization required" in res.get("stderr", "").lower():
+        err_lower = res.get("stderr", "").lower().replace("\\", "/")
+        if not res["success"] and (
+            "initialization required" in err_lower
+            or "cached in .terraform/providers" in err_lower
+            or "there is no package" in err_lower
+        ):
             self.init(cwd, backend=False, upgrade=True)
             res = self._run_cmd(["validate"], cwd=cwd, timeout=60)
         return res

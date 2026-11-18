@@ -6,7 +6,7 @@
     <title>OmniInfra AI | Autonomous Platform Engineering Console</title>
     <meta name="description" content="OmniInfra AI — Universal Autonomous Platform Engineering & Cloud Control Plane for Terraform, OpenTofu, and Kubernetes.">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='url(%23g)'/><text x='50%25' y='55%25' dominant-baseline='central' text-anchor='middle' font-size='18' font-weight='bold' fill='white'>O</text><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop stop-color='%236366f1'/><stop offset='1' stop-color='%2338bdf8'/></linearGradient></defs></svg>">
-    <link rel="stylesheet" href="/static/style.css?v=13">
+    <link rel="stylesheet" href="/static/style.css?v=14">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* ─── Copilot UI Direct Injected Styles (Cache-Proof) ─── */
@@ -71,13 +71,19 @@
         }
         .copilot-controls-bar {
             display: flex !important;
-            justify-content: space-between !important;
-            align-items: flex-end !important;
-            gap: 1.25rem !important;
-            flex-wrap: wrap !important;
+            flex-direction: column !important;
+            gap: 1rem !important;
             margin-top: 1.25rem !important;
             padding-top: 1.25rem !important;
             border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        .copilot-controls-row {
+            display: flex !important;
+            align-items: flex-end !important;
+            justify-content: space-between !important;
+            gap: 1rem !important;
+            flex-wrap: wrap !important;
+            width: 100% !important;
         }
         .control-group {
             display: flex !important;
@@ -220,13 +226,19 @@
                         <i class="fas fa-bolt" style="color: #f59e0b;"></i> Quick Starters:
                     </span>
                     <button type="button" class="prompt-chip" onclick="insertPromptTemplate('s3_vault')">
-                        🔒 S3 Glacier Vault (CIS Compliant)
+                        🔒 AWS S3 Glacier Vault (CIS Compliant)
                     </button>
                     <button type="button" class="prompt-chip" onclick="insertPromptTemplate('vpc_ha')">
                         🌐 AWS Multi-AZ High-Availability VPC
                     </button>
                     <button type="button" class="prompt-chip" onclick="insertPromptTemplate('eks_cluster')">
                         ☸️ Production EKS Cluster with OIDC
+                    </button>
+                    <button type="button" class="prompt-chip" onclick="insertPromptTemplate('azure_aks')">
+                        🔷 Azure AKS Secure Cluster
+                    </button>
+                    <button type="button" class="prompt-chip" onclick="insertPromptTemplate('gcp_cloudrun')">
+                        🟢 GCP Microservices Cloud Run
                     </button>
                     <button type="button" class="prompt-chip" onclick="insertPromptTemplate('opentofu_web')">
                         🧅 OpenTofu Secure Multi-Tier App
@@ -242,47 +254,125 @@
                         placeholder="e.g. Deploy an AWS S3 Glacier Vault with strict server-side encryption (AES-256), versioning enabled, automatic lifecycle transition to Glacier Flexible Retrieval after 30 days, and public access block complying with CIS AWS Foundations Benchmark..."></textarea>
                 </div>
 
+                <!-- Interactive Pre-Run Cost & Resource Estimator Micro-Card -->
+                <div id="cost-estimator-card" style="display: none; margin-top: 0.85rem; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 10px; padding: 0.85rem 1.15rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); transition: all 0.25s ease;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                        <div style="display: flex; align-items: center; gap: 0.65rem;">
+                            <div style="width: 32px; height: 32px; border-radius: 6px; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                <i class="fas fa-calculator" style="color: #34d399; font-size: 0.9rem;"></i>
+                            </div>
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-size: 0.88rem; font-weight: 700; color: #f8fafc;">Live Pre-Run Cost Projection</span>
+                                    <span id="estimator-budget-badge" class="badge" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; font-weight: 600; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">Within Budget</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.45rem; margin-top: 0.15rem; flex-wrap: wrap;">
+                                    <span style="font-size: 0.78rem; color: #94a3b8;">Estimated Baseline:</span>
+                                    <strong id="estimator-cost-value" style="font-size: 0.95rem; color: #34d399; font-family: monospace; letter-spacing: -0.01em;">~$25.00/mo</strong>
+                                    <span id="estimator-env-multiplier" style="font-size: 0.74rem; color: #64748b;">(Production HA Sizing)</span>
+                                    <span id="estimator-base-on-demand" style="font-size: 0.72rem; color: #818cf8; background: rgba(99, 102, 241, 0.12); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(99, 102, 241, 0.25); display: none;">Base 24/7: $0/mo</span>
+                                </div>
+                                <div id="estimator-tier-explanation" style="font-size: 0.71rem; color: #94a3b8; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.35rem;">
+                                    <!-- Populated dynamically via app.js -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detected Resources Pills Container -->
+                        <div id="estimator-resource-pills" style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                            <!-- Populated dynamically: e.g. "EKS: ~$73/mo", "NAT GW: ~$32/mo" -->
+                        </div>
+                    </div>
+
+                    <!-- Budget Warning Alert (Shown when estimated cost > user budget) -->
+                    <div id="estimator-warning-banner" style="display: none; margin-top: 0.75rem; padding: 0.6rem 0.85rem; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 6px; font-size: 0.8rem; color: #fca5a5;">
+                        <i class="fas fa-exclamation-triangle" style="margin-right: 0.4rem; color: #ef4444;"></i>
+                        <span id="estimator-warning-text">Projected baseline cost exceeds your budget ($100 USD). Consider switching to Development tier or increasing budget.</span>
+                    </div>
+                </div>
+
                 <!-- Bottom Control & Model Selection Bar -->
                 <div class="copilot-controls-bar">
-                    <!-- Left: Model Selector & Engine -->
-                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                        <div class="control-group">
+                    <!-- Row 1: Target Architecture & Governance -->
+                    <div class="copilot-controls-row" style="padding-bottom: 0.85rem; border-bottom: 1px dashed rgba(255, 255, 255, 0.08);">
+                        <div class="control-group" style="min-width: 220px; flex: 1.2;">
                             <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
-                                <i class="fas fa-brain" style="color: #a855f7;"></i> AI Model Engine
+                                <i class="fas fa-cloud" style="color: #38bdf8;"></i> Target Cloud Provider
                             </label>
-                            <select id="infra-model" class="copilot-select" style="min-width: 320px; font-weight: 600;">
-                                <option value="gemini/gemini-2.0-flash" selected>⚡ Google Gemini 2.0 Flash (Recommended · High Speed)</option>
-                                <option value="gemini/gemini-1.5-pro">🧠 Google Gemini 1.5 Pro (Deep Architecture Reasoning)</option>
-                                <option value="anthropic/claude-3-5-sonnet-20241022">🛡️ Claude 3.5 Sonnet (Precision IaC & Compliance)</option>
-                                <option value="openai/gpt-4o">🌐 OpenAI GPT-4o (Enterprise Hybrid Cloud)</option>
-                                <option value="deepseek/deepseek-chat">🚀 DeepSeek V3 (Cost-Optimized IaC)</option>
+                            <select id="infra-cloud" class="copilot-select" onchange="onCloudProviderChange()" style="font-weight: 600;">
+                                <option value="aws" selected>🟠 AWS (Amazon Web Services)</option>
+                                <option value="azure">🔷 Azure (Microsoft Azure)</option>
+                                <option value="gcp">🟢 GCP (Google Cloud Platform)</option>
+                                <option value="kubernetes">☸️ Kubernetes (Native K8s)</option>
+                                <option value="multicloud">🌐 Multi-Cloud / Hybrid</option>
                             </select>
                         </div>
 
-                        <div class="control-group" style="min-width: 150px;">
+                        <div class="control-group" style="min-width: 210px; flex: 1.2;">
                             <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
-                                <i class="fas fa-layer-group" style="color: #38bdf8;"></i> IaC Engine
+                                <i class="fas fa-shield-halved" style="color: #10b981;"></i> Environment Tier
+                            </label>
+                            <select id="infra-env" class="copilot-select" style="font-weight: 600;">
+                                <option value="production" selected>🛡️ Production (HA & Multi-AZ)</option>
+                                <option value="staging">🧪 Staging / QA (Standard)</option>
+                                <option value="development">💻 Development (Cost-Optimized)</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group" style="min-width: 180px; flex: 1;">
+                            <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
+                                <i class="fas fa-globe" style="color: #f59e0b;"></i> Target Region
+                            </label>
+                            <select id="infra-region" class="copilot-select" style="font-weight: 600;">
+                                <option value="us-east-1" selected>us-east-1 (N. Virginia)</option>
+                                <option value="us-west-2">us-west-2 (Oregon)</option>
+                                <option value="eu-west-1">eu-west-1 (Ireland)</option>
+                                <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group" style="min-width: 140px; flex: 0.8;">
+                            <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
+                                <i class="fas fa-layer-group" style="color: #a855f7;"></i> IaC Engine
                             </label>
                             <select id="infra-engine" class="copilot-select" style="font-weight: 600;">
                                 <option value="terraform" selected>🟣 Terraform</option>
                                 <option value="opentofu">🧅 OpenTofu</option>
                             </select>
                         </div>
-
-                        <div class="control-group" style="width: 120px;">
-                            <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
-                                <i class="fas fa-dollar-sign" style="color: #10b981;"></i> Budget (USD)
-                            </label>
-                            <input type="number" id="infra-budget" class="copilot-input" value="100" min="1" step="10">
-                        </div>
                     </div>
 
-                    <!-- Right: Generate Button -->
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <button class="btn-generate-copilot" id="btn-generate" onclick="generateInfra()">
-                            <i class="fas fa-wand-magic-sparkles"></i>
-                            <span>Synthesize Infrastructure</span>
-                        </button>
+                    <!-- Row 2: AI Engine, Budget & Synthesis Button -->
+                    <div class="copilot-controls-row">
+                        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                            <div class="control-group">
+                                <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
+                                    <i class="fas fa-brain" style="color: #a855f7;"></i> AI Model Engine
+                                </label>
+                                <select id="infra-model" class="copilot-select" style="min-width: 320px; font-weight: 600;">
+                                    <option value="gemini/gemini-2.0-flash" selected>⚡ Google Gemini 2.0 Flash (Recommended · High Speed)</option>
+                                    <option value="gemini/gemini-1.5-pro">🧠 Google Gemini 1.5 Pro (Deep Architecture Reasoning)</option>
+                                    <option value="anthropic/claude-3-5-sonnet-20241022">🛡️ Claude 3.5 Sonnet (Precision IaC & Compliance)</option>
+                                    <option value="openai/gpt-4o">🌐 OpenAI GPT-4o (Enterprise Hybrid Cloud)</option>
+                                    <option value="deepseek/deepseek-chat">🚀 DeepSeek V3 (Cost-Optimized IaC)</option>
+                                </select>
+                            </div>
+
+                            <div class="control-group" style="width: 120px;">
+                                <label class="meta-label" style="display: flex; align-items: center; gap: 0.35rem;">
+                                    <i class="fas fa-dollar-sign" style="color: #10b981;"></i> Budget (USD)
+                                </label>
+                                <input type="number" id="infra-budget" class="copilot-input" value="100" min="1" step="10">
+                            </div>
+                        </div>
+
+                        <!-- Right: Generate Button -->
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <button class="btn-generate-copilot" id="btn-generate" onclick="generateInfra()">
+                                <i class="fas fa-wand-magic-sparkles"></i>
+                                <span>Synthesize Infrastructure</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -378,7 +468,17 @@
                 <div id="modal-tab-code" class="modal-tab-content active">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; background: rgba(255,255,255,0.02); padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border-color);">
                         <div id="file-tabs" class="file-tabs" style="margin: 0; display: flex; gap: 0.4rem; overflow-x: auto;"></div>
-                        <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                            <button id="btn-toggle-edit" class="btn-sm" onclick="toggleCodeEditMode()" title="Toggle interactive in-browser code editor" style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.45); color: #a5b4fc; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                <i class="fas fa-edit"></i> <span id="btn-toggle-edit-label">Edit Code</span>
+                            </button>
+                            <button id="btn-save-replan" class="btn-sm" onclick="saveAndReplanCode()" title="Save changes and execute terraform plan dry-run" style="display: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #ffffff; padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 700; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35); align-items: center; gap: 0.4rem;">
+                                <i class="fas fa-play"></i> <span>Save & Re-Plan (Dry-Run)</span>
+                            </button>
+                            <button id="btn-discard-edit" class="btn-sm" onclick="discardCodeEdits()" title="Discard unstaged edits" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 500; align-items: center; gap: 0.35rem;">
+                                <i class="fas fa-times"></i> Discard
+                            </button>
+
                             <button class="btn-sm" onclick="copyCurrentCodeFile()" title="Copy active file content to clipboard" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: #cbd5e1; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 500;">
                                 <i class="fas fa-copy"></i> Copy File
                             </button>
@@ -390,6 +490,10 @@
                             </button>
                         </div>
                     </div>
+                    
+                    <!-- Dry-Run Validation & Plan Status Banner -->
+                    <div id="code-replan-status-card" style="display: none; margin-bottom: 0.75rem;"></div>
+
                     <div id="modal-tab-code-content"></div>
                 </div>
 
@@ -493,6 +597,96 @@
                                         <span class="meta-label">Deployed By</span>
                                         <div id="deploy-active-by" style="font-weight: 500; color: #a7f3d0;">-</div>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- State Backend & Security Transparency Card -->
+                        <div id="state-posture-card" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(99, 102, 241, 0.28); border-radius: 10px; padding: 1.25rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.6rem;">
+                                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                    <div style="width: 34px; height: 34px; border-radius: 8px; background: rgba(99, 102, 241, 0.15); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(99, 102, 241, 0.3);">
+                                        <i class="fas fa-shield-halved" style="color: #818cf8; font-size: 1.05rem;"></i>
+                                    </div>
+                                    <div>
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <h4 style="margin: 0; font-size: 1rem; color: #f8fafc; font-weight: 700;">Remote State & Security Posture</h4>
+                                            <span id="posture-compliance-badge" class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); font-size: 0.7rem; padding: 2px 7px; border-radius: 12px; font-weight: 600;">SOC2 / CIS Compliant</span>
+                                        </div>
+                                        <p style="margin: 0.15rem 0 0 0; font-size: 0.8rem; color: #94a3b8;">Cryptographic state storage, concurrency lease locking, and enclave isolation.</p>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-sm" onclick="toggleBackendConfigDrawer()" style="background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); color: #cbd5e1; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                    <i class="fas fa-sliders"></i> <span id="btn-toggle-backend-label">Configure Remote Backend</span>
+                                </button>
+                            </div>
+
+                            <!-- 4 Security Posture Metric Chips -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
+                                <!-- Backend Storage -->
+                                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 0.75rem 0.9rem;">
+                                    <span class="meta-label" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; color: #64748b;">
+                                        <i class="fas fa-server" style="color: #38bdf8;"></i> State Backend Type
+                                    </span>
+                                    <div id="posture-storage-type" style="font-weight: 700; font-size: 0.88rem; color: #f1f5f9; margin-top: 0.3rem;">Workspace Isolated Enclave</div>
+                                    <span id="posture-backend-status-pill" style="font-size: 0.7rem; color: #38bdf8; display: inline-block; margin-top: 0.2rem;">● Enclave Isolated (.tfstate)</span>
+                                </div>
+
+                                <!-- Encryption -->
+                                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 0.75rem 0.9rem;">
+                                    <span class="meta-label" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; color: #64748b;">
+                                        <i class="fas fa-lock" style="color: #10b981;"></i> Encryption At Rest
+                                    </span>
+                                    <div id="posture-encryption" style="font-weight: 700; font-size: 0.88rem; color: #34d399; margin-top: 0.3rem;">AES-256 (Server-Side)</div>
+                                    <span style="font-size: 0.7rem; color: #a7f3d0; display: inline-block; margin-top: 0.2rem;">● Key Management Active</span>
+                                </div>
+
+                                <!-- Concurrency Locking -->
+                                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 0.75rem 0.9rem;">
+                                    <span class="meta-label" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; color: #64748b;">
+                                        <i class="fas fa-key" style="color: #f59e0b;"></i> Concurrency State Lock
+                                    </span>
+                                    <div id="posture-locking" style="font-weight: 700; font-size: 0.88rem; color: #fbbf24; margin-top: 0.3rem;">Active Mutex (.lock.hcl)</div>
+                                    <span style="font-size: 0.7rem; color: #fde68a; display: inline-block; margin-top: 0.2rem;">● Zero Concurrent Write Collisions</span>
+                                </div>
+
+                                <!-- State Snapshot Revisions -->
+                                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 0.75rem 0.9rem;">
+                                    <span class="meta-label" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; color: #64748b;">
+                                        <i class="fas fa-clock-rotate-left" style="color: #a855f7;"></i> State Ledger & Serial
+                                    </span>
+                                    <div id="posture-serial" style="font-weight: 700; font-size: 0.88rem; color: #c084fc; margin-top: 0.3rem;">Serial #0 · 0 Live Resources</div>
+                                    <span id="posture-version-tag" style="font-size: 0.7rem; color: #d8b4fe; display: inline-block; margin-top: 0.2rem;">● Terraform Engine</span>
+                                </div>
+                            </div>
+
+                            <!-- Collapsible Remote Backend Configuration Drawer -->
+                            <div id="backend-config-drawer" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed rgba(255, 255, 255, 0.1);">
+                                <h5 style="margin: 0 0 0.5rem 0; font-size: 0.88rem; color: #f8fafc;">Configure AWS S3 Remote State Backend & DynamoDB Locking</h5>
+                                <p style="margin: 0 0 0.75rem 0; font-size: 0.8rem; color: #94a3b8;">Inject a production remote state backend into <code>backend.tf</code> for cross-engineer state sharing and automated distributed locking.</p>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
+                                    <div>
+                                        <label class="meta-label">S3 Bucket Name *</label>
+                                        <input type="text" id="remote-backend-bucket" class="form-input form-input-sm" placeholder="e.g. acme-corp-terraform-state">
+                                    </div>
+                                    <div>
+                                        <label class="meta-label">S3 Key Path</label>
+                                        <input type="text" id="remote-backend-key" class="form-input form-input-sm" placeholder="workspaces/{slug}/terraform.tfstate">
+                                    </div>
+                                    <div>
+                                        <label class="meta-label">Region</label>
+                                        <input type="text" id="remote-backend-region" class="form-input form-input-sm" value="us-east-1">
+                                    </div>
+                                    <div>
+                                        <label class="meta-label">DynamoDB Lock Table (Optional)</label>
+                                        <input type="text" id="remote-backend-dynamo" class="form-input form-input-sm" placeholder="e.g. tf-state-lock-table">
+                                    </div>
+                                </div>
+                                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                                    <button type="button" class="btn-sm" onclick="toggleBackendConfigDrawer()" style="background: rgba(255, 255, 255, 0.08); border: none; color: #cbd5e1; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer;">Cancel</button>
+                                    <button type="button" class="btn-sm" id="btn-save-remote-backend" onclick="saveRemoteBackendConfig()" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border: none; color: #fff; padding: 0.35rem 0.95rem; border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                        <i class="fas fa-check"></i> <span>Apply & Inject Backend HCL</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -882,52 +1076,6 @@
                 </div>
             </div>
 
-            <!-- Enterprise ROI & Productivity Comparison Banner -->
-            <div id="analytics-roi-banner" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
-                    <div style="display: flex; align-items: center; gap: 0.6rem;">
-                        <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); display: flex; align-items: center; justify-content: center;">
-                            <i class="fas fa-chart-pie" style="color: #34d399; font-size: 1.1rem;"></i>
-                        </div>
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.05rem; color: #fff;">Enterprise Cloud Engineering ROI & Velocity Impact</h3>
-                            <p style="margin: 0.2rem 0 0 0; font-size: 0.82rem; color: #94a3b8;">Quantifiable enterprise cost comparison between manual platform engineering vs OmniInfra autonomous multi-agent synthesis.</p>
-                        </div>
-                    </div>
-                    <span id="analytics-roi-badge" class="status-badge status-deployed" style="font-size: 0.8rem; padding: 4px 10px; font-weight: 700; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">
-                        ⚡ 94% Cost & Time Reduction
-                    </span>
-                </div>
-
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
-                    <!-- Traditional Approach -->
-                    <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 1rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <span style="font-size: 0.82rem; color: #f87171; font-weight: 600; text-transform: uppercase;">Traditional Manual Engineering</span>
-                            <span id="roi-manual-cost" style="font-size: 1.15rem; font-weight: 700; color: #f87171;">$1,920.00</span>
-                        </div>
-                        <div style="font-size: 0.82rem; color: #94a3b8; line-height: 1.6;">
-                            • 16.0 engineering hours / architecture<br>
-                            • Manual syntax debugging & policy reviews<br>
-                            • Typical delivery cycle: 2–3 weeks
-                        </div>
-                    </div>
-
-                    <!-- OmniInfra Autonomous -->
-                    <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 1rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <span style="font-size: 0.82rem; color: #818cf8; font-weight: 600; text-transform: uppercase;">OmniInfra AI Synthesis</span>
-                            <span id="roi-ai-cost" style="font-size: 1.15rem; font-weight: 700; color: #10b981;">$0.12 (99% saved)</span>
-                        </div>
-                        <div style="font-size: 0.82rem; color: #94a3b8; line-height: 1.6;">
-                            • Automated multi-agent parallel synthesis<br>
-                            • Self-healing remediation with zero manual toil<br>
-                            • Immediate deterministic IaC + Live visual topology
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Two-column Analytics Layout -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
                 <!-- Failure Taxonomy -->
@@ -1241,6 +1389,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=18.0"></script>
+    <script src="/static/app.js?v=25.0"></script>
 </body>
 </html>

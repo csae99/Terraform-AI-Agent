@@ -16,7 +16,8 @@ r_client = redis.from_url(redis_url)
 @celery_app.task(name="tasks.run_agent_pipeline")
 def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None, ai_config=None, new_project=False,
                             gitops=False, git_repo=None, git_token=None, target_branch="main", engine="terraform",
-                            force_consensus=False, plan_tier="free"):
+                            force_consensus=False, plan_tier="free",
+                            cloud_provider="aws", env_tier="production", region="us-east-1"):
     # Construct the command exactly like app/dashboard.py
     project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
     main_script = os.path.join(project_root, "app", "main.py")
@@ -36,6 +37,12 @@ def run_agent_pipeline_task(prompt, budget=100.0, apply=False, credentials=None,
         cmd.extend(["--target-branch", target_branch])
     if engine and engine != "terraform":
         cmd.extend(["--engine", engine])
+    if cloud_provider:
+        cmd.extend(["--cloud-provider", cloud_provider])
+    if env_tier:
+        cmd.extend(["--env-tier", env_tier])
+    if region:
+        cmd.extend(["--region", region])
     if force_consensus or (credentials and credentials.get("force_consensus")):
         cmd.append("--consensus")
     tier_val = plan_tier or (credentials.get("plan_tier") if credentials else None)

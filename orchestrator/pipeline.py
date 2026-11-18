@@ -178,6 +178,9 @@ def run_full_pipeline(
     engine: str = "terraform",
     force_consensus: bool = False,
     plan_tier: str = None,
+    cloud_provider: str = None,
+    env_tier: str = None,
+    region: str = None,
 ):
     """Execute the full multi-agent Terraform pipeline.
 
@@ -251,9 +254,13 @@ def run_full_pipeline(
     cloud = CloudSync()
 
     # ── 1. Cloud Readiness & Architecture ────────────────────────
+    resolved_cloud = cloud_provider or os.environ.get("TARGET_CLOUD_PROVIDER") or os.environ.get("CLOUD_PROVIDER") or "aws"
+    resolved_env_tier = env_tier or os.environ.get("ENV_TIER") or os.environ.get("ENVIRONMENT_TIER") or "production"
+    resolved_region = region or os.environ.get("TARGET_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
+
     readiness = cloud.check_cloud_readiness()
     detected_provider = readiness["provider"]
-    print(f"Cloud Readiness: {detected_provider} Ready")
+    print(f"Cloud Readiness: {detected_provider} Ready (Target: {resolved_cloud.upper()} | Env: {resolved_env_tier.upper()} | Region: {resolved_region})")
 
     # If target_slug is specified, load existing HCL files as evolution baseline
     existing_files_summary = ""
@@ -281,10 +288,26 @@ def run_full_pipeline(
         if tf_files:
             existing_files_summary = "\n\n" + "="*40 + "\nEXISTING WORKSPACE CODE (EVOLUTION CONTEXT):\n" + "\n\n".join(tf_files) + "\n" + "="*40 + "\n"
 
-    effective_prompt = prompt
+    # Construct structured architectural specification header
+    arch_specs = [
+        f"- TARGET CLOUD PROVIDER: {resolved_cloud.upper()} (Enforce official {resolved_cloud.upper()} provider configurations and native resources)",
+        f"- ENVIRONMENT TIER: {resolved_env_tier.upper()}",
+        f"- TARGET REGION: {resolved_region}"
+    ]
+    if resolved_env_tier.lower() == "production":
+        arch_specs.append("- GOVERNANCE POLICY: Production Grade (Strict Multi-AZ redundancy, server-side encryption at rest, automated backups, least-privilege IAM, deletion protection).")
+    elif resolved_env_tier.lower() == "staging":
+        arch_specs.append("- GOVERNANCE POLICY: Staging/QA Grade (Standard redundancy, balanced sizing suitable for integration testing).")
+    else:
+        arch_specs.append("- GOVERNANCE POLICY: Development/Sandbox Grade (Cost-optimized, single-instance/ephemeral sizing to conserve budget).")
+
+    spec_banner = "\n".join(arch_specs)
+
+    effective_prompt = f"ARCHITECTURAL SPECIFICATION & GOVERNANCE:\n{spec_banner}\n\nUSER INFRASTRUCTURE REQUIREMENT:\n{prompt}"
     if existing_files_summary:
         effective_prompt = (
             f"You are modifying and evolving an EXISTING Terraform workspace '{target_slug}'.\n"
+            f"ARCHITECTURAL SPECIFICATION:\n{spec_banner}\n\n"
             f"USER FOLLOW-UP REQUIREMENTS:\n{prompt}\n"
             f"{existing_files_summary}\n"
             f"IMPORTANT EVOLUTION RULES:\n"
