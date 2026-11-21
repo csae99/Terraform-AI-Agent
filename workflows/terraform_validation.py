@@ -20,11 +20,11 @@ class TerraformValidationTasks:
     def financial_analysis_task(agent, project_slug, budget=100.0):
         return Task(
             description=f'Analyze the projected costs for the `{project_slug}` workspace.\n'
-                        f'1. Use `get_monthly_cost` to get the total estimated spend.\n'
-                        f'2. Use `generate_financial_report` to create the detailed breakdown.\n'
+                        f'1. Use `get_monthly_cost` with directory_path="output/{project_slug}" to get the total estimated spend.\n'
+                        f'2. Use `generate_financial_report` with project_slug="{project_slug}" to create the detailed breakdown.\n'
                         f'3. Compare the total cost against the budget: ${budget}.\n'
                         f'4. Formulate intelligent, resource-specific optimization recommendations (e.g. S3 lifecycle policies, compute sizing, or reserved plans if applicable).\n'
-                        f'5. Use the `Append Optimization Recommendations` tool to save your custom recommendations directly into the generated FINANCIAL_REPORT.md file.',
+                        f'5. Use the `Append Optimization Recommendations` tool with project_slug="{project_slug}" to save your custom recommendations directly into the generated FINANCIAL_REPORT.md file.',
             expected_output='A cost analysis summary with budget status, with custom recommendations successfully appended to the financial report.',
             agent=agent
         )

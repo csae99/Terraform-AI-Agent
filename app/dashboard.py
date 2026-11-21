@@ -3336,6 +3336,104 @@ async def admin_test_llm_route(request: Request, user=Depends(require_superadmin
         }
 
 
+# ─── Dynamic AI Model Engine Catalog Endpoints ─────────────────────────
+
+@app.get("/api/ai-models")
+async def get_active_ai_models():
+    """Retrieve enabled AI models for the Copilot Build tab."""
+    from tools.project.tracker import AIModelCatalogManager
+    models = AIModelCatalogManager.get_active_models()
+    return {
+        "status": "success",
+        "total": len(models),
+        "models": models
+    }
+
+@app.get("/api/admin/ai-models")
+async def admin_get_all_ai_models(user=Depends(require_superadmin)):
+    """Retrieve full catalog of AI models for Admin Console management."""
+    from tools.project.tracker import AIModelCatalogManager
+    models = AIModelCatalogManager.get_all_models()
+    return {
+        "status": "success",
+        "total": len(models),
+        "models": models
+    }
+
+@app.post("/api/admin/ai-models")
+async def admin_add_ai_model(request: Request, user=Depends(require_superadmin)):
+    """Add a new AI model to the dynamic catalog."""
+    data = await request.json()
+    provider = data.get("provider", "custom")
+    model_id = data.get("model_id")
+    display_name = data.get("display_name")
+    badge = data.get("badge", "⚡")
+    description = data.get("description", "")
+    is_enabled = data.get("is_enabled", True)
+    is_default = data.get("is_default", False)
+    sort_order = int(data.get("sort_order", 0))
+
+    if not model_id or not display_name:
+        raise HTTPException(status_code=400, detail="model_id and display_name are required.")
+
+    from tools.project.tracker import AIModelCatalogManager
+    try:
+        res = AIModelCatalogManager.add_model(
+            provider=provider,
+            model_id=model_id,
+            display_name=display_name,
+            badge=badge,
+            description=description,
+            is_enabled=is_enabled,
+            is_default=is_default,
+            sort_order=sort_order,
+            user=user.username
+        )
+        return {"status": "success", "message": f"Model '{display_name}' added successfully", "model": res}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add model: {e}")
+
+@app.put("/api/admin/ai-models/{model_id_or_id}")
+async def admin_update_ai_model(model_id_or_id: str, request: Request, user=Depends(require_superadmin)):
+    """Update properties or toggle status of an AI model."""
+    data = await request.json()
+    from tools.project.tracker import AIModelCatalogManager
+    try:
+        res = AIModelCatalogManager.update_model(model_id_or_id, user=user.username, **data)
+        return {"status": "success", "message": "Model updated successfully", "model": res}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update model: {e}")
+
+@app.delete("/api/admin/ai-models/{model_id_or_id}")
+async def admin_delete_ai_model(model_id_or_id: str, user=Depends(require_superadmin)):
+    """Delete an AI model from the dynamic catalog."""
+    from tools.project.tracker import AIModelCatalogManager
+    try:
+        AIModelCatalogManager.delete_model(model_id_or_id, user=user.username)
+        return {"status": "success", "message": "Model deleted successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete model: {e}")
+
+@app.post("/api/admin/ai-models/{model_id_or_id}/default")
+async def admin_set_default_ai_model(model_id_or_id: str, user=Depends(require_superadmin)):
+    """Set the designated model as the platform-wide default."""
+    from tools.project.tracker import AIModelCatalogManager
+    try:
+        AIModelCatalogManager.set_default(model_id_or_id, user=user.username)
+        return {"status": "success", "message": "Default model updated successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set default model: {e}")
+
+
+
 # ─── FinOps & Revenue Analytics (Milestone 3) ─────────────────────────────
 
 @app.get("/api/admin/finops/overview")

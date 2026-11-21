@@ -11,8 +11,12 @@ class TerraformTools:
     @staticmethod
     def _sanitize_slug(slug: str) -> str:
         """Strips 'output/' prefix and leading/trailing slashes to prevent nested directories."""
-        if not slug:
-            return "workspace"
+        if not slug or slug.strip().lower() in ["", "workspace", "default"]:
+            env_slug = os.environ.get("CURRENT_PROJECT_SLUG")
+            if env_slug and env_slug.strip().lower() not in ["", "workspace"]:
+                slug = env_slug
+            else:
+                return "workspace"
         # Remove 'output/' or 'output\' prefix if the agent accidentally includes it
         slug = slug.replace("output/", "").replace("output\\", "")
         # Remove any leading/trailing slashes

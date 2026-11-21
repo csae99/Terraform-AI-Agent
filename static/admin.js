@@ -54,6 +54,7 @@ function switchAdminTab(tab) {
     else if (tab === 'llm-router') loadLLMRouter();
     else if (tab === 'security') loadSecurityDashboard();
     else if (tab === 'incidents') loadIncidentsDashboard();
+    else if (tab === 'ai-models') loadAIModelsCatalog();
 }
 
 function refreshAdminData() {
@@ -2698,6 +2699,246 @@ async function testWebhookPing() {
         showToast(`Webhook test failed: ${e.message}`, "error");
     }
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// ── AI Model Engine Catalog Management ──────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════
+
+async function loadAIModelsCatalog() {
+    const tbody = document.getElementById('aimodels-table-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;"><i class="fas fa-spinner fa-spin"></i> Loading AI models...</td></tr>`;
+
+    try {
+        const res = await fetch('/api/admin/ai-models');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const models = data.models || [];
+
+        // Update vitals
+        const total = models.length;
+        const activeCount = models.filter(m => m.is_enabled).length;
+        const disabledCount = total - activeCount;
+        const defaultModel = models.find(m => m.is_default);
+        const keysReady = models.filter(m => m.has_key).length;
+        const keysMissing = total - keysReady;
+
+        const elTotal = document.getElementById('vital-aimodels-total');
+        if (elTotal) elTotal.innerText = total;
+        const elActive = document.getElementById('vital-aimodels-active');
+        if (elActive) elActive.innerText = activeCount;
+        const elDisabled = document.getElementById('vital-aimodels-disabled');
+        if (elDisabled) elDisabled.innerText = disabledCount;
+        const elDefault = document.getElementById('vital-aimodels-default');
+        if (elDefault) elDefault.innerText = defaultModel ? defaultModel.display_name : 'None';
+        const elKeysReady = document.getElementById('vital-aimodels-keys-ready');
+        if (elKeysReady) elKeysReady.innerText = `${keysReady} Ready`;
+        const elKeysMissing = document.getElementById('vital-aimodels-keys-missing');
+        if (elKeysMissing) elKeysMissing.innerText = `${keysMissing} Missing Keys`;
+
+        if (models.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #94a3b8;">No AI models registered in catalog.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = models.map(m => {
+            const keyBadge = m.has_key
+                ? `<span class="badge badge-success" style="font-size: 0.72rem; display: inline-flex; align-items: center; gap: 0.25rem;"><i class="fas fa-check-circle"></i> Ready (${escapeHtml(m.env_key_name)})</span>`
+                : `<span class="badge" style="background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); font-size: 0.72rem; display: inline-flex; align-items: center; gap: 0.25rem;"><i class="fas fa-exclamation-triangle"></i> Missing (${escapeHtml(m.env_key_name)})</span>`;
+
+            const statusToggle = `
+                <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: pointer; margin: 0;">
+                    <input type="checkbox" ${m.is_enabled ? 'checked' : ''} onchange="toggleAIModelStatus(${m.id}, this.checked)" style="opacity: 0; width: 0; height: 0;">
+                    <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${m.is_enabled ? '#10b981' : '#475569'}; transition: .3s; border-radius: 22px;"></span>
+                    <span style="position: absolute; content: ''; height: 16px; width: 16px; left: ${m.is_enabled ? '21px' : '3px'}; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;"></span>
+                </label>
+            `;
+
+            const defaultCell = m.is_default
+                ? `<span class="badge badge-success" style="font-size: 0.72rem;"><i class="fas fa-star" style="color: #fbbf24;"></i> Default</span>`
+                : `<button onclick="setDefaultAIModel(${m.id})" class="btn-sm" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: #cbd5e1; font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer;">Set Default</button>`;
+
+            const providerColors = {
+                'google': 'rgba(66, 133, 244, 0.18); color: #60a5fa; border: 1px solid rgba(66, 133, 244, 0.3);',
+                'openai': 'rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);',
+                'anthropic': 'rgba(217, 119, 6, 0.18); color: #fbbf24; border: 1px solid rgba(217, 119, 6, 0.3);',
+                'deepseek': 'rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);',
+                'zenmux': 'rgba(236, 72, 153, 0.18); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3);',
+                'groq': 'rgba(249, 115, 22, 0.18); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.3);',
+                'custom': 'rgba(148, 163, 184, 0.18); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3);'
+            };
+            const pStyle = providerColors[m.provider.toLowerCase()] || providerColors['custom'];
+
+            return `
+                <tr>
+                    <td style="font-size: 1.25rem; text-align: center;">${m.badge || '🤖'}</td>
+                    <td>
+                        <div style="font-weight: 600; color: #fff; font-size: 0.9rem;">${escapeHtml(m.display_name)}</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">${escapeHtml(m.description || 'General Purpose')}</div>
+                    </td>
+                    <td>
+                        <span class="badge" style="${pStyle} text-transform: uppercase; font-size: 0.68rem; font-weight: 700;">${escapeHtml(m.provider)}</span>
+                    </td>
+                    <td>
+                        <code style="background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.75rem; color: #38bdf8;">${escapeHtml(m.model_id)}</code>
+                    </td>
+                    <td>${keyBadge}</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            ${statusToggle}
+                            <span style="font-size: 0.75rem; color: ${m.is_enabled ? '#34d399' : '#94a3b8'};">${m.is_enabled ? 'Active' : 'Hidden'}</span>
+                        </div>
+                    </td>
+                    <td>${defaultCell}</td>
+                    <td style="text-align: right;">
+                        <button onclick="deleteAIModel(${m.id}, '${escapeHtml(m.display_name)}')" class="btn-sm" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer;" title="Delete Model">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #ef4444;">Error loading AI models: ${e.message}</td></tr>`;
+    }
+}
+
+async function toggleAIModelStatus(id, isEnabled) {
+    try {
+        const res = await fetch(`/api/admin/ai-models/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_enabled: isEnabled })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Failed to update model status');
+        }
+        showToast(`Model ${isEnabled ? 'enabled' : 'disabled'} successfully`, 'success');
+        await loadAIModelsCatalog();
+    } catch (e) {
+        showToast(e.message, 'error');
+        await loadAIModelsCatalog();
+    }
+}
+
+async function setDefaultAIModel(id) {
+    try {
+        const res = await fetch(`/api/admin/ai-models/${id}/default`, {
+            method: 'POST'
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Failed to set default model');
+        }
+        showToast('Default AI Model updated', 'success');
+        await loadAIModelsCatalog();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+async function deleteAIModel(id, name) {
+    if (!confirm(`Are you sure you want to remove '${name}' from the AI model catalog?`)) return;
+    try {
+        const res = await fetch(`/api/admin/ai-models/${id}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Failed to delete model');
+        }
+        showToast(`Model '${name}' removed`, 'info');
+        await loadAIModelsCatalog();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+function openAddModelModal() {
+    const modal = document.getElementById('modal-add-aimodel');
+    if (modal) {
+        modal.style.display = 'flex';
+        onProviderPresetChange(document.getElementById('new-model-provider')?.value || 'gemini');
+    }
+}
+
+function closeAddModelModal() {
+    const modal = document.getElementById('modal-add-aimodel');
+    if (modal) modal.style.display = 'none';
+    document.getElementById('form-add-aimodel')?.reset();
+}
+
+function onProviderPresetChange(provider) {
+    const badgeInput = document.getElementById('new-model-badge');
+    const idInput = document.getElementById('new-model-id');
+    const nameInput = document.getElementById('new-model-name');
+    const descInput = document.getElementById('new-model-desc');
+
+    const presets = {
+        'gemini': { badge: '⚡', id: 'gemini/gemini-2.0-flash', name: 'Google Gemini 2.0 Flash', desc: 'Recommended · High Speed' },
+        'openai': { badge: '🌐', id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', desc: 'Enterprise Hybrid Cloud' },
+        'anthropic': { badge: '🛡️', id: 'anthropic/claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', desc: 'Precision IaC & Compliance' },
+        'zenmux': { badge: '🚀', id: 'zenmux/moonshotai/kimi-k3-free', name: 'ZenMux Kimi K3 Free', desc: 'Cost-Effective · Moonshot AI' },
+        'openrouter': { badge: '🔀', id: 'openrouter/deepseek/deepseek-r1', name: 'OpenRouter DeepSeek R1', desc: 'Reasoning Heavy' },
+        'groq': { badge: '⚡', id: 'groq/llama-3.3-70b-versatile', name: 'Groq Llama 3.3 70B', desc: 'Ultra-Low Latency Inference' },
+        'deepseek': { badge: '🚀', id: 'deepseek/deepseek-chat', name: 'DeepSeek V3', desc: 'Cost-Optimized IaC' },
+        'mistral': { badge: '🌪️', id: 'mistral/mistral-large-latest', name: 'Mistral Large', desc: 'Code Generation Specialization' },
+        'ollama': { badge: '🦙', id: 'ollama/llama3.2', name: 'Ollama Local Llama 3.2', desc: 'Air-Gapped Private Local' },
+        'custom': { badge: '✨', id: '', name: '', desc: '' }
+    };
+
+    const p = presets[provider] || presets['custom'];
+    if (badgeInput && p.badge) badgeInput.value = p.badge;
+    if (idInput && p.id) idInput.value = p.id;
+    if (nameInput && p.name) nameInput.value = p.name;
+    if (descInput && p.desc) descInput.value = p.desc;
+}
+
+async function submitAddAIModel(e) {
+    e.preventDefault();
+    const provider = document.getElementById('new-model-provider')?.value || 'custom';
+    const model_id = document.getElementById('new-model-id')?.value.trim();
+    const display_name = document.getElementById('new-model-name')?.value.trim();
+    const badge = document.getElementById('new-model-badge')?.value.trim() || '⚡';
+    const description = document.getElementById('new-model-desc')?.value.trim();
+    const is_enabled = document.getElementById('new-model-enabled')?.checked ?? true;
+    const is_default = document.getElementById('new-model-default')?.checked ?? false;
+
+    if (!model_id || !display_name) {
+        showToast('Model ID and Display Name are required', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/ai-models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider,
+                model_id,
+                display_name,
+                badge,
+                description,
+                is_enabled,
+                is_default
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Failed to add model');
+        }
+
+        showToast(`AI Model '${display_name}' added to catalog`, 'success');
+        closeAddModelModal();
+        await loadAIModelsCatalog();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
 
 
 

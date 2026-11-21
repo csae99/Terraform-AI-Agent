@@ -44,9 +44,9 @@ class TerraformGenerationTasks:
         desc += (
             '\n'
             '## MANDATORY RULES (FAILURE TO FOLLOW = BROKEN CODE)\n'
-            '1. You MUST use the `Write Terraform File` tool for EVERY SINGLE FILE you create.\n'
+            f'1. You MUST use the `Write Terraform File` tool for EVERY SINGLE FILE you create, always passing project_slug="{project_slug}".\n'
             '2. DO NOT WRITE PLAIN TEXT TERRAFORM. YOU MUST CALL THE TOOL.\n'
-            '3. If you need to create 15 files, you MUST call the tool 15 times.\n'
+            f'3. If you need to create 15 files, you MUST call the tool 15 times with project_slug="{project_slug}".\n'
             '4. If a "PREVIOUS ROUND FAILED" block is present, you MUST prioritize correcting the reported errors and applying the provided KNOWN FIX GUIDANCE or reflection advice. You MUST override the Architect design if it contradicts the required fix (e.g. if the design specifies "enable_auto_scaling = true" but the guidance instructs to rename it to "auto_scaling_enabled = true", you MUST apply the rename).\n'
             '5. STRICT MODULAR STRUCTURE REQUIREMENT:\n'
             '   You MUST organize the code into logical submodules under the `modules/` directory (e.g., `./modules/networking`, `./modules/aks`, `./modules/acr`).\n'

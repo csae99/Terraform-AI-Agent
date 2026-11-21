@@ -4,7 +4,7 @@ import re
 import glob
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
-from sqlalchemy import create_engine, Column, String, Float, Integer, Text, DateTime, JSON, ForeignKey, Boolean
+from sqlalchemy import create_engine, Column, String, Float, Integer, Text, DateTime, JSON, ForeignKey, Boolean, func
 from sqlalchemy.orm import relationship, sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
@@ -243,6 +243,23 @@ class LLMProviderMetricModel(Base):
     priority = Column(Integer, default=1)
     last_error = Column(Text, default="")
     last_used = Column(DateTime, default=datetime.utcnow)
+
+
+class AIModelCatalogModel(Base):
+    """Database-backed AI models catalog managed by admin and surfaced dynamically to Copilot users."""
+    __tablename__ = "ai_models"
+
+    id = Column(Integer, primary_key=True)
+    provider = Column(String, nullable=False, index=True)
+    model_id = Column(String, unique=True, nullable=False, index=True)
+    display_name = Column(String, nullable=False)
+    badge = Column(String, default="⚡")
+    description = Column(String, nullable=True)
+    is_enabled = Column(Boolean, default=True)
+    is_default = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class PipelineStageTraceModel(Base):
@@ -1961,6 +1978,348 @@ class LLMRoutingManager:
         except Exception as e:
             session.rollback()
             print(f"[LLMRoutingManager] Error recording telemetry: {e}")
+        finally:
+            session.close()
+
+
+class AIModelCatalogManager:
+    """Manages CRUD for AI Model Engines in the database, API key health detection, and default model assignment."""
+
+    DEFAULT_MODELS = [
+        {
+            "provider": "gemini",
+            "model_id": "gemini/gemini-2.5-flash",
+            "display_name": "Google Gemini 2.5 Flash",
+            "badge": "⚡",
+            "description": "Recommended · High Speed",
+            "is_enabled": True,
+            "is_default": True,
+            "sort_order": 1
+        },
+        {
+            "provider": "gemini",
+            "model_id": "gemini/gemini-1.5-pro",
+            "display_name": "Google Gemini 1.5 Pro",
+            "badge": "🧠",
+            "description": "Deep Architecture Reasoning",
+            "is_enabled": True,
+            "is_default": False,
+            "sort_order": 2
+        },
+        {
+            "provider": "anthropic",
+            "model_id": "anthropic/claude-3-5-sonnet-20241022",
+            "display_name": "Claude 3.5 Sonnet",
+            "badge": "🛡️",
+            "description": "Precision IaC & Compliance",
+            "is_enabled": True,
+            "is_default": False,
+            "sort_order": 3
+        },
+        {
+            "provider": "openai",
+            "model_id": "openai/gpt-4o",
+            "display_name": "OpenAI GPT-4o",
+            "badge": "🌐",
+            "description": "Enterprise Hybrid Cloud",
+            "is_enabled": True,
+            "is_default": False,
+            "sort_order": 4
+        },
+        {
+            "provider": "openai",
+            "model_id": "openai/gpt-4o-mini",
+            "display_name": "OpenAI GPT-4o Mini",
+            "badge": "⚡",
+            "description": "Fast & Cost-Effective",
+            "is_enabled": True,
+            "is_default": False,
+            "sort_order": 5
+        },
+        {
+            "provider": "deepseek",
+            "model_id": "deepseek/deepseek-chat",
+            "display_name": "DeepSeek V3",
+            "badge": "🚀",
+            "description": "Cost-Optimized IaC",
+            "is_enabled": True,
+            "is_default": False,
+            "sort_order": 6
+        },
+        {
+            "provider": "zenmux",
+            "model_id": "zenmux/moonshotai/kimi-k3-free",
+            "display_name": "ZenMux Kimi K3",
+            "badge": "🌙",
+            "description": "Free Tier High Context",
+            "is_enabled": True,
+            "is_default": False,
+            "sort_order": 7
+        },
+        {
+            "provider": "groq",
+            "model_id": "groq/llama-3.3-70b-versatile",
+            "display_name": "Groq Llama 3.3 70B",
+            "badge": "⚡",
+            "description": "Ultra-Low Latency LPU",
+            "is_enabled": True,
+            "is_default": False,
+            "sort_order": 8
+        }
+    ]
+
+    @classmethod
+    def check_provider_key(cls, provider: str) -> Dict[str, Any]:
+        """Checks whether the API key for the given provider is present in env or config."""
+        prov = (provider or "").lower().strip()
+        key_vars = {
+            "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+            "openai": ["OPENAI_API_KEY"],
+            "anthropic": ["ANTHROPIC_API_KEY"],
+            "zenmux": ["ZENMUX_API_KEY"],
+            "openrouter": ["OPENROUTER_API_KEY"],
+            "groq": ["GROQ_API_KEY"],
+            "mistral": ["MISTRAL_API_KEY"],
+            "nvidia": ["NVIDIA_API_KEY"],
+            "deepseek": ["DEEPSEEK_API_KEY"],
+            "ollama": []
+        }
+        
+        if prov == "ollama":
+            return {"has_key": True, "source": "local_service", "env_var": "None (Self-Hosted)"}
+            
+        vars_to_check = key_vars.get(prov, [f"{prov.upper()}_API_KEY"])
+        for v in vars_to_check:
+            val = os.environ.get(v) or ConfigManager.get(v)
+            if val and len(str(val).strip()) > 5:
+                s_val = str(val).strip()
+                masked = f"{s_val[:3]}...{s_val[-4:]}" if len(s_val) >= 10 else "***"
+                return {"has_key": True, "source": "configured", "env_var": v, "masked_key": masked}
+
+        return {"has_key": False, "source": "missing", "env_var": vars_to_check[0] if vars_to_check else ""}
+
+    @classmethod
+    def ensure_seeded(cls):
+        Base.metadata.create_all(bind=engine)
+        session = SessionLocal()
+        try:
+            count = session.query(AIModelCatalogModel).count()
+            if count == 0:
+                for idx, m in enumerate(cls.DEFAULT_MODELS):
+                    entry = AIModelCatalogModel(
+                        provider=m["provider"],
+                        model_id=m["model_id"],
+                        display_name=m["display_name"],
+                        badge=m.get("badge", "⚡"),
+                        description=m.get("description", ""),
+                        is_enabled=m.get("is_enabled", True),
+                        is_default=m.get("is_default", False),
+                        sort_order=m.get("sort_order", idx + 1),
+                        created_at=datetime.utcnow()
+                    )
+                    session.add(entry)
+                session.commit()
+                print("[AIModelCatalogManager] Seeded default AI models.")
+        except Exception as e:
+            session.rollback()
+            print(f"[AIModelCatalogManager] Seeding error: {e}")
+        finally:
+            session.close()
+
+    @classmethod
+    def get_active_models(cls) -> List[Dict[str, Any]]:
+        cls.ensure_seeded()
+        session = SessionLocal()
+        try:
+            models = session.query(AIModelCatalogModel).filter(
+                AIModelCatalogModel.is_enabled == True
+            ).order_by(AIModelCatalogModel.sort_order.asc(), AIModelCatalogModel.id.asc()).all()
+            
+            result = []
+            for m in models:
+                key_info = cls.check_provider_key(m.provider)
+                result.append({
+                    "id": m.id,
+                    "provider": m.provider,
+                    "model_id": m.model_id,
+                    "display_name": m.display_name,
+                    "badge": m.badge or "⚡",
+                    "description": m.description or "",
+                    "is_default": m.is_default,
+                    "has_key": key_info["has_key"],
+                    "sort_order": m.sort_order
+                })
+            return result
+        finally:
+            session.close()
+
+    @classmethod
+    def get_all_models(cls) -> List[Dict[str, Any]]:
+        cls.ensure_seeded()
+        session = SessionLocal()
+        try:
+            models = session.query(AIModelCatalogModel).order_by(
+                AIModelCatalogModel.sort_order.asc(), AIModelCatalogModel.id.asc()
+            ).all()
+            
+            result = []
+            for m in models:
+                key_info = cls.check_provider_key(m.provider)
+                result.append({
+                    "id": m.id,
+                    "provider": m.provider,
+                    "model_id": m.model_id,
+                    "display_name": m.display_name,
+                    "badge": m.badge or "⚡",
+                    "description": m.description or "",
+                    "is_enabled": m.is_enabled,
+                    "is_default": m.is_default,
+                    "sort_order": m.sort_order,
+                    "has_key": key_info["has_key"],
+                    "key_source": key_info.get("source", "missing"),
+                    "key_env_var": key_info.get("env_var", ""),
+                    "masked_key": key_info.get("masked_key", ""),
+                    "created_at": m.created_at.isoformat() if m.created_at else "",
+                    "updated_at": m.updated_at.isoformat() if m.updated_at else ""
+                })
+            return result
+        finally:
+            session.close()
+
+    @classmethod
+    def add_model(cls, provider: str, model_id: str, display_name: str, badge: str = "⚡",
+                  description: str = "", is_enabled: bool = True, is_default: bool = False,
+                  sort_order: int = 0, user: str = "superadmin") -> Dict[str, Any]:
+        cls.ensure_seeded()
+        session = SessionLocal()
+        try:
+            existing = session.query(AIModelCatalogModel).filter(AIModelCatalogModel.model_id == model_id.strip()).first()
+            if existing:
+                raise ValueError(f"Model ID '{model_id}' already exists in catalog.")
+
+            if is_default:
+                session.query(AIModelCatalogModel).update({AIModelCatalogModel.is_default: False})
+
+            max_order = session.query(func.max(AIModelCatalogModel.sort_order)).scalar() or 0
+            new_order = sort_order if sort_order > 0 else max_order + 1
+
+            new_model = AIModelCatalogModel(
+                provider=provider.lower().strip(),
+                model_id=model_id.strip(),
+                display_name=display_name.strip(),
+                badge=badge.strip() or "⚡",
+                description=description.strip() if description else "",
+                is_enabled=is_enabled,
+                is_default=is_default,
+                sort_order=new_order,
+                created_at=datetime.utcnow()
+            )
+            session.add(new_model)
+            session.commit()
+            session.refresh(new_model)
+
+            AuditTracker.log_action(
+                action="ai_model_added",
+                details=f"Added AI Model '{display_name}' ({model_id}) by {user}"
+            )
+            return {"id": new_model.id, "model_id": new_model.model_id, "display_name": new_model.display_name}
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    @classmethod
+    def update_model(cls, model_id_or_id: Any, user: str = "superadmin", **kwargs) -> Dict[str, Any]:
+        cls.ensure_seeded()
+        session = SessionLocal()
+        try:
+            if isinstance(model_id_or_id, int) or (isinstance(model_id_or_id, str) and str(model_id_or_id).isdigit()):
+                m = session.query(AIModelCatalogModel).filter(AIModelCatalogModel.id == int(model_id_or_id)).first()
+            else:
+                m = session.query(AIModelCatalogModel).filter(AIModelCatalogModel.model_id == str(model_id_or_id)).first()
+
+            if not m:
+                raise ValueError(f"Model '{model_id_or_id}' not found.")
+
+            if kwargs.get("is_default") is True:
+                session.query(AIModelCatalogModel).update({AIModelCatalogModel.is_default: False})
+
+            for key, val in kwargs.items():
+                if hasattr(m, key):
+                    setattr(m, key, val)
+            
+            m.updated_at = datetime.utcnow()
+            session.commit()
+            session.refresh(m)
+
+            AuditTracker.log_action(
+                action="ai_model_updated",
+                details=f"Updated AI Model '{m.display_name}' ({m.model_id}) by {user}: {kwargs}"
+            )
+            return {"id": m.id, "model_id": m.model_id, "is_enabled": m.is_enabled, "is_default": m.is_default}
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    @classmethod
+    def delete_model(cls, model_id_or_id: Any, user: str = "superadmin") -> bool:
+        cls.ensure_seeded()
+        session = SessionLocal()
+        try:
+            if isinstance(model_id_or_id, int) or (isinstance(model_id_or_id, str) and str(model_id_or_id).isdigit()):
+                m = session.query(AIModelCatalogModel).filter(AIModelCatalogModel.id == int(model_id_or_id)).first()
+            else:
+                m = session.query(AIModelCatalogModel).filter(AIModelCatalogModel.model_id == str(model_id_or_id)).first()
+
+            if not m:
+                raise ValueError(f"Model '{model_id_or_id}' not found.")
+
+            name = m.display_name
+            mid = m.model_id
+            session.delete(m)
+            session.commit()
+
+            AuditTracker.log_action(
+                action="ai_model_deleted",
+                details=f"Deleted AI Model '{name}' ({mid}) by {user}"
+            )
+            return True
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    @classmethod
+    def set_default(cls, model_id_or_id: Any, user: str = "superadmin") -> bool:
+        cls.ensure_seeded()
+        session = SessionLocal()
+        try:
+            if isinstance(model_id_or_id, int) or (isinstance(model_id_or_id, str) and str(model_id_or_id).isdigit()):
+                m = session.query(AIModelCatalogModel).filter(AIModelCatalogModel.id == int(model_id_or_id)).first()
+            else:
+                m = session.query(AIModelCatalogModel).filter(AIModelCatalogModel.model_id == str(model_id_or_id)).first()
+
+            if not m:
+                raise ValueError(f"Model '{model_id_or_id}' not found.")
+
+            session.query(AIModelCatalogModel).update({AIModelCatalogModel.is_default: False})
+            m.is_default = True
+            m.is_enabled = True
+            m.updated_at = datetime.utcnow()
+            session.commit()
+
+            AuditTracker.log_action(
+                action="ai_model_default_changed",
+                details=f"Default AI Model set to '{m.display_name}' ({m.model_id}) by {user}"
+            )
+            return True
+        except Exception as e:
+            session.rollback()
+            raise e
         finally:
             session.close()
 

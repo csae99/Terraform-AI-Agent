@@ -113,13 +113,26 @@ class CostEstimator:
     def _execute_infracost(self, project_path):
         """Runs infracost to get the cost breakdown in JSON format.
         Uses native binary if available, otherwise falls back to Docker."""
-        # Check if project_path exists, if not, try prepending 'output/'
-        if not os.path.exists(project_path):
+        # Prevent running on root or application repository directory
+        clean_path = (project_path or "").strip().rstrip("/\\")
+        if not clean_path or clean_path in [".", "/app", "app"]:
+            return {"error": "INVALID_PATH", "details": "Please specify the specific workspace under output/ (e.g. output/<project_slug>)"}
+
+        # Normalize project_path to target output/ directory
+        if not clean_path.startswith("output") and not os.path.isabs(clean_path):
+            alt_path = os.path.join("output", clean_path)
+            if os.path.exists(alt_path):
+                project_path = alt_path
+            elif os.path.exists(clean_path):
+                project_path = clean_path
+            else:
+                return {"error": "PATH_NOT_FOUND", "details": f"Directory output/{clean_path} does not exist."}
+        elif not os.path.exists(project_path):
             alt_path = os.path.join("output", project_path)
             if os.path.exists(alt_path):
                 project_path = alt_path
             else:
-                return {"error": "PATH_NOT_FOUND", "details": f"Directory {project_path} (or output/{project_path}) does not exist."}
+                return {"error": "PATH_NOT_FOUND", "details": f"Directory {project_path} does not exist."}
 
         api_key = os.getenv("INFRACOST_API_KEY")
         if not api_key or "your_" in api_key:
@@ -137,7 +150,7 @@ class CostEstimator:
                 ]
                 env = os.environ.copy()
                 env["INFRACOST_API_KEY"] = api_key
-                result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+                result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=60)
             else:
                 # Docker mode: run infracost via Docker container
                 # Format Windows host path as /c/path/to/dir for Docker mount compatibility
@@ -159,7 +172,7 @@ class CostEstimator:
                     "--path", "/code",
                     "--format", "json"
                 ]
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             
             if result.returncode != 0:
                 return {"error": "INFRACOST_FAILURE", "details": result.stderr}

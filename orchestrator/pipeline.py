@@ -268,7 +268,6 @@ def run_full_pipeline(
         existing_dir = os.path.join("output", target_slug)
         # Capture pre-evolution snapshot before modifications
         try:
-            from tools.project.tracker import ProjectTracker
             ProjectTracker.create_snapshot(target_slug, reason="pre-evolution")
             print(f"  📸 Pre-evolution baseline snapshot captured for '{target_slug}'")
         except Exception as e:
@@ -356,6 +355,7 @@ def run_full_pipeline(
     # Replace references to the base slug in the architecture design document with the actual slug
     if slug != base_slug:
         arch_result = re.sub(re.escape(base_slug), slug, arch_result, flags=re.IGNORECASE)
+    os.environ["CURRENT_PROJECT_SLUG"] = slug
     mermaid_diagram = extract_mermaid(arch_result)
     output_base = os.path.join("output", slug)
     os.makedirs(output_base, exist_ok=True)
@@ -556,14 +556,16 @@ def run_full_pipeline(
             except Exception as e:
                 error_str = str(e)
                 error_lower = error_str.lower()
-                is_rate_limit = any(kw in error_lower for kw in [
+                is_transient = any(kw in error_lower for kw in [
                     "429", "quota", "exhausted", "rate", "resource_exhausted",
-                    "rate-limited", "limit", "too many requests"
+                    "rate-limited", "limit", "too many requests",
+                    "503", "502", "504", "500", "high demand", "temporarily unavailable",
+                    "overloaded", "none or empty", "empty response", "timeout", "connection reset", "bad gateway"
                 ])
 
-                if is_rate_limit and crew_attempt < MAX_CREW_RETRIES:
+                if is_transient and crew_attempt < MAX_CREW_RETRIES:
                     # Parse exact wait time from Google's error response
-                    wait_time = 30  # safe default
+                    wait_time = 15.0  # safe default
                     match_secs = _re.search(r"retry\s+in\s+([\d\.]+)\s*s", error_lower)
                     match_delay = _re.search(r"['\"]retryDelay['\"]\s*:\s*['\"](\d+)s?['\"]", error_lower)
                     if match_secs:
@@ -571,9 +573,9 @@ def run_full_pipeline(
                     elif match_delay:
                         wait_time = float(match_delay.group(1)) + 2.0
 
-                    print(f"\n⏳ [Rate Limit] Crew attempt {crew_attempt}/{MAX_CREW_RETRIES} hit rate limit. "
+                    print(f"\n⏳ [Transient/Rate Limit] Crew attempt {crew_attempt}/{MAX_CREW_RETRIES} encountered: {error_str[:120]}. "
                           f"Waiting {wait_time:.1f}s before retrying...")
-                    retry.record_decision(f"crew_rate_limited_attempt_{crew_attempt}")
+                    retry.record_decision(f"crew_retry_attempt_{crew_attempt}")
                     _time_sleep.sleep(wait_time)
 
                     # Recreate crew for a fresh kickoff (CrewAI doesn't support re-kicking a failed crew)

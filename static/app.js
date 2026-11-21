@@ -30,6 +30,35 @@ async function loadPricingCatalog() {
     }
 }
 
+// ─── AI Model Engine Catalog Loader (Dynamic) ────────────────────
+async function loadAIModels() {
+    const select = document.getElementById('infra-model');
+    if (!select) return;
+
+    try {
+        const res = await fetch('/api/ai-models');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const models = data.models || [];
+        if (models.length > 0) {
+            select.innerHTML = '';
+            models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.model_id;
+                const badge = m.badge ? `${m.badge} ` : '';
+                const desc = m.description ? ` (${m.description})` : '';
+                opt.textContent = `${badge}${m.display_name}${desc}`;
+                if (m.is_default) {
+                    opt.selected = true;
+                }
+                select.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.warn('Failed to dynamically load AI models:', e);
+    }
+}
+
 // ─── Init ───────────────────────────────────────────────────────
 async function init() {
     if (!await checkAuth()) return;
@@ -58,6 +87,7 @@ async function init() {
     await fetchStats();
     await fetchProjects();
     loadPricingCatalog();
+    loadAIModels();
 }
 
 // ─── Toast Notification System ──────────────────────────────────
