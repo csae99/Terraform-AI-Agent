@@ -696,8 +696,9 @@ def get_project_code(slug: str, user=Depends(get_current_user)):
         ignored_dirs = {"backups", ".backups", ".terraform", ".git", "__pycache__"}
         return not any(part in ignored_dirs for part in parts)
 
-    pattern = os.path.join(project_dir, "**", "*.tf")
-    tf_files_found = [f for f in glob.glob(pattern, recursive=True) if _is_active_workspace_file(f)]
+    tf_files_found = []
+    for ext in ["*.tf", "*.tfvars"]:
+        tf_files_found.extend([f for f in glob.glob(os.path.join(project_dir, "**", ext), recursive=True) if _is_active_workspace_file(f)])
     
     # Remove obvious hallucinated/invalid files safely
     for tf_file in tf_files_found[:]:
@@ -717,7 +718,7 @@ def get_project_code(slug: str, user=Depends(get_current_user)):
         try:
             with open(tf_file, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-            hcl_keywords = ["resource", "variable", "output", "provider", "terraform", "module", "locals", "data"]
+            hcl_keywords = ["resource", "variable", "output", "provider", "terraform", "module", "locals", "data", "="]
             if not any(kw in content for kw in hcl_keywords):
                 logger.info(f"Purging invalid/hallucinated .tf file: {tf_file}")
                 os.remove(tf_file)
