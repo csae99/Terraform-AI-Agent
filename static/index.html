@@ -472,7 +472,10 @@
                             <button id="btn-toggle-edit" class="btn-sm" onclick="toggleCodeEditMode()" title="Toggle interactive in-browser code editor" style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.45); color: #a5b4fc; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem;">
                                 <i class="fas fa-edit"></i> <span id="btn-toggle-edit-label">Edit Code</span>
                             </button>
-                            <button id="btn-save-replan" class="btn-sm" onclick="saveAndReplanCode()" title="Save changes and execute terraform plan dry-run" style="display: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #ffffff; padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 700; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35); align-items: center; gap: 0.4rem;">
+                            <button id="btn-save-code" class="btn-sm" onclick="saveCodeFile(false)" title="Save file and validate syntax (Fast, no cloud connection required)" style="display: none; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none; color: #ffffff; padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 700; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35); align-items: center; gap: 0.4rem;">
+                                <i class="fas fa-save"></i> <span>Save File</span>
+                            </button>
+                            <button id="btn-save-replan" class="btn-sm" onclick="saveCodeFile(true)" title="Save changes and execute terraform plan dry-run" style="display: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #ffffff; padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 700; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35); align-items: center; gap: 0.4rem;">
                                 <i class="fas fa-play"></i> <span>Save & Re-Plan (Dry-Run)</span>
                             </button>
                             <button id="btn-discard-edit" class="btn-sm" onclick="discardCodeEdits()" title="Discard unstaged edits" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 500; align-items: center; gap: 0.35rem;">
@@ -1389,6 +1392,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=26.0"></script>
+    <script src="/static/app.js?v=28.0"></script>
 </body>
 </html>

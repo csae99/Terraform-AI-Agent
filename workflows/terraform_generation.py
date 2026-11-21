@@ -71,6 +71,7 @@ class TerraformGenerationTasks:
             '- Root `outputs.tf`: Key outputs (endpoints, IDs, ARNs).\n'
             '\n'
             '## EKS / INFRASTRUCTURE COMPLETENESS CHECKLIST\n'
+            '- S3 Lifecycle: When creating `aws_s3_bucket_lifecycle_configuration`, each `rule` MUST include a `filter {}` block to apply to all objects.\n'
             'If creating EKS, you MUST include ALL of the following:\n'
             '- At least 2 subnets across 2 different Availability Zones (EKS requires this).\n'
             '- Subnets must have `map_public_ip_on_launch = true` for public clusters.\n'

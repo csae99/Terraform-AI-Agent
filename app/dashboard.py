@@ -857,23 +857,31 @@ async def update_project_code(slug: str, request: Request, user=Depends(get_curr
     validation_result = {"valid": True, "output": ""}
     plan_result = {"status": "skipped", "summary": "", "output": ""}
 
+    # 1. Format code
+    try:
+        engine_inst.fmt(file_path)
+    except Exception:
+        pass
+
+    # 2. Validate
+    try:
+        val_res = engine_inst.validate(project_dir)
+        validation_result["valid"] = val_res.get("success", False)
+        validation_result["output"] = val_res.get("stdout") or val_res.get("stderr", "")
+    except Exception as e:
+        validation_result["valid"] = False
+        validation_result["output"] = str(e)
+
     if replan:
-        # 1. Format code
-        try:
-            engine_inst.fmt(file_path)
-        except Exception:
-            pass
-
-        # 2. Validate
-        try:
-            val_res = engine_inst.validate(project_dir)
-            validation_result["valid"] = val_res.get("success", False)
-            validation_result["output"] = val_res.get("stdout") or val_res.get("stderr", "")
-        except Exception as e:
-            validation_result["valid"] = False
-            validation_result["output"] = str(e)
-
         # 3. Dry-Run Plan
+        saved_creds = load_workspace_credentials(slug)
+        applied_creds = {}
+        if saved_creds:
+            for k, v in saved_creds.items():
+                if k != "provider" and v:
+                    applied_creds[k] = os.environ.get(k)
+                    os.environ[k] = str(v)
+
         try:
             plan_res = engine_inst.plan(project_dir)
             combined_plan = (plan_res.get("stdout", "") or "") + "\n" + (plan_res.get("stderr", "") or "")
@@ -881,18 +889,43 @@ async def update_project_code(slug: str, request: Request, user=Depends(get_curr
 
             import re
             summary_match = re.search(r"Plan:\s*(\d+\s*to\s*add,\s*\d+\s*to\s*change,\s*\d+\s*to\s*destroy)", combined_plan, re.IGNORECASE)
+            
+            is_auth_error = any(kw in combined_plan for kw in [
+                "InvalidClientTokenId", "The security token included in the request is invalid",
+                "validating provider credentials", "retrieving caller identity from STS",
+                "No valid credential sources found", "AccessDenied", "AuthFailure"
+            ])
+
             if summary_match:
                 plan_result["summary"] = f"Plan: {summary_match.group(1)}"
+                plan_result["status"] = "success"
             elif "No changes." in combined_plan:
                 plan_result["summary"] = "No changes. Infrastructure matches configuration."
+                plan_result["status"] = "success"
+            elif plan_res.get("success"):
+                plan_result["summary"] = "Plan complete"
+                plan_result["status"] = "success"
+            elif is_auth_error:
+                plan_result["summary"] = "Syntax Valid · Cloud Plan Skipped (No AWS Keys)"
+                plan_result["status"] = "skipped"
+                plan_result["output"] = (
+                    "Notice: Code syntax and formatting validated successfully.\n"
+                    "Live cloud state comparison was skipped because active AWS credentials are not configured.\n"
+                    "Your changes are saved to disk."
+                )
             else:
-                plan_result["summary"] = "Plan complete" if plan_res.get("success") else "Plan failed with errors"
-
-            plan_result["status"] = "success" if plan_res.get("success") else "error"
+                plan_result["summary"] = "Plan failed with errors"
+                plan_result["status"] = "error"
         except Exception as e:
             plan_result["status"] = "error"
             plan_result["output"] = str(e)
             plan_result["summary"] = "Execution error"
+        finally:
+            for k, original_v in applied_creds.items():
+                if original_v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = original_v
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:

@@ -808,6 +808,7 @@ function toggleCodeEditMode() {
     const toggleBtn = document.getElementById('btn-toggle-edit');
     const label = document.getElementById('btn-toggle-edit-label');
     const saveBtn = document.getElementById('btn-save-replan');
+    const saveCodeBtn = document.getElementById('btn-save-code');
     const discardBtn = document.getElementById('btn-discard-edit');
 
     if (isCodeEditMode) {
@@ -817,6 +818,7 @@ function toggleCodeEditMode() {
             toggleBtn.style.borderColor = "rgba(245, 158, 11, 0.4)";
             toggleBtn.style.color = "#fbbf24";
         }
+        if (saveCodeBtn) saveCodeBtn.style.display = "inline-flex";
         if (saveBtn) saveBtn.style.display = "inline-flex";
         if (discardBtn) discardBtn.style.display = "inline-flex";
         showToast(`Editing ${currentActiveFileName} in-browser`, "info");
@@ -827,6 +829,7 @@ function toggleCodeEditMode() {
             toggleBtn.style.borderColor = "rgba(99, 102, 241, 0.45)";
             toggleBtn.style.color = "#a5b4fc";
         }
+        if (saveCodeBtn) saveCodeBtn.style.display = "none";
         if (saveBtn) saveBtn.style.display = "none";
         if (discardBtn) discardBtn.style.display = "none";
     }
@@ -834,7 +837,7 @@ function toggleCodeEditMode() {
     renderActiveCodeView();
 }
 
-async function saveAndReplanCode() {
+async function saveCodeFile(replan = false) {
     const slug = (currentProject && currentProject.slug) || document.getElementById('modal-project-slug')?.innerText?.trim();
     if (!slug) return showToast("No active workspace selected", "error");
     if (!currentActiveFileName) return showToast("No active file selected", "error");
@@ -844,17 +847,17 @@ async function saveAndReplanCode() {
     const updatedCode = textarea.value;
 
     const saveBtn = document.getElementById('btn-save-replan');
-    if (saveBtn) {
-        saveBtn.disabled = true;
-        saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span>Saving & Planning...</span>`;
-    }
+    const saveCodeBtn = document.getElementById('btn-save-code');
+    if (saveBtn) saveBtn.disabled = true;
+    if (saveCodeBtn) saveCodeBtn.disabled = true;
 
     const statusCard = document.getElementById('code-replan-status-card');
     if (statusCard) {
         statusCard.style.display = "block";
+        const actionText = replan ? "formatting, validating syntax, and running dry-run plan" : "formatting and validating syntax";
         statusCard.innerHTML = `
             <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.35); color: #a5b4fc; border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.6rem;">
-                <i class="fas fa-spinner fa-spin"></i> Running terraform fmt, syntax validation, and dry-run plan for <strong>${currentActiveFileName}</strong>...
+                <i class="fas fa-spinner fa-spin"></i> Running terraform fmt and syntax validation for <strong>${currentActiveFileName}</strong>...
             </div>
         `;
     }
@@ -865,13 +868,13 @@ async function saveAndReplanCode() {
             body: JSON.stringify({
                 filename: currentActiveFileName,
                 content: updatedCode,
-                replan: true
+                replan: replan
             })
         });
 
         if (!res.ok) {
             const errData = await res.json().catch(() => ({ detail: res.statusText }));
-            throw new Error(errData.detail || "Failed to save and re-plan code");
+            throw new Error(errData.detail || "Failed to save code");
         }
 
         const data = await res.json();
@@ -879,7 +882,7 @@ async function saveAndReplanCode() {
         textarea.value = data.content;
 
         const isSuccess = data.validation?.valid && (data.plan?.status === 'success' || data.plan?.status === 'skipped');
-        const planSummary = data.plan?.summary || "Plan Complete";
+        const planSummary = data.plan?.summary || (replan ? "Plan Complete" : "Syntax Validated");
         const escapedPlan = (data.plan?.output || data.validation?.output || "").replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
         if (statusCard) {
@@ -888,26 +891,27 @@ async function saveAndReplanCode() {
                     <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; border-radius: 8px; padding: 0.85rem 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.4rem;">
                             <strong style="display: flex; align-items: center; gap: 0.4rem;">
-                                <i class="fas fa-check-circle"></i> Validation & Plan Dry-Run Succeeded
+                                <i class="fas fa-check-circle"></i> File Saved & Validated Successfully
                             </strong>
                             <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #a7f3d0; font-size: 0.74rem; font-weight: 600; padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.4);">
                                 ${planSummary}
                             </span>
                         </div>
                         <p style="margin: 0.25rem 0 0.5rem 0; font-size: 0.82rem; color: #cbd5e1;">${data.message}</p>
+                        ${escapedPlan ? `
                         <details style="margin-top: 0.4rem; font-size: 0.78rem;">
-                            <summary style="cursor: pointer; color: #6ee7b7; font-weight: 600;">View Plan Dry-Run Console Output</summary>
+                            <summary style="cursor: pointer; color: #6ee7b7; font-weight: 600;">View Terraform Console Output</summary>
                             <pre style="margin-top: 0.4rem; padding: 0.75rem; background: #020617; border-radius: 4px; overflow-x: auto; font-size: 0.75rem; color: #94a3b8; max-height: 220px; line-height: 1.45;"><code>${escapedPlan}</code></pre>
-                        </details>
+                        </details>` : ''}
                     </div>
                 `;
-                showToast(`Saved and re-planned ${currentActiveFileName}!`, "success");
+                showToast(`Saved and validated ${currentActiveFileName}!`, "success");
             } else {
                 statusCard.innerHTML = `
                     <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); color: #f87171; border-radius: 8px; padding: 0.85rem 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.4rem;">
                             <strong style="display: flex; align-items: center; gap: 0.4rem;">
-                                <i class="fas fa-exclamation-triangle"></i> Validation or Plan Failed
+                                <i class="fas fa-exclamation-triangle"></i> Syntax Validation or Plan Failed
                             </strong>
                             <span class="status-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 0.74rem; font-weight: 600; padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.4);">
                                 ${planSummary}
@@ -930,11 +934,13 @@ async function saveAndReplanCode() {
             `;
         }
     } finally {
-        if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = `<i class="fas fa-play"></i> <span>Save & Re-Plan (Dry-Run)</span>`;
-        }
+        if (saveBtn) saveBtn.disabled = false;
+        if (saveCodeBtn) saveCodeBtn.disabled = false;
     }
+}
+
+async function saveAndReplanCode() {
+    return saveCodeFile(true);
 }
 
 function discardCodeEdits() {
